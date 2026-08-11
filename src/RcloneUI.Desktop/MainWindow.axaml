@@ -1,12 +1,108 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:RcloneUI.Desktop.Presentation"
         x:Class="RcloneUI.Desktop.MainWindow"
-        Width="960"
-        Height="640"
-        MinWidth="720"
-        MinHeight="480"
-        Title="Rclone UI">
-  <TextBlock HorizontalAlignment="Center"
-             VerticalAlignment="Center"
-             Text="Rclone UI engineering baseline" />
+        x:DataType="vm:DesktopShellState"
+        Width="1180" Height="760" MinWidth="900" MinHeight="620"
+        Title="Rclone UI" Background="{DynamicResource AppBackgroundBrush}">
+  <Grid RowDefinitions="64,*" ColumnDefinitions="232,*">
+    <Border Grid.RowSpan="2" Background="{DynamicResource SidebarBrush}" Padding="16,22">
+      <Grid RowDefinitions="Auto,24,*,Auto">
+        <StackPanel>
+          <TextBlock Text="Rclone UI" FontSize="22" FontWeight="SemiBold" />
+          <TextBlock Text="便携版 · Portable" Opacity="0.65" FontSize="12" />
+        </StackPanel>
+        <ListBox Grid.Row="2" SelectedIndex="0" SelectionChanged="NavigationChanged" Background="Transparent" BorderThickness="0">
+          <ListBoxItem Tag="Home">⌂  主页 / Home</ListBoxItem>
+          <ListBoxItem Tag="Remotes">☁  远程存储</ListBoxItem>
+          <ListBoxItem Tag="Transfers">⇄  传输任务</ListBoxItem>
+          <ListBoxItem Tag="Browser">▤  文件浏览器</ListBoxItem>
+          <ListBoxItem Tag="Mounts">▣  挂载磁盘</ListBoxItem>
+          <ListBoxItem Tag="Schedules">◷  计划任务</ListBoxItem>
+          <ListBoxItem Tag="Activity">≡  活动与日志</ListBoxItem>
+          <ListBoxItem Tag="Settings">⚙  设置</ListBoxItem>
+        </ListBox>
+        <StackPanel Grid.Row="3" Spacing="8">
+          <Border Classes="status" Background="{DynamicResource CardBrush}">
+            <StackPanel>
+              <TextBlock Text="后台服务" FontWeight="SemiBold" />
+              <TextBlock Text="{Binding ConnectionLabel}" Foreground="{Binding StatusBrush}" />
+            </StackPanel>
+          </Border>
+          <Button Content="退出程序" HorizontalAlignment="Stretch" Click="ExitClicked" />
+        </StackPanel>
+      </Grid>
+    </Border>
+
+    <Border Grid.Column="1" Padding="28,12" BorderBrush="{DynamicResource DividerBrush}" BorderThickness="0,0,0,1">
+      <Grid ColumnDefinitions="*,Auto,Auto" VerticalAlignment="Center">
+        <StackPanel>
+          <TextBlock Text="{Binding PageTitle}" FontSize="21" FontWeight="SemiBold" />
+          <TextBlock Text="{Binding SessionLabel}" Opacity="0.65" FontSize="12" />
+        </StackPanel>
+        <Button Grid.Column="1" Content="通知" Margin="8,0" />
+        <Button Grid.Column="2" Content="中 / EN" Click="LanguageClicked" />
+      </Grid>
+    </Border>
+
+    <ScrollViewer Grid.Row="1" Grid.Column="1">
+      <StackPanel Margin="28" Spacing="20">
+        <Border IsVisible="{Binding NeedsAttention}" Classes="attention">
+          <Grid ColumnDefinitions="*,Auto">
+            <StackPanel>
+              <TextBlock Text="{Binding AttentionTitle}" FontWeight="SemiBold" FontSize="16" />
+              <TextBlock Text="{Binding AttentionDetail}" TextWrapping="Wrap" Margin="0,5,0,0" />
+            </StackPanel>
+            <Button Grid.Column="1" Content="{Binding AttentionAction}" Click="AttentionClicked" />
+          </Grid>
+        </Border>
+
+        <StackPanel IsVisible="{Binding IsHome}" Spacing="20">
+          <Grid ColumnDefinitions="*,Auto">
+            <StackPanel>
+              <TextBlock Text="一切尽在掌握" FontSize="30" FontWeight="SemiBold" />
+              <TextBlock Text="查看云端状态并继续最近的任务。" Opacity="0.68" />
+            </StackPanel>
+            <Button Grid.Column="1" Classes="primary" Content="＋ 新建任务" Click="NewTaskClicked" />
+          </Grid>
+          <UniformGrid Columns="4" Rows="1">
+            <Button Classes="shortcut" Content="⇄ 复制或同步" Tag="Transfers" Click="ShortcutClicked" />
+            <Button Classes="shortcut" Content="▤ 浏览文件" Tag="Browser" Click="ShortcutClicked" />
+            <Button Classes="shortcut" Content="▣ 挂载磁盘" Tag="Mounts" Click="ShortcutClicked" />
+            <Button Classes="shortcut" Content="☁ 添加远程存储" Tag="Remotes" Click="ShortcutClicked" />
+          </UniformGrid>
+          <Grid ColumnDefinitions="2*,*" ColumnSpacing="18">
+            <Border Classes="card">
+              <StackPanel Spacing="12">
+                <Grid ColumnDefinitions="*,Auto"><TextBlock Text="传输任务" FontSize="18" FontWeight="SemiBold" /><TextBlock Grid.Column="1" Text="{Binding RunningTasksLabel}" /></Grid>
+                <Border Classes="empty"><TextBlock Text="暂无运行中的任务。创建任务前会先展示变更预览和删除风险。" TextWrapping="Wrap" /></Border>
+              </StackPanel>
+            </Border>
+            <Border Grid.Column="1" Classes="card">
+              <StackPanel Spacing="12">
+                <TextBlock Text="远程存储健康" FontSize="18" FontWeight="SemiBold" />
+                <TextBlock Text="尚未添加远程存储" />
+                <Button Content="打开三步设置向导" Tag="Remotes" Click="ShortcutClicked" />
+              </StackPanel>
+            </Border>
+          </Grid>
+        </StackPanel>
+
+        <StackPanel IsVisible="{Binding IsJourney}" Spacing="18">
+          <TextBlock Text="{Binding JourneyHeading}" FontSize="28" FontWeight="SemiBold" />
+          <TextBlock Text="{Binding JourneyDescription}" FontSize="15" Opacity="0.72" TextWrapping="Wrap" MaxWidth="760" HorizontalAlignment="Left" />
+          <Border Classes="card">
+            <StackPanel Spacing="14">
+              <TextBlock Text="{Binding JourneyStatus}" FontWeight="SemiBold" FontSize="17" />
+              <TextBlock Text="{Binding JourneyActionHint}" TextWrapping="Wrap" />
+              <StackPanel Orientation="Horizontal" Spacing="10">
+                <Button Classes="primary" Content="{Binding JourneyPrimaryAction}" Click="JourneyPrimaryClicked" />
+                <Button Content="高级选项" />
+              </StackPanel>
+            </StackPanel>
+          </Border>
+        </StackPanel>
+      </StackPanel>
+    </ScrollViewer>
+  </Grid>
 </Window>

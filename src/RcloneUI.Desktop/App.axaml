@@ -1,8 +1,24 @@
-<Application xmlns="https://github.com/avaloniaui"
-             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             x:Class="RcloneUI.Desktop.App"
-             RequestedThemeVariant="Default">
+<Application xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" x:Class="RcloneUI.Desktop.App" RequestedThemeVariant="Default">
+  <Application.Resources>
+    <ResourceDictionary>
+      <ResourceDictionary.ThemeDictionaries>
+        <ResourceDictionary x:Key="Light">
+          <SolidColorBrush x:Key="AppBackgroundBrush" Color="#F5F7FB"/><SolidColorBrush x:Key="SidebarBrush" Color="#FFFFFF"/><SolidColorBrush x:Key="CardBrush" Color="#F1F4F9"/><SolidColorBrush x:Key="DividerBrush" Color="#DDE3EC"/>
+        </ResourceDictionary>
+        <ResourceDictionary x:Key="Dark">
+          <SolidColorBrush x:Key="AppBackgroundBrush" Color="#10141C"/><SolidColorBrush x:Key="SidebarBrush" Color="#171C26"/><SolidColorBrush x:Key="CardBrush" Color="#222936"/><SolidColorBrush x:Key="DividerBrush" Color="#303949"/>
+        </ResourceDictionary>
+      </ResourceDictionary.ThemeDictionaries>
+    </ResourceDictionary>
+  </Application.Resources>
   <Application.Styles>
     <FluentTheme />
+    <Style Selector="ListBoxItem"><Setter Property="Padding" Value="12,10"/><Setter Property="Margin" Value="0,2"/><Setter Property="CornerRadius" Value="8"/></Style>
+    <Style Selector="Border.card"><Setter Property="Padding" Value="20"/><Setter Property="CornerRadius" Value="12"/><Setter Property="Background" Value="{DynamicResource SidebarBrush}"/><Setter Property="BorderBrush" Value="{DynamicResource DividerBrush}"/><Setter Property="BorderThickness" Value="1"/></Style>
+    <Style Selector="Border.status"><Setter Property="Padding" Value="12"/><Setter Property="CornerRadius" Value="8"/></Style>
+    <Style Selector="Border.empty"><Setter Property="Padding" Value="18"/><Setter Property="Background" Value="{DynamicResource CardBrush}"/><Setter Property="CornerRadius" Value="8"/></Style>
+    <Style Selector="Border.attention"><Setter Property="Padding" Value="16"/><Setter Property="Background" Value="#33E9A23B"/><Setter Property="BorderBrush" Value="#E9A23B"/><Setter Property="BorderThickness" Value="1"/><Setter Property="CornerRadius" Value="10"/></Style>
+    <Style Selector="Button.primary"><Setter Property="Background" Value="#2764E7"/><Setter Property="Foreground" Value="White"/><Setter Property="Padding" Value="18,10"/></Style>
+    <Style Selector="Button.shortcut"><Setter Property="Margin" Value="0,0,12,0"/><Setter Property="Padding" Value="14,18"/><Setter Property="HorizontalContentAlignment" Value="Left"/></Style>
   </Application.Styles>
 </Application>

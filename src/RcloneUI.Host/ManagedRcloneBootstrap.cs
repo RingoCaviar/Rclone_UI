@@ -37,7 +37,7 @@ internal static class ManagedRcloneBootstrap
         var configuration = RcloneDaemonConfiguration.Create(ReserveLoopbackPort());
         var configPath = Path.Combine(Path.GetFullPath(dataRootPath), "runtime", "rclone.conf");
         Directory.CreateDirectory(Path.GetDirectoryName(configPath)!);
-        if (!File.Exists(configPath)) File.WriteAllText(configPath, string.Empty);
+        File.WriteAllText(configPath, string.Empty);
         var job = new RcloneJob();
         ContainedRcloneProcess? process = null;
         try

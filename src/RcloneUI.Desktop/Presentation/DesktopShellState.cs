@@ -7,6 +7,7 @@ using RcloneUI.Contracts.HostProtocol.V1;
 namespace RcloneUI.Desktop.Presentation;
 
 public enum DesktopConnectionState { Connecting, ConnectedLocked, ConnectedOperational, ReadOnlyRecovery, Disconnected }
+public sealed record DesktopRemoteOption(Guid Id, string DisplayName);
 
 public interface IDesktopHostClient
 {
@@ -22,6 +23,7 @@ public sealed class DesktopShellState : INotifyPropertyChanged
     private string lastAction = string.Empty;
     private string remoteSummary = string.Empty;
     private string[] remoteNames = [];
+    private DesktopRemoteOption[] remoteOptions = [];
     private string copyStatus = string.Empty;
     private string? capabilityBinding;
     private string masterPassword = string.Empty;
@@ -49,10 +51,11 @@ public sealed class DesktopShellState : INotifyPropertyChanged
     public string LastAction => lastAction;
     public string RemoteSummary => remoteSummary;
     public IReadOnlyList<string> RemoteNames => remoteNames;
+    public IReadOnlyList<DesktopRemoteOption> RemoteOptions => remoteOptions;
+    public DesktopRemoteOption? CopySourceRemote { get; set; }
+    public DesktopRemoteOption? CopyDestinationRemote { get; set; }
     public string CopyStatus => copyStatus;
-    public string CopySourceFs { get; set; } = string.Empty;
     public string CopySourcePath { get; set; } = string.Empty;
-    public string CopyDestinationFs { get; set; } = string.Empty;
     public string CopyDestinationPath { get; set; } = string.Empty;
     public string? CapabilityBinding => capabilityBinding;
     public string JourneyHeading => PageTitle;
@@ -71,9 +74,12 @@ public sealed class DesktopShellState : INotifyPropertyChanged
         if (snapshot.Body.TryGetProperty("remotes", out var remotes) && remotes.ValueKind == JsonValueKind.Array)
         {
             remoteNames = remotes.EnumerateArray().Select(item => item.TryGetProperty("displayName", out var name) ? name.GetString() : null).Where(name => !string.IsNullOrWhiteSpace(name)).Select(name => name!).ToArray();
+            remoteOptions = remotes.EnumerateArray().Select(item => new DesktopRemoteOption(item.GetProperty("id").GetGuid(), item.GetProperty("displayName").GetString()!)).ToArray();
+            CopySourceRemote = KeepSelection(CopySourceRemote, remoteOptions) ?? remoteOptions.FirstOrDefault();
+            CopyDestinationRemote = KeepSelection(CopyDestinationRemote, remoteOptions) ?? remoteOptions.Skip(1).FirstOrDefault() ?? remoteOptions.FirstOrDefault();
             remoteSummary = remoteNames.Length == 0 ? T("尚未添加远程存储", "No Remotes added") : string.Join(" · ", remoteNames);
         }
-        else { remoteNames = []; remoteSummary = T("远程存储状态未知", "Remote state unknown"); }
+        else { remoteNames = []; remoteOptions = []; CopySourceRemote = null; CopyDestinationRemote = null; remoteSummary = T("远程存储状态未知", "Remote state unknown"); }
         capabilityBinding = snapshot.Body.TryGetProperty("rclone", out var rclone) && rclone.TryGetProperty("status", out var status) && status.GetString() == "ready" && rclone.TryGetProperty("capabilityBinding", out var binding) ? binding.GetString() : null;
         if (snapshot.Body.TryGetProperty("copyRuns", out var runs) && runs.ValueKind == JsonValueKind.Array && runs.GetArrayLength() > 0)
         {
@@ -86,5 +92,6 @@ public sealed class DesktopShellState : INotifyPropertyChanged
         ChangedAll();
     }
     private string T(string zh, string en) => english ? en : zh;
+    private static DesktopRemoteOption? KeepSelection(DesktopRemoteOption? selected, DesktopRemoteOption[] options) => selected is null ? null : options.FirstOrDefault(option => option.Id == selected.Id);
     private void ChangedAll() { foreach (var property in GetType().GetProperties().Where(x => x.GetIndexParameters().Length == 0)) PropertyChanged?.Invoke(this, new(property.Name)); }
 }

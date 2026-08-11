@@ -108,10 +108,19 @@ internal sealed class HostStateAuthority : IDisposable
         if (remotes?.SessionState != "operational") return CreateResult("vault-locked", new { }, Cursor);
         if (rclone is null) return CreateResult("rclone-unavailable", new { recoveryAction = "Install or repair the managed rclone component." }, Cursor);
         if (!body.TryGetProperty("arguments", out var arguments) || arguments.ValueKind != JsonValueKind.Object) return CreateResult("copy-invalid", new { code = "arguments-missing" }, Cursor);
-        var sourceFs = ReadArgument(arguments, "sourceFs"); var sourcePath = ReadArgument(arguments, "sourcePath");
-        var destinationFs = ReadArgument(arguments, "destinationFs"); var destinationPath = ReadArgument(arguments, "destinationPath");
+        if (remotes is not IHostRemoteResolver resolver) return CreateResult("copy-invalid", new { code = "remote-resolver-unavailable" }, Cursor);
+        var sourceRemoteId = ReadGuidArgument(arguments, "sourceRemoteId"); var sourcePath = ReadArgument(arguments, "sourcePath");
+        var destinationRemoteId = ReadGuidArgument(arguments, "destinationRemoteId"); var destinationPath = ReadArgument(arguments, "destinationPath");
         var binding = ReadArgument(arguments, "capabilityBinding");
-        if (sourceFs is null || sourcePath is null || destinationFs is null || destinationPath is null || binding is null) return CreateResult("copy-invalid", new { code = "arguments-invalid" }, Cursor);
+        if (sourceRemoteId is null || sourcePath is null || destinationRemoteId is null || destinationPath is null || binding is null) return CreateResult("copy-invalid", new { code = "arguments-invalid" }, Cursor);
+        string? sourceFs; string? destinationFs;
+        try
+        {
+            sourceFs = await resolver.ResolveFileSystemAsync(sourceRemoteId.Value, cancellationToken).ConfigureAwait(false);
+            destinationFs = await resolver.ResolveFileSystemAsync(destinationRemoteId.Value, cancellationToken).ConfigureAwait(false);
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException) { return CreateResult("copy-invalid", new { code = "remote-configuration-invalid" }, Cursor); }
+        if (sourceFs is null || destinationFs is null) return CreateResult("copy-invalid", new { code = "remote-not-found" }, Cursor);
         var id = Guid.NewGuid();
         RcloneExecutionHandle handle;
         try
@@ -180,6 +189,7 @@ internal sealed class HostStateAuthority : IDisposable
     }
 
     private static string? ReadArgument(JsonElement arguments, string name) => arguments.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.String && value.GetString() is { Length: > 0 and <= 2048 } text ? text : null;
+    private static Guid? ReadGuidArgument(JsonElement arguments, string name) => arguments.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.String && Guid.TryParse(value.GetString(), out var parsed) && parsed != Guid.Empty ? parsed : null;
 
     private static string ReadCommandType(JsonElement body)
     {

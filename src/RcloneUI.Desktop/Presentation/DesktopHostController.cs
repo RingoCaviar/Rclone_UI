@@ -29,7 +29,8 @@ public sealed class DesktopHostController(IDesktopHostClient client, DesktopShel
     {
         if (shell.CurrentRoute != "Transfers") { await ReconnectAsync(cancellationToken); return; }
         if (shell.CapabilityBinding is null) { shell.ApplyAction("rclone-unavailable"); return; }
-        using var arguments = JsonDocument.Parse(JsonSerializer.Serialize(new { sourceFs = shell.CopySourceFs, sourcePath = shell.CopySourcePath, destinationFs = shell.CopyDestinationFs, destinationPath = shell.CopyDestinationPath, capabilityBinding = shell.CapabilityBinding }));
+        if (shell.CopySourceRemote is null || shell.CopyDestinationRemote is null) { shell.ApplyAction("remote-selection-required"); return; }
+        using var arguments = JsonDocument.Parse(JsonSerializer.Serialize(new { sourceRemoteId = shell.CopySourceRemote.Id, sourcePath = shell.CopySourcePath, destinationRemoteId = shell.CopyDestinationRemote.Id, destinationPath = shell.CopyDestinationPath, capabilityBinding = shell.CapabilityBinding }));
         var result = await client.SendCommandAsync("start-copy", arguments.RootElement, cancellationToken);
         var resultType = result.GetProperty("resultType").GetString() ?? "unknown-result";
         shell.ApplyAction(resultType);

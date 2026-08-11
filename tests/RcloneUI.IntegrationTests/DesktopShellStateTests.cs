@@ -38,20 +38,23 @@ public sealed class DesktopShellStateTests
         var cancellationToken = TestContext.Current.CancellationToken;
         var client = new RecordingClient(); var shell = new DesktopShellState(); var controller = new DesktopHostController(client, shell);
         await controller.ReconnectAsync(cancellationToken);
-        shell.Navigate("Transfers"); shell.CopySourceFs = "source:"; shell.CopySourcePath = "from"; shell.CopyDestinationFs = "target:"; shell.CopyDestinationPath = "to";
+        shell.Navigate("Transfers"); shell.CopySourcePath = "from"; shell.CopyDestinationPath = "to";
         await controller.ActivatePrimaryAsync(cancellationToken);
         Assert.Equal("start-copy", client.CommandType);
-        Assert.Equal("source:", client.Arguments.GetProperty("sourceFs").GetString());
+        Assert.Equal(RecordingClient.SourceId, client.Arguments.GetProperty("sourceRemoteId").GetGuid());
+        Assert.Equal(RecordingClient.DestinationId, client.Arguments.GetProperty("destinationRemoteId").GetGuid());
         Assert.Equal("caps", client.Arguments.GetProperty("capabilityBinding").GetString());
     }
 
     private sealed class RecordingClient : IDesktopHostClient
     {
+        internal static readonly Guid SourceId = Guid.Parse("11111111-1111-1111-1111-111111111111");
+        internal static readonly Guid DestinationId = Guid.Parse("22222222-2222-2222-2222-222222222222");
         public string? CommandType { get; private set; }
         public JsonElement Arguments { get; private set; }
         public ValueTask<HostSnapshot> GetSnapshotAsync(CancellationToken cancellationToken)
         {
-            using var document = JsonDocument.Parse("""{"session":"operational","remotes":[],"copyRuns":[],"rclone":{"status":"ready","capabilityBinding":"caps"}}""");
+            using var document = JsonDocument.Parse(JsonSerializer.Serialize(new { session = "operational", remotes = new[] { new { id = SourceId, displayName = "Source" }, new { id = DestinationId, displayName = "Destination" } }, copyRuns = Array.Empty<object>(), rclone = new { status = "ready", capabilityBinding = "caps" } }));
             return ValueTask.FromResult(new HostSnapshot(new(new("epoch"), 1), DateTimeOffset.UtcNow, document.RootElement.Clone()));
         }
         public ValueTask<JsonElement> SendCommandAsync(string commandType, JsonElement arguments, CancellationToken cancellationToken)

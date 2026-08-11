@@ -15,7 +15,12 @@ internal interface IHostVaultSession : IHostRemoteProjection
     ValueTask<string> UnlockAsync(byte[] masterPasswordUtf8, CancellationToken cancellationToken);
 }
 
-internal sealed class VaultHostRemoteProjection(IRemoteStore store) : IHostRemoteProjection
+internal interface IHostRemoteResolver : IHostRemoteProjection
+{
+    ValueTask<string?> ResolveFileSystemAsync(Guid remoteId, CancellationToken cancellationToken);
+}
+
+internal sealed class VaultHostRemoteProjection(IRemoteStore store, HostRcloneConfigWriter? writer = null) : IHostRemoteProjection, IHostRemoteResolver
 {
     public string SessionState => "operational";
 
@@ -29,5 +34,11 @@ internal sealed class VaultHostRemoteProjection(IRemoteStore store) : IHostRemot
             remote.Revision,
             remote.Health.Kind.ToString(),
             remote.Health.Failure?.DiagnosticCode)).ToArray();
+    }
+
+    public async ValueTask<string?> ResolveFileSystemAsync(Guid remoteId, CancellationToken cancellationToken)
+    {
+        var remote = await store.ReadAsync(new(remoteId), cancellationToken).ConfigureAwait(false);
+        return remote is null || writer is null ? null : await writer.BindAsync(remote, cancellationToken).ConfigureAwait(false);
     }
 }

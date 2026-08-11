@@ -99,9 +99,9 @@
               <StackPanel IsVisible="{Binding IsTransferJourney}" Spacing="10">
                 <TextBlock Text="Copy 来源与目标" FontWeight="SemiBold" />
                 <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto" ColumnSpacing="10" RowSpacing="8">
-                  <TextBox Grid.Row="0" Grid.Column="0" PlaceholderText="来源文件系统，例如 remote:" Text="{Binding CopySourceFs}" AutomationProperties.Name="Copy source filesystem" />
+                  <ComboBox Grid.Row="0" Grid.Column="0" ItemsSource="{Binding RemoteOptions}" SelectedItem="{Binding CopySourceRemote}" DisplayMemberBinding="{Binding DisplayName}" PlaceholderText="选择来源 Remote" AutomationProperties.Name="Copy source Remote" />
                   <TextBox Grid.Row="0" Grid.Column="1" PlaceholderText="来源路径" Text="{Binding CopySourcePath}" AutomationProperties.Name="Copy source path" />
-                  <TextBox Grid.Row="1" Grid.Column="0" PlaceholderText="目标文件系统，例如 backup:" Text="{Binding CopyDestinationFs}" AutomationProperties.Name="Copy destination filesystem" />
+                  <ComboBox Grid.Row="1" Grid.Column="0" ItemsSource="{Binding RemoteOptions}" SelectedItem="{Binding CopyDestinationRemote}" DisplayMemberBinding="{Binding DisplayName}" PlaceholderText="选择目标 Remote" AutomationProperties.Name="Copy destination Remote" />
                   <TextBox Grid.Row="1" Grid.Column="1" PlaceholderText="目标路径" Text="{Binding CopyDestinationPath}" AutomationProperties.Name="Copy destination path" />
                 </Grid>
                 <TextBlock Text="{Binding CopyStatus}" AutomationProperties.LiveSetting="Polite" />

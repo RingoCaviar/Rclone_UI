@@ -5,7 +5,7 @@ namespace RcloneUI.Host;
 
 internal delegate ValueTask<DataRootOpenResult> DataRootOpener(DataRootOpenRequest request, CancellationToken cancellationToken);
 
-internal sealed class HostVaultSession : IHostVaultSession, IAsyncDisposable
+internal sealed class HostVaultSession : IHostVaultSession, IHostRemoteResolver, IAsyncDisposable
 {
     private readonly string dataRootPath;
     private readonly LibArgon2Binding? argon2;
@@ -14,12 +14,14 @@ internal sealed class HostVaultSession : IHostVaultSession, IAsyncDisposable
     private IDataRootSession? session;
     private VaultRemoteStore? store;
     private string sessionState = "locked";
+    private readonly HostRcloneConfigWriter configWriter;
 
     internal HostVaultSession(string dataRootPath, LibArgon2Binding? argon2, DataRootOpener? opener = null)
     {
         this.dataRootPath = dataRootPath;
         this.argon2 = argon2;
         this.opener = opener ?? DataRootSession.OpenAsync;
+        configWriter = new(dataRootPath);
     }
 
     public string SessionState => sessionState;
@@ -72,6 +74,18 @@ internal sealed class HostVaultSession : IHostVaultSession, IAsyncDisposable
         finally { gate.Release(); }
     }
 
+    public async ValueTask<string?> ResolveFileSystemAsync(Guid remoteId, CancellationToken cancellationToken)
+    {
+        await gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            if (sessionState != "operational" || store is null) return null;
+            var remote = await store.ReadAsync(new(remoteId), cancellationToken).ConfigureAwait(false);
+            return remote is null ? null : await configWriter.BindAsync(remote, cancellationToken).ConfigureAwait(false);
+        }
+        finally { gate.Release(); }
+    }
+
     public async ValueTask DisposeAsync()
     {
         await gate.WaitAsync().ConfigureAwait(false);
@@ -79,6 +93,7 @@ internal sealed class HostVaultSession : IHostVaultSession, IAsyncDisposable
         {
             store?.Dispose();
             if (session is not null) await session.DisposeAsync().ConfigureAwait(false);
+            configWriter.Dispose();
             sessionState = "closed";
         }
         finally { gate.Release(); gate.Dispose(); }

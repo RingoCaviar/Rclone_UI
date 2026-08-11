@@ -62,12 +62,13 @@ public sealed class DesktopHostClientTests
         var binary = new RcloneBinaryIdentity("test", new string('A', 64), 1);
         var capabilities = new RcloneCapabilitySnapshot(binary, new string('B', 64), new string('C', 64), ImmutableSortedSet.Create("sync/copy"), ImmutableSortedSet<string>.Empty, DateTimeOffset.UtcNow);
         var runtime = new ScriptedRcloneRuntime(capabilities, [new(RclonePrimitive.Copy, new(64, 64, 1, 0, 64, TimeSpan.FromSeconds(1), true), ScriptedRcloneRuntime.Success())]);
+        var store = new TestRemoteStore();
         try
         {
-            await using (var host = BackgroundHostShell.TryCreate(root, Guid.NewGuid(), runtime, new VaultHostRemoteProjection(new TestRemoteStore())))
+            await using (var host = BackgroundHostShell.TryCreate(root, Guid.NewGuid(), runtime, new VaultHostRemoteProjection(store, new(root))))
             {
                 Assert.NotNull(host); host.Start(); var client = new NamedPipeDesktopHostClient(root);
-                using var arguments = JsonDocument.Parse(JsonSerializer.Serialize(new { sourceFs = "source:", sourcePath = "from", destinationFs = "target:", destinationPath = "to", capabilityBinding = capabilities.Binding }));
+                using var arguments = JsonDocument.Parse(JsonSerializer.Serialize(new { sourceRemoteId = store.Id, sourcePath = "from", destinationRemoteId = store.Id, destinationPath = "to", capabilityBinding = capabilities.Binding }));
                 var accepted = await client.SendCommandAsync("start-copy", arguments.RootElement, cancellationToken);
                 Assert.Equal("copy-accepted", accepted.GetProperty("resultType").GetString());
                 JsonElement run;
@@ -78,6 +79,9 @@ public sealed class DesktopHostClientTests
                 } while (run.GetProperty("state").GetString() == "running");
                 Assert.Equal("succeeded", run.GetProperty("state").GetString());
                 Assert.Equal(64, run.GetProperty("bytes").GetInt64());
+                var request = Assert.Single(runtime.Requests);
+                Assert.Equal($"rcloneui_{store.Id:N}:", request.Source.FileSystem);
+                Assert.DoesNotContain("super-secret", JsonSerializer.Serialize(request), StringComparison.Ordinal);
             }
         }
         finally { Directory.Delete(root, recursive: true); }
@@ -129,6 +133,7 @@ public sealed class DesktopHostClientTests
     private sealed class TestRemoteStore : IRemoteStore
     {
         private readonly StoredRemote remote = new(new RcloneUI.Remotes.RemoteId(Guid.NewGuid()), "Personal Drive", "drive", 1, new Dictionary<string, string> { ["token"] = "super-secret" }, new(RemoteHealthKind.Healthy, DateTimeOffset.UtcNow, "caps", null));
+        internal Guid Id => remote.Id.Value;
         public ValueTask<IReadOnlyList<RemoteSummary>> ListAsync(CancellationToken cancellationToken) => ValueTask.FromResult<IReadOnlyList<RemoteSummary>>([new(remote.Id, remote.DisplayName, remote.ProviderType, remote.Revision, remote.Health)]);
         public ValueTask<StoredRemote?> ReadAsync(RcloneUI.Remotes.RemoteId id, CancellationToken cancellationToken) => ValueTask.FromResult<StoredRemote?>(remote);
         public ValueTask<StoredRemote> UpsertAsync(StoredRemote value, ulong expectedRevision, CancellationToken cancellationToken) => throw new NotSupportedException();

@@ -31,7 +31,14 @@ internal static class HostFrameStream
     internal static async ValueTask<RentedHostFrame> ReadAsync(Stream stream, CancellationToken cancellationToken)
     {
         var prefix = new byte[sizeof(uint)];
-        await stream.ReadExactlyAsync(prefix, cancellationToken).ConfigureAwait(false);
+        try
+        {
+            await stream.ReadExactlyAsync(prefix, cancellationToken).ConfigureAwait(false);
+        }
+        catch (EndOfStreamException)
+        {
+            throw new ProtocolException(ProtocolErrorCode.TruncatedPrefix);
+        }
         var jsonLength = BinaryPrimitives.ReadUInt32LittleEndian(prefix);
         if (jsonLength > HostFrameCodec.MaximumJsonBytes)
             throw new ProtocolException(ProtocolErrorCode.FrameTooLarge);
@@ -40,7 +47,14 @@ internal static class HostFrameStream
         prefix.CopyTo(buffer, 0);
         try
         {
-            await stream.ReadExactlyAsync(buffer.AsMemory(sizeof(uint), frameLength - sizeof(uint)), cancellationToken).ConfigureAwait(false);
+            try
+            {
+                await stream.ReadExactlyAsync(buffer.AsMemory(sizeof(uint), frameLength - sizeof(uint)), cancellationToken).ConfigureAwait(false);
+            }
+            catch (EndOfStreamException)
+            {
+                throw new ProtocolException(ProtocolErrorCode.FrameLengthMismatch);
+            }
             return new(buffer, frameLength);
         }
         catch

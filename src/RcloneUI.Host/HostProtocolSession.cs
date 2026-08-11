@@ -30,6 +30,8 @@ internal sealed class HostProtocolSession
             {
                 using var frame = await HostFrameStream.ReadAsync(stream, cancellationToken).ConfigureAwait(false);
                 var request = HostFrameCodec.Decode(frame.Memory.Span, connectionKey, inboundSequence++).Envelope;
+                if (request.ProtocolMajor != HostProtocolVersion.Major || request.ProtocolMinor != handshake.NegotiatedMinor)
+                    throw new ProtocolException(ProtocolErrorCode.InvalidField);
                 if (request.MessageType is not (MessageType.Command or MessageType.Cancel))
                     throw new ProtocolException(ProtocolErrorCode.UnknownMessageType);
                 var result = state.Dispatch(request);
@@ -89,7 +91,7 @@ internal sealed class HostProtocolSession
         await HostFrameStream.WriteAsync(stream, ack, challengeKey, cancellationToken).ConfigureAwait(false);
         var connectionKey = ConnectionKeyDerivation.Derive(challengeKey, hello.ClientNonce, hostNonce);
         CryptographicOperations.ZeroMemory(hostNonce);
-        return new(connectionKey);
+        return new(connectionKey, negotiation.Minor!.Value);
     }
 
     private static ParsedHello ParseHello(JsonElement body)
@@ -147,5 +149,5 @@ internal sealed class HostProtocolSession
     });
 
     private sealed record ParsedHello(Guid DataRootId, Guid Incarnation, byte[] ClientNonce, ProtocolOffer Offer);
-    private sealed record HandshakeResult(byte[] ConnectionKey);
+    private sealed record HandshakeResult(byte[] ConnectionKey, int NegotiatedMinor);
 }

@@ -63,6 +63,26 @@ public sealed class BackgroundHostIpcTests
     }
 
     [Fact]
+    public async Task NegotiatedSessionRejectsVersionSwitchBeforeDispatch()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var root = CreateTemporaryRoot();
+        try
+        {
+            await using var host = BackgroundHostShell.TryCreate(root, Guid.NewGuid());
+            Assert.NotNull(host);
+            host.Start();
+            await Assert.ThrowsAsync<ProtocolException>(() => SendCommandAsync(host.Endpoint, "activate-ui", "wrong-version", cancellationToken, protocolMajor: 2));
+            var snapshot = await SendCommandAsync(host.Endpoint, "get-snapshot", "snapshot-after-wrong-version", cancellationToken);
+            Assert.Equal(0, snapshot.GetProperty("result").GetProperty("activationCount").GetInt32());
+        }
+        finally
+        {
+            DeleteTemporaryRoot(root);
+        }
+    }
+
+    [Fact]
     public void StartupReconcilesPreviouslyRunningWorkAsInterrupted()
     {
         var root = CreateTemporaryRoot();
@@ -126,7 +146,8 @@ public sealed class BackgroundHostIpcTests
         string commandType,
         string idempotencyKey,
         CancellationToken cancellationToken,
-        bool expectStateEvent = false)
+        bool expectStateEvent = false,
+        int protocolMajor = HostProtocolVersion.Major)
     {
         await using var client = new NamedPipeClientStream(
             ".",
@@ -169,7 +190,8 @@ public sealed class BackgroundHostIpcTests
                 1,
                 ack.State,
                 new(new(idempotencyKey), new("command-cancellation"), deadline),
-                commandBody);
+                commandBody) with
+            { ProtocolMajor = protocolMajor };
             await HostFrameStream.WriteAsync(client, command, connectionKey, cancellationToken);
             using var responseFrame = await HostFrameStream.ReadAsync(client, cancellationToken);
             var response = HostFrameCodec.Decode(responseFrame.Memory.Span, connectionKey, 1).Envelope;

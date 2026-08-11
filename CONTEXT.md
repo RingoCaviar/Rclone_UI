@@ -47,3 +47,19 @@ _Avoid_: Database, secure storage, rclone config
 **Background Host**:
 The per-user, logged-in-session process that owns scheduling, running Transfer Tasks, Mounts, and the managed rclone process independently of the visible UI. It is part of the Portable App and is not a Windows service.
 _Avoid_: Service, daemon, tray app
+
+**Accepted Preview**:
+An immutable, time-bounded Transfer Task preview whose exact configuration and capability evidence has been confirmed for a destructive execution.
+_Avoid_: Dry-run log, confirmation token
+
+**Transfer Run**:
+One admitted execution of a specific Transfer Task revision, including its phases, manifests, verification evidence, and terminal result.
+_Avoid_: Job, process, rclone command
+
+**Safety Generation**:
+A run-specific retained set of target objects that would otherwise have been replaced or deleted by a Transfer Run.
+_Avoid_: Backup, trash, recycle bin
+
+**Recovery Cache**:
+Preserved Mount cache content whose remote-write state cannot be proved clean and therefore requires inspection or recovery before reuse or deletion.
+_Avoid_: Temporary cache, disposable cache

@@ -183,7 +183,7 @@ internal static class RcloneRequestMapper
         body["mountPoint"] = destination.Path;
         body["mountType"] = options.MountType;
         body["vfsOpt"] = new { ReadOnly = options.ReadOnly, CacheMode = 0 };
-        body["mountOpt"] = new { VolumeName = options.VolumeName, NetworkMode = true };
+        body["mountOpt"] = new { VolumeName = options.VolumeName, options.NetworkMode };
         return "mount/mount";
     }
 

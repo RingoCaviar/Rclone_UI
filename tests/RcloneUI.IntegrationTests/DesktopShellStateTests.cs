@@ -76,6 +76,26 @@ public sealed class DesktopShellStateTests
     }
 
     [Fact]
+    public void MountPresentationSelectionShowsOnlyRelevantInputsAndRelocalizes()
+    {
+        var shell = new DesktopShellState();
+        shell.Navigate("Mounts");
+        Assert.Equal("network-drive", shell.MountPresentation.Key);
+        Assert.True(shell.IsMountDrivePresentation);
+        Assert.True(shell.IsPreferredDriveLetter);
+
+        shell.MountDriveSelection = shell.MountDriveSelectionOptions.Single(option => option.Key == "automatic");
+        Assert.False(shell.IsPreferredDriveLetter);
+        shell.MountPresentation = shell.MountPresentationOptions.Single(option => option.Key == "fixed-directory");
+        Assert.True(shell.IsFixedDirectoryMount);
+        Assert.False(shell.IsMountDrivePresentation);
+
+        shell.ToggleLanguage();
+        Assert.Equal("fixed-directory", shell.MountPresentation.Key);
+        Assert.Equal("Fixed directory", shell.MountPresentation.DisplayName);
+    }
+
+    [Fact]
     public async Task TransferPrimaryActionUsesSnapshotCapabilityAndTypedFields()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
@@ -116,6 +136,8 @@ public sealed class DesktopShellStateTests
         Assert.Equal("start-read-only-mount", client.CommandType);
         Assert.Equal(RecordingClient.SourceId, client.Arguments.GetProperty("remoteId").GetGuid());
         Assert.Equal("R", client.Arguments.GetProperty("driveLetter").GetString());
+        Assert.Equal("network-drive", client.Arguments.GetProperty("presentationMode").GetString());
+        Assert.Equal("preferred", client.Arguments.GetProperty("driveSelection").GetString());
         Assert.Equal("photos", client.Arguments.GetProperty("subpath").GetString());
     }
 

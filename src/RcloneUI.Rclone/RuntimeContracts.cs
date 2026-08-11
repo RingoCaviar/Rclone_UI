@@ -39,7 +39,7 @@ public enum RclonePrimitive
 
 public sealed record RcloneEndpoint(string FileSystem, string Path);
 
-public sealed record RcloneMountOptions(string MountType, bool ReadOnly, string VolumeName);
+public sealed record RcloneMountOptions(string MountType, bool ReadOnly, string VolumeName, bool NetworkMode = true);
 
 public sealed record RcloneExecutionRequest(
     Guid ExecutionId,

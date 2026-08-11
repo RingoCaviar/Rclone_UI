@@ -134,8 +134,16 @@
                 <ComboBox ItemsSource="{Binding RemoteOptions}" SelectedItem="{Binding MountRemote}" DisplayMemberBinding="{Binding DisplayName}" PlaceholderText="{Binding MountRemoteHint}" AutomationProperties.Name="Mount Remote" />
                 <TextBox Text="{Binding MountSubpath}" PlaceholderText="{Binding MountSubpathHint}" AutomationProperties.Name="Mount subpath" />
                 <Grid ColumnDefinitions="*,*" ColumnSpacing="10">
-                  <TextBox Text="{Binding MountVolumeName}" PlaceholderText="{Binding MountVolumeNameHint}" AutomationProperties.Name="Mount volume name" />
-                  <ComboBox Grid.Column="1" ItemsSource="{Binding MountDriveLetters}" SelectedItem="{Binding MountDriveLetter}" PlaceholderText="{Binding MountDriveLetterHeading}" AutomationProperties.Name="Mount drive letter" />
+                  <ComboBox ItemsSource="{Binding MountPresentationOptions}" SelectedItem="{Binding MountPresentation}" DisplayMemberBinding="{Binding DisplayName}" PlaceholderText="{Binding MountPresentationHeading}" AutomationProperties.Name="Mount presentation type" />
+                  <TextBox Grid.Column="1" Text="{Binding MountVolumeName}" PlaceholderText="{Binding MountVolumeNameHint}" AutomationProperties.Name="Mount volume name" />
+                </Grid>
+                <Grid IsVisible="{Binding IsMountDrivePresentation}" ColumnDefinitions="*,*" ColumnSpacing="10">
+                  <ComboBox ItemsSource="{Binding MountDriveSelectionOptions}" SelectedItem="{Binding MountDriveSelection}" DisplayMemberBinding="{Binding DisplayName}" PlaceholderText="{Binding MountDriveSelectionHeading}" AutomationProperties.Name="Mount drive assignment" />
+                  <ComboBox Grid.Column="1" IsVisible="{Binding IsPreferredDriveLetter}" ItemsSource="{Binding MountDriveLetters}" SelectedItem="{Binding MountDriveLetter}" PlaceholderText="{Binding MountDriveLetterHeading}" AutomationProperties.Name="Mount drive letter" />
+                </Grid>
+                <Grid IsVisible="{Binding IsFixedDirectoryMount}" ColumnDefinitions="*,Auto" ColumnSpacing="10">
+                  <TextBox Text="{Binding MountFixedDirectoryPath}" IsReadOnly="True" PlaceholderText="{Binding MountFixedDirectoryHint}" AutomationProperties.Name="Mount fixed directory" />
+                  <Button Grid.Column="1" Content="{Binding PickMountDirectoryLabel}" Click="PickMountDirectoryClicked" />
                 </Grid>
                 <TextBlock Text="{Binding MountReadOnlyNotice}" TextWrapping="Wrap" Opacity="0.72" />
                 <TextBlock Text="{Binding MountStatus}" AutomationProperties.LiveSetting="Polite" />

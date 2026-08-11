@@ -78,7 +78,7 @@ public sealed class DesktopHostController(IDesktopHostClient client, DesktopShel
         {
             if (shell.MountRemote is null) { shell.ApplyAction("mount-remote-required"); return; }
             command = "start-read-only-mount";
-            payload = new { remoteId = shell.MountRemote.Id, subpath = shell.MountSubpath, driveLetter = shell.MountDriveLetter, volumeName = shell.MountVolumeName, capabilityBinding = shell.CapabilityBinding };
+            payload = new { remoteId = shell.MountRemote.Id, subpath = shell.MountSubpath, presentationMode = shell.MountPresentation.Key, driveSelection = shell.IsFixedDirectoryMount ? "preferred" : shell.MountDriveSelection.Key, driveLetter = shell.MountDriveLetter, fixedDirectoryPath = shell.IsFixedDirectoryMount ? shell.MountFixedDirectoryPath : null, volumeName = shell.MountVolumeName, capabilityBinding = shell.CapabilityBinding };
         }
         using var arguments = JsonDocument.Parse(JsonSerializer.Serialize(payload));
         var result = await client.SendCommandAsync(command, arguments.RootElement, cancellationToken);

@@ -3,6 +3,7 @@ using System.Text;
 using System.Text.Json;
 using RcloneUI.Contracts.HostProtocol.V1;
 using RcloneUI.DataRoot;
+using RcloneUI.Mounts;
 using RcloneUI.Rclone;
 
 namespace RcloneUI.Host;
@@ -177,11 +178,16 @@ internal sealed class HostStateAuthority : IDisposable
         if (!body.TryGetProperty("arguments", out var arguments)
             || ReadGuidArgument(arguments, "remoteId") is not { } remoteId
             || ReadArgument(arguments, "subpath") is not { } subpath
+            || ReadArgument(arguments, "presentationMode") is not { } presentationValue
+            || ReadArgument(arguments, "driveSelection") is not { } driveSelectionValue
             || ReadArgument(arguments, "driveLetter", 1) is not { Length: 1 } driveLetter
             || ReadArgument(arguments, "volumeName", 64) is not { } volumeName
             || ReadArgument(arguments, "capabilityBinding") is not { } binding)
             return CreateResult("mount-invalid", new { code = "arguments-invalid" }, Cursor);
-        var (resultType, snapshot) = await mounts.StartReadOnlyAsync(remoteId, subpath, driveLetter[0], volumeName, binding, cancellationToken).ConfigureAwait(false);
+        var presentationMode = presentationValue switch { "network-drive" => MountPresentationMode.NetworkDrive, "fixed-drive" => MountPresentationMode.FixedDrive, "fixed-directory" => MountPresentationMode.FixedDirectory, _ => (MountPresentationMode)(-1) };
+        var driveSelection = driveSelectionValue switch { "preferred" => DriveLetterSelection.Preferred, "automatic" => DriveLetterSelection.Automatic, _ => (DriveLetterSelection)(-1) };
+        var fixedDirectoryPath = ReadArgument(arguments, "fixedDirectoryPath", 32767);
+        var (resultType, snapshot) = await mounts.StartReadOnlyAsync(remoteId, subpath, presentationMode, driveSelection, driveLetter[0], fixedDirectoryPath, volumeName, binding, cancellationToken).ConfigureAwait(false);
         lock (sync)
         {
             if (resultType == "mount-ready") revision = checked(revision + 1);

@@ -31,5 +31,10 @@ public sealed partial class MainWindow : Window
         var folders = await StorageProvider.OpenFolderPickerAsync(new() { Title = "Select download folder", AllowMultiple = false });
         if (folders.Count == 1 && folders[0].TryGetLocalPath() is { } path) shell.DownloadDestinationPath = path;
     }
+    private async void PickMountDirectoryClicked(object? sender, RoutedEventArgs args)
+    {
+        var folders = await StorageProvider.OpenFolderPickerAsync(new() { Title = shell.PickMountDirectoryLabel, AllowMultiple = false });
+        if (folders.Count == 1 && folders[0].TryGetLocalPath() is { } path) shell.MountFixedDirectoryPath = path;
+    }
     private void ExitClicked(object? sender, RoutedEventArgs args) => Close();
 }

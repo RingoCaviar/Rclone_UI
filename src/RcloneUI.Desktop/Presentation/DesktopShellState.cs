@@ -9,6 +9,7 @@ namespace RcloneUI.Desktop.Presentation;
 public enum DesktopConnectionState { Connecting, ConnectedLocked, ConnectedOperational, ReadOnlyRecovery, Disconnected }
 public enum DesktopTransferMode { Download, RemoteCopy }
 public sealed record DesktopRemoteOption(Guid Id, string DisplayName);
+public sealed record DesktopChoice(string Key, string DisplayName);
 
 public interface IDesktopHostClient
 {
@@ -33,6 +34,13 @@ public sealed class DesktopShellState : INotifyPropertyChanged
     private string downloadDestinationPath = string.Empty;
     private Guid? activeMountId;
     private string mountStatus = string.Empty;
+    private string mountFixedDirectoryPath = string.Empty;
+    private DesktopChoice[] mountPresentationOptions = [];
+    private DesktopChoice[] driveSelectionOptions = [];
+    private DesktopChoice mountPresentation = null!;
+    private DesktopChoice mountDriveSelection = null!;
+
+    public DesktopShellState() => RefreshMountChoices();
 
     public event PropertyChangedEventHandler? PropertyChanged;
     public string EditionLabel => T("便携版 · Portable", "Portable edition");
@@ -133,6 +141,14 @@ public sealed class DesktopShellState : INotifyPropertyChanged
     public string MountDriveLetter { get; set; } = "R";
     public string MountSubpath { get; set; } = string.Empty;
     public string MountVolumeName { get; set; } = "Rclone Cloud";
+    public string MountFixedDirectoryPath { get => mountFixedDirectoryPath; set { if (mountFixedDirectoryPath == value) return; mountFixedDirectoryPath = value; ChangedAll(); } }
+    public IReadOnlyList<DesktopChoice> MountPresentationOptions => mountPresentationOptions;
+    public IReadOnlyList<DesktopChoice> MountDriveSelectionOptions => driveSelectionOptions;
+    public DesktopChoice MountPresentation { get => mountPresentation; set { if (value is null || mountPresentation.Key == value.Key) return; mountPresentation = value; ChangedAll(); } }
+    public DesktopChoice MountDriveSelection { get => mountDriveSelection; set { if (value is null || mountDriveSelection.Key == value.Key) return; mountDriveSelection = value; ChangedAll(); } }
+    public bool IsMountDrivePresentation => mountPresentation.Key is "network-drive" or "fixed-drive";
+    public bool IsPreferredDriveLetter => IsMountDrivePresentation && mountDriveSelection.Key == "preferred";
+    public bool IsFixedDirectoryMount => mountPresentation.Key == "fixed-directory";
     public Guid? ActiveMountId => activeMountId;
     public bool HasActiveMount => activeMountId is not null;
     public string MountStatus => mountStatus;
@@ -140,6 +156,10 @@ public sealed class DesktopShellState : INotifyPropertyChanged
     public string MountSubpathHint => T("远程子目录（可留空）", "Remote subfolder (optional)");
     public string MountVolumeNameHint => T("磁盘名称", "Volume name");
     public string MountDriveLetterHeading => T("盘符", "Drive letter");
+    public string MountPresentationHeading => T("挂载类型", "Mount type");
+    public string MountDriveSelectionHeading => T("盘符分配", "Drive assignment");
+    public string MountFixedDirectoryHint => T("选择一个现有的空文件夹", "Choose an existing empty folder");
+    public string PickMountDirectoryLabel => T("选择目录…", "Choose directory…");
     public string MountReadOnlyNotice => T("当前安全预设为只读浏览，不会向云端写入文件。", "The current safe preset is read-only browsing and cannot write to the cloud.");
     public string JourneyHeading => PageTitle;
     public string JourneyDescription => route switch { "Remotes" => T("通过三步向导添加云端账号；凭据只发送给后台服务并写入加密保险库。", "Add cloud accounts in three guided steps. Credentials go only to the Host and encrypted Vault."), "Transfers" => T("复制、移动或单向镜像。执行前必须接受预览，涉及删除时需要明确确认。", "Copy, move, or one-way mirror. Accept a preview before execution; deletion requires explicit confirmation."), "Mounts" => T("创建稳定盘符的挂载配置。Ready 与安全卸载均需要完整证据。", "Create stable drive profiles. Ready and safe unmount require complete evidence."), "Activity" => T("查看真实结果、部分完成、未知状态和可脱敏导出的诊断信息。", "Review truthful outcomes, partial results, unknown states, and redacted diagnostics."), _ => T("此功能通过后台服务快照和命令工作；界面不直接操作 rclone 或保险库。", "This journey uses Host snapshots and commands; the UI never operates rclone or the Vault directly.") };
@@ -148,7 +168,7 @@ public sealed class DesktopShellState : INotifyPropertyChanged
     public string JourneyPrimaryAction => route switch { "Remotes" => T("添加远程存储", "Add Remote"), "Transfers" => T("创建并预览", "Create & Preview"), "Mounts" when HasActiveMount => T("安全卸载", "Safe unmount"), "Mounts" => T("只读挂载", "Mount read-only"), "Activity" => T("导出脱敏诊断", "Export Redacted Diagnostics"), _ => T("继续", "Continue") };
 
     public void Navigate(string value) { route = value; advancedOptionsExpanded = false; ChangedAll(); }
-    public void ToggleLanguage() { english = !english; ChangedAll(); }
+    public void ToggleLanguage() { english = !english; RefreshMountChoices(); ChangedAll(); }
     public void ToggleAdvancedOptions() { if (!IsAdvancedOptionsAvailable) return; advancedOptionsExpanded = !advancedOptionsExpanded; ChangedAll(); }
     public void ApplyConnection(DesktopConnectionState value) { connection = value; ChangedAll(); }
     public void ApplyAction(string value) { lastAction = value; ChangedAll(); }
@@ -184,6 +204,24 @@ public sealed class DesktopShellState : INotifyPropertyChanged
         ChangedAll();
     }
     private string T(string zh, string en) => english ? en : zh;
+    private void RefreshMountChoices()
+    {
+        var presentationKey = mountPresentation?.Key ?? "network-drive";
+        var driveKey = mountDriveSelection?.Key ?? "preferred";
+        mountPresentationOptions =
+        [
+            new("network-drive", T("网络驱动器（推荐）", "Network drive (recommended)")),
+            new("fixed-drive", T("固定磁盘兼容模式", "Fixed-drive compatibility")),
+            new("fixed-directory", T("固定目录", "Fixed directory")),
+        ];
+        driveSelectionOptions =
+        [
+            new("preferred", T("指定盘符", "Preferred letter")),
+            new("automatic", T("自动分配", "Automatic")),
+        ];
+        mountPresentation = mountPresentationOptions.Single(option => option.Key == presentationKey);
+        mountDriveSelection = driveSelectionOptions.Single(option => option.Key == driveKey);
+    }
     private static DesktopRemoteOption? KeepSelection(DesktopRemoteOption? selected, DesktopRemoteOption[] options) => selected is null ? null : options.FirstOrDefault(option => option.Id == selected.Id);
     private void ChangedAll() { foreach (var property in GetType().GetProperties().Where(x => x.GetIndexParameters().Length == 0)) PropertyChanged?.Invoke(this, new(property.Name)); }
 }

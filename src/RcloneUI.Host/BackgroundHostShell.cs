@@ -3,6 +3,7 @@ using System.IO.Pipes;
 using System.Runtime.Versioning;
 using System.Security.Cryptography;
 using RcloneUI.Contracts.HostProtocol.V1;
+using RcloneUI.DataRoot;
 using RcloneUI.Rclone;
 
 namespace RcloneUI.Host;
@@ -29,20 +30,21 @@ internal sealed class BackgroundHostShell : IAsyncDisposable
         HostEndpoint endpoint,
         HostWindowsIdentity identity,
         IRcloneRuntime? rclone,
-        IHostRemoteProjection? remotes)
+        IHostRemoteProjection? remotes,
+        LibArgon2Binding? argon2)
     {
         this.dataRootPath = dataRootPath;
         this.ownership = ownership;
         this.endpoint = endpoint;
         this.identity = identity;
-        state = new(dataRootPath, rclone, remotes);
+        state = new(dataRootPath, rclone, remotes, argon2);
         workReconciler = new(dataRootPath);
         lifecycleJournal = new(dataRootPath);
     }
 
     internal HostEndpoint Endpoint => endpoint;
 
-    internal static BackgroundHostShell? TryCreate(string dataRootPath, Guid dataRootId, IRcloneRuntime? rclone = null, IHostRemoteProjection? remotes = null)
+    internal static BackgroundHostShell? TryCreate(string dataRootPath, Guid dataRootId, IRcloneRuntime? rclone = null, IHostRemoteProjection? remotes = null, LibArgon2Binding? argon2 = null)
     {
         var identity = HostWindowsIdentity.Current();
         var names = HostEndpointNaming.Derive(dataRootId, identity.LogonSid.Value);
@@ -51,7 +53,7 @@ internal sealed class BackgroundHostShell : IAsyncDisposable
         try
         {
             var endpoint = HostEndpointPublisher.Create(dataRootId, names.PipeName);
-            return new(dataRootPath, ownership, endpoint, identity, rclone, remotes);
+            return new(dataRootPath, ownership, endpoint, identity, rclone, remotes, argon2);
         }
         catch
         {

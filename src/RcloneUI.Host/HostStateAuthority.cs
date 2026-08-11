@@ -2,6 +2,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using RcloneUI.Contracts.HostProtocol.V1;
+using RcloneUI.DataRoot;
 using RcloneUI.Rclone;
 
 namespace RcloneUI.Host;
@@ -15,16 +16,18 @@ internal sealed class HostStateAuthority : IDisposable
     private readonly DurableIdempotencyStore idempotency;
     private readonly IRcloneRuntime? rclone;
     private readonly IHostRemoteProjection? remotes;
+    private readonly LibArgon2Binding? argon2;
     private readonly SemaphoreSlim dispatchGate = new(1, 1);
     private readonly Dictionary<Guid, CopyRunState> copyRuns = [];
     private readonly StateEpoch epoch = new(Guid.NewGuid().ToString("N"));
     private ulong revision;
     private int activationCount;
 
-    internal HostStateAuthority(string dataRootPath, IRcloneRuntime? rclone = null, IHostRemoteProjection? remotes = null)
+    internal HostStateAuthority(string dataRootPath, IRcloneRuntime? rclone = null, IHostRemoteProjection? remotes = null, LibArgon2Binding? argon2 = null)
     {
         this.rclone = rclone;
         this.remotes = remotes;
+        this.argon2 = argon2;
         idempotency = new(Path.Combine(dataRootPath, "runtime", "idempotency.json"));
         foreach (var record in idempotency.Records)
         {
@@ -74,7 +77,7 @@ internal sealed class HostStateAuthority : IDisposable
                     try { summaries = await remotes.ListAsync(cancellationToken).ConfigureAwait(false); }
                     catch (Exception exception) when (exception is not OperationCanceledException) { return CreateResult("snapshot-unavailable", new { code = "remote-projection-unavailable" }, Cursor); }
                 }
-                lock (sync) result = CreateResult("snapshot", new { session = remotes is null ? "locked" : "operational", activationCount, remotes = summaries, copyRuns = copyRuns.Values.OrderBy(x => x.CreatedUtc).ToArray(), rclone = new { status = rclone is null ? "unavailable" : "ready", capabilityBinding = rclone?.Capabilities.Binding } }, new(epoch, revision));
+                lock (sync) result = CreateResult("snapshot", new { session = remotes is null ? "locked" : "operational", activationCount, remotes = summaries, copyRuns = copyRuns.Values.OrderBy(x => x.CreatedUtc).ToArray(), rclone = new { status = rclone is null ? "unavailable" : "ready", capabilityBinding = rclone?.Capabilities.Binding }, vault = new { kdfStatus = argon2 is null ? "unavailable" : "ready" } }, new(epoch, revision));
             }
             else if (commandType == "activate-ui")
             {

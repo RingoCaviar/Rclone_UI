@@ -5,7 +5,9 @@ param(
     [string]$Version = "0.0.0-local",
     [string]$SigningThumbprint = "",
     [string]$RcloneExecutable = "",
-    [string]$RcloneVersion = ""
+    [string]$RcloneVersion = "",
+    [string]$LibArgon2Library = "",
+    [string]$LibArgon2Version = ""
 )
 
 $ErrorActionPreference = "Stop"
@@ -30,6 +32,14 @@ if ($RcloneExecutable) {
     $rcloneHash = (Get-FileHash (Join-Path $rcloneDirectory "rclone.exe") -Algorithm SHA256).Hash
     $rcloneManifest = [ordered]@{ format = 1; version = $RcloneVersion; sha256 = $rcloneHash; executable = "rclone.exe" }
     [IO.File]::WriteAllText((Join-Path $rcloneDirectory "manifest.json"), ($rcloneManifest | ConvertTo-Json), [Text.UTF8Encoding]::new($false))
+}
+if ($LibArgon2Library) {
+    if (-not $LibArgon2Version) { throw "-LibArgon2Version is required with -LibArgon2Library." }
+    $argon2Directory = New-Item -ItemType Directory -Path (Join-Path $staging "components\libargon2") -Force
+    Copy-Item -LiteralPath (Resolve-Path $LibArgon2Library) (Join-Path $argon2Directory "argon2.dll")
+    $argon2Hash = (Get-FileHash (Join-Path $argon2Directory "argon2.dll") -Algorithm SHA256).Hash
+    $argon2Manifest = [ordered]@{ format = 1; version = $LibArgon2Version; sha256 = $argon2Hash; library = "argon2.dll" }
+    [IO.File]::WriteAllText((Join-Path $argon2Directory "manifest.json"), ($argon2Manifest | ConvertTo-Json), [Text.UTF8Encoding]::new($false))
 }
 if ($SigningThumbprint) {
     $signTool = Get-Command signtool.exe -ErrorAction Stop

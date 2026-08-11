@@ -80,14 +80,18 @@ public sealed class TransferOrchestrationTests
         var result = await orchestrator.ExecuteAsync(new(preview.Id, "target", preview.Task.CapabilityBinding), cancellationToken);
 
         Assert.Equal(TransferTerminalResult.Succeeded, result.TerminalResult);
-        Assert.Equal(["clean"], Assert.IsType<DeletionAdmission>(adapter.LastDeletionAdmission).RelativePaths);
+        var admission = Assert.IsType<DeletionAdmission>(adapter.LastDeletionAdmission);
+        Assert.Equal(["clean"], admission.Paths.Select(path => path.RelativePath));
+        Assert.True(admission.RequiresSourceRevalidation);
     }
 
     [Theory]
     [InlineData(TransferOperation.Move, TransferFailureClass.Quota)]
     [InlineData(TransferOperation.Move, TransferFailureClass.Verification)]
+    [InlineData(TransferOperation.Move, TransferFailureClass.Configuration)]
     [InlineData(TransferOperation.MirrorSync, TransferFailureClass.Quota)]
     [InlineData(TransferOperation.MirrorSync, TransferFailureClass.Verification)]
+    [InlineData(TransferOperation.MirrorSync, TransferFailureClass.Configuration)]
     public async Task CopyOrVerificationFailureNeverReachesDeletion(TransferOperation operation, TransferFailureClass failure)
     {
         var cancellationToken = TestContext.Current.CancellationToken;
@@ -113,7 +117,7 @@ public sealed class TransferOrchestrationTests
 
         Assert.Equal(250, result.Evidence.Count(item => item.Outcome == TransferPathOutcome.Copied));
         Assert.Equal(250, result.Evidence.Count(item => item.Outcome == TransferPathOutcome.Verified));
-        Assert.Equal(250, Assert.IsType<DeletionAdmission>(adapter.LastDeletionAdmission).RelativePaths.Length);
+        Assert.Equal(250, Assert.IsType<DeletionAdmission>(adapter.LastDeletionAdmission).Paths.Length);
     }
 
     [Fact]
@@ -156,6 +160,54 @@ public sealed class TransferOrchestrationTests
         Assert.Equal(TransferTerminalResult.CancelledWithPartialResults, result.TerminalResult);
         Assert.Contains(result.Evidence, item => item.Outcome == TransferPathOutcome.PossiblyAffected && item.Detail == "cancelled");
         Assert.True(adapter.CancelRequests > 0);
+    }
+
+    [Fact]
+    public async Task EventualConsistencyMayRetryVerificationButDeletesOnlyAfterSuccess()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var adapter = new ConsistencyDelayAdapter(succeedOnAttempt: 3);
+        var orchestrator = new TransferOrchestrator(adapter, new MemoryJournal());
+        var preview = Assert.IsType<TransferPreview>((await orchestrator.PreviewAsync(CreateTask(TransferOperation.Move), cancellationToken)).Preview);
+
+        var result = await orchestrator.ExecuteAsync(new(preview.Id, "target", preview.Task.CapabilityBinding), cancellationToken);
+
+        Assert.Equal(TransferTerminalResult.Succeeded, result.TerminalResult);
+        Assert.Equal(3, adapter.VerifyAttempts);
+        Assert.Equal(2, result.RetryRound);
+        Assert.NotNull(adapter.LastDeletionAdmission);
+    }
+
+    [Fact]
+    public async Task ExhaustedConsistencyDelayNeverDeletes()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var adapter = new ConsistencyDelayAdapter(succeedOnAttempt: int.MaxValue);
+        var orchestrator = new TransferOrchestrator(adapter, new MemoryJournal());
+        var preview = Assert.IsType<TransferPreview>((await orchestrator.PreviewAsync(CreateTask(TransferOperation.Move), cancellationToken)).Preview);
+
+        var result = await orchestrator.ExecuteAsync(new(preview.Id, "target", preview.Task.CapabilityBinding), cancellationToken);
+
+        Assert.Equal(TransferTerminalResult.Failed, result.TerminalResult);
+        Assert.Equal(3, adapter.VerifyAttempts);
+        Assert.Null(adapter.LastDeletionAdmission);
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task NonAtomicSafetyCopyFallbackMustCompleteBeforeMirrorDeletion(bool fallbackSucceeds)
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var adapter = new SafetyFallbackAdapter(fallbackSucceeds);
+        var orchestrator = new TransferOrchestrator(adapter, new MemoryJournal());
+        var preview = Assert.IsType<TransferPreview>((await orchestrator.PreviewAsync(CreateTask(TransferOperation.MirrorSync), cancellationToken)).Preview);
+
+        var result = await orchestrator.ExecuteAsync(new(preview.Id, "target", preview.Task.CapabilityBinding), cancellationToken);
+
+        Assert.Equal(fallbackSucceeds ? TransferTerminalResult.Succeeded : TransferTerminalResult.Failed, result.TerminalResult);
+        Assert.Equal(fallbackSucceeds, adapter.LastDeletionAdmission is not null);
+        Assert.Contains(result.Evidence, item => item.Detail == "non-atomic-copy-fallback");
     }
 
     [Fact]
@@ -256,8 +308,8 @@ public sealed class TransferOrchestrationTests
     private sealed class FailingAdapter(TransferFailureClass failure) : ScriptedAdapter
     {
         public override ValueTask<AdapterPhaseResult> CopyAsync(TransferPreview preview, CancellationToken cancellationToken) =>
-            failure == TransferFailureClass.Quota
-                ? ValueTask.FromResult(new AdapterPhaseResult(false, failure, [new("a", TransferPathOutcome.Failed, "quota")]))
+            failure != TransferFailureClass.Verification
+                ? ValueTask.FromResult(new AdapterPhaseResult(false, failure, [new("a", TransferPathOutcome.Failed, failure.ToString().ToLowerInvariant())]))
                 : base.CopyAsync(preview, cancellationToken);
 
         public override ValueTask<AdapterPhaseResult> VerifyAsync(TransferPreview preview, CancellationToken cancellationToken) =>
@@ -342,6 +394,28 @@ public sealed class TransferOrchestrationTests
             Started.TrySetResult();
             await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
             throw new InvalidOperationException("Cancellation did not interrupt the adapter.");
+        }
+    }
+
+    private sealed class ConsistencyDelayAdapter(int succeedOnAttempt) : ScriptedAdapter
+    {
+        internal int VerifyAttempts { get; private set; }
+
+        public override ValueTask<AdapterPhaseResult> VerifyAsync(TransferPreview preview, CancellationToken cancellationToken)
+        {
+            VerifyAttempts++;
+            if (VerifyAttempts < succeedOnAttempt)
+                return ValueTask.FromResult(new AdapterPhaseResult(false, TransferFailureClass.Transient, []));
+            return base.VerifyAsync(preview, cancellationToken);
+        }
+    }
+
+    private sealed class SafetyFallbackAdapter(bool succeeds) : ScriptedAdapter
+    {
+        public override ValueTask<AdapterPhaseResult> PrepareSafetyCopiesAsync(TransferPreview preview, CancellationToken cancellationToken)
+        {
+            Calls.Add("safety-fallback");
+            return ValueTask.FromResult(new AdapterPhaseResult(succeeds, succeeds ? TransferFailureClass.None : TransferFailureClass.Permission, [new("obsolete", succeeds ? TransferPathOutcome.Copied : TransferPathOutcome.Failed, "non-atomic-copy-fallback")]));
         }
     }
 }

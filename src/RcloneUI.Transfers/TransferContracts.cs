@@ -54,7 +54,8 @@ public sealed record PreviewOutcome(TransferPreview? Preview, TransferFailureCla
 }
 
 public sealed record TransferExecutionEvidence(string RelativePath, TransferPathOutcome Outcome, string? Detail);
-public sealed record DeletionAdmission(TransferPreview Preview, ImmutableArray<string> RelativePaths);
+public sealed record DeletionCandidate(string RelativePath, long? AcceptedSize);
+public sealed record DeletionAdmission(TransferPreview Preview, ImmutableArray<DeletionCandidate> Paths, bool RequiresSourceRevalidation);
 public sealed record TransferRunSnapshot(
     TransferRunId RunId,
     AcceptedPreviewId PreviewId,

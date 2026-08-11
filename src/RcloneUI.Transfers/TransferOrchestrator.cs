@@ -101,7 +101,7 @@ public sealed class TransferOrchestrator(ITransferExecutionAdapter adapter, ITra
             if (run.Preview.Task.Operation == TransferOperation.Move)
             {
                 var admission = CreateDeletionAdmission(run.Preview, evidence, TransferPathOutcome.Copied);
-                if (run.Preview.Counts.Copy + run.Preview.Counts.Replace > 0 && admission.RelativePaths.IsEmpty)
+                if (run.Preview.Counts.Copy + run.Preview.Counts.Replace > 0 && admission.Paths.IsEmpty)
                     return await RefuseDeletionAsync(run, "move-deletion-admission-empty", evidence, retryRound).ConfigureAwait(false);
                 var (deleteSources, deleteSourcesRetryRound) = await RetryAsync(run, TransferPhase.DeletingSources, token => adapter.DeleteVerifiedSourcesAsync(admission, token), evidence, retryRound).ConfigureAwait(false);
                 retryRound = deleteSourcesRetryRound;
@@ -110,7 +110,7 @@ public sealed class TransferOrchestrator(ITransferExecutionAdapter adapter, ITra
             else if (run.Preview.Task.Operation == TransferOperation.MirrorSync)
             {
                 var admission = CreateDeletionAdmission(run.Preview, evidence, TransferPathOutcome.TargetDeleted);
-                if (run.Preview.Counts.Delete > 0 && admission.RelativePaths.IsEmpty)
+                if (run.Preview.Counts.Delete > 0 && admission.Paths.IsEmpty)
                     return await RefuseDeletionAsync(run, "mirror-deletion-admission-empty", evidence, retryRound).ConfigureAwait(false);
                 var (deleteTargets, deleteTargetsRetryRound) = await RetryAsync(run, TransferPhase.DeletingTargets, token => adapter.DeleteApprovedTargetsAsync(admission, token), evidence, retryRound).ConfigureAwait(false);
                 retryRound = deleteTargetsRetryRound;
@@ -164,19 +164,19 @@ public sealed class TransferOrchestrator(ITransferExecutionAdapter adapter, ITra
     {
         var eligible = preview.Paths
             .Where(path => path.PlannedOutcome == plannedOutcome)
-            .Select(path => path.RelativePath)
-            .ToHashSet(StringComparer.Ordinal);
+            .ToDictionary(path => path.RelativePath, StringComparer.Ordinal);
         var disqualified = evidence
             .Where(item => item.Outcome is TransferPathOutcome.Skipped or TransferPathOutcome.Conflict or TransferPathOutcome.Failed or TransferPathOutcome.PossiblyAffected)
             .Select(item => item.RelativePath)
             .ToHashSet(StringComparer.Ordinal);
         var verified = evidence
-            .Where(item => item.Outcome == TransferPathOutcome.Verified && eligible.Contains(item.RelativePath) && !disqualified.Contains(item.RelativePath))
+            .Where(item => item.Outcome == TransferPathOutcome.Verified && eligible.ContainsKey(item.RelativePath) && !disqualified.Contains(item.RelativePath))
             .Select(item => item.RelativePath)
             .Distinct(StringComparer.Ordinal)
             .Order(StringComparer.Ordinal)
+            .Select(path => new DeletionCandidate(path, eligible[path].Size))
             .ToImmutableArray();
-        return new(preview, verified);
+        return new(preview, verified, preview.Task.Operation == TransferOperation.Move);
     }
 
     private async ValueTask CheckpointAsync(ActiveRun run, TransferPhase phase, TransferTerminalResult? terminal, ImmutableArray<TransferExecutionEvidence>.Builder evidence, int retryRound)

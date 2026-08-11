@@ -62,6 +62,15 @@ public sealed class ProjectDependencyTests
         }
     }
 
+    [Fact]
+    public void ContractsHasNoImplementationDependencies()
+    {
+        var document = XDocument.Load(Path.Combine(FindRepositoryRoot(), "src", "RcloneUI.Contracts", "RcloneUI.Contracts.csproj"));
+
+        Assert.Empty(document.Descendants("PackageReference"));
+        Assert.Empty(document.Descendants("ProjectReference"));
+    }
+
     private static string FindRepositoryRoot()
     {
         var directory = new DirectoryInfo(AppContext.BaseDirectory);

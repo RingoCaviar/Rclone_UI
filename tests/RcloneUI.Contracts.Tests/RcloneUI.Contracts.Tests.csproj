@@ -9,4 +9,7 @@
     <PackageReference Include="xunit.v3" />
     <ProjectReference Include="../../src/RcloneUI.Contracts/RcloneUI.Contracts.csproj" />
   </ItemGroup>
+  <ItemGroup>
+    <None Include="Fixtures/*.hex" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
 </Project>

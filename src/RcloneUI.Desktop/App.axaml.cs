@@ -12,7 +12,8 @@ public sealed partial class App : Application
     {
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
-            desktop.MainWindow = new MainWindow();
+            var dataRoot = desktop.Args?.FirstOrDefault() ?? Path.Combine(AppContext.BaseDirectory, "data");
+            desktop.MainWindow = new MainWindow(new Presentation.NamedPipeDesktopHostClient(dataRoot));
         }
 
         base.OnFrameworkInitializationCompleted();

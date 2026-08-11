@@ -6,13 +6,20 @@ namespace RcloneUI.Desktop;
 
 public sealed partial class MainWindow : Window
 {
-    private readonly DesktopShellState shell = new();
-    public MainWindow() { InitializeComponent(); DataContext = shell; }
+    private readonly DesktopShellState shell;
+    private readonly DesktopHostController? controller;
+    public MainWindow() : this(null) { }
+    public MainWindow(IDesktopHostClient? client)
+    {
+        InitializeComponent(); shell = new(); DataContext = shell;
+        if (client is not null) controller = new(client, shell);
+        Opened += async (_, _) => { if (controller is not null) await controller.ReconnectAsync(); else shell.ApplyConnection(DesktopConnectionState.Disconnected); };
+    }
     private void NavigationChanged(object? sender, SelectionChangedEventArgs args) { if (sender is ListBox { SelectedItem: ListBoxItem { Tag: string route } }) shell.Navigate(route); }
     private void ShortcutClicked(object? sender, RoutedEventArgs args) { if (sender is Button { Tag: string route }) shell.Navigate(route); }
     private void NewTaskClicked(object? sender, RoutedEventArgs args) => shell.Navigate("Transfers");
     private void LanguageClicked(object? sender, RoutedEventArgs args) => shell.ToggleLanguage();
-    private void AttentionClicked(object? sender, RoutedEventArgs args) { if (shell.ConnectionLabel.Contains("中断", StringComparison.Ordinal) || shell.ConnectionLabel.Contains("Disconnected", StringComparison.Ordinal)) shell.ApplyConnection(DesktopConnectionState.Connecting); }
-    private void JourneyPrimaryClicked(object? sender, RoutedEventArgs args) { }
+    private async void AttentionClicked(object? sender, RoutedEventArgs args) { if (controller is not null) await controller.ReconnectAsync(); }
+    private async void JourneyPrimaryClicked(object? sender, RoutedEventArgs args) { if (controller is not null) await controller.ActivatePrimaryAsync(); }
     private void ExitClicked(object? sender, RoutedEventArgs args) => Close();
 }

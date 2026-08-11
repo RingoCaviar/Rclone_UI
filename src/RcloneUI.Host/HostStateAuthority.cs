@@ -56,7 +56,7 @@ internal sealed class HostStateAuthority
             HostCommandResult result;
             if (commandType == "get-snapshot")
             {
-                result = CreateResult("snapshot", new { activationCount }, new(epoch, revision));
+                result = CreateResult("snapshot", new { session = "operational", activationCount, remotes = Array.Empty<object>(), copyRuns = Array.Empty<object>() }, new(epoch, revision));
             }
             else if (commandType == "activate-ui")
             {

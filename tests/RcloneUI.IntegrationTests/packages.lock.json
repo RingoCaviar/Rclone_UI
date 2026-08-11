@@ -195,6 +195,75 @@
           "System.Formats.Cbor": "[10.0.10, )"
         }
       },
+      "rcloneui.diagnostics": {
+        "type": "Project",
+        "dependencies": {
+          "RcloneUI.Contracts": "[1.0.0, )",
+          "RcloneUI.DataRoot": "[1.0.0, )"
+        }
+      },
+      "rcloneui.host": {
+        "type": "Project",
+        "dependencies": {
+          "RcloneUI.Contracts": "[1.0.0, )",
+          "RcloneUI.DataRoot": "[1.0.0, )",
+          "RcloneUI.Diagnostics": "[1.0.0, )",
+          "RcloneUI.Mounts": "[1.0.0, )",
+          "RcloneUI.Rclone": "[1.0.0, )",
+          "RcloneUI.Remotes": "[1.0.0, )",
+          "RcloneUI.Transfers": "[1.0.0, )",
+          "RcloneUI.Updates": "[1.0.0, )",
+          "RcloneUI.Work": "[1.0.0, )"
+        }
+      },
+      "rcloneui.mounts": {
+        "type": "Project",
+        "dependencies": {
+          "RcloneUI.Contracts": "[1.0.0, )",
+          "RcloneUI.DataRoot": "[1.0.0, )",
+          "RcloneUI.Rclone": "[1.0.0, )"
+        }
+      },
+      "rcloneui.rclone": {
+        "type": "Project",
+        "dependencies": {
+          "RcloneUI.Contracts": "[1.0.0, )"
+        }
+      },
+      "rcloneui.remotes": {
+        "type": "Project",
+        "dependencies": {
+          "RcloneUI.Contracts": "[1.0.0, )",
+          "RcloneUI.DataRoot": "[1.0.0, )",
+          "RcloneUI.Rclone": "[1.0.0, )"
+        }
+      },
+      "rcloneui.transfers": {
+        "type": "Project",
+        "dependencies": {
+          "RcloneUI.Contracts": "[1.0.0, )",
+          "RcloneUI.DataRoot": "[1.0.0, )",
+          "RcloneUI.Rclone": "[1.0.0, )"
+        }
+      },
+      "rcloneui.updates": {
+        "type": "Project",
+        "dependencies": {
+          "RcloneUI.Contracts": "[1.0.0, )",
+          "RcloneUI.DataRoot": "[1.0.0, )",
+          "RcloneUI.Rclone": "[1.0.0, )"
+        }
+      },
+      "rcloneui.work": {
+        "type": "Project",
+        "dependencies": {
+          "RcloneUI.Contracts": "[1.0.0, )",
+          "RcloneUI.DataRoot": "[1.0.0, )",
+          "RcloneUI.Mounts": "[1.0.0, )",
+          "RcloneUI.Remotes": "[1.0.0, )",
+          "RcloneUI.Transfers": "[1.0.0, )"
+        }
+      },
       "Microsoft.Data.Sqlite.Core": {
         "type": "CentralTransitive",
         "requested": "[10.0.10, )",

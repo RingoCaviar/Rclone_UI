@@ -1,7 +1,8 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory)][string]$RcloneExecutable,
-    [Parameter(Mandatory)][string]$OutputPath
+    [Parameter(Mandatory)][string]$OutputPath,
+    [ValidateSet("copy", "sync")][string]$Operation = "sync"
 )
 
 $ErrorActionPreference = "Stop"
@@ -13,8 +14,8 @@ $work = Join-Path $outputDirectory ("preview-" + [Guid]::NewGuid().ToString("N")
 $source = New-Item -ItemType Directory -Path (Join-Path $work "source") -Force
 $target = New-Item -ItemType Directory -Path (Join-Path $work "target") -Force
 [IO.File]::WriteAllText((Join-Path $source "copy.txt"), "source-copy")
-[IO.File]::WriteAllText((Join-Path $source "replace.txt"), "source-replace")
-[IO.File]::WriteAllText((Join-Path $target "replace.txt"), "target-replace")
+[IO.File]::WriteAllText((Join-Path $source "Case-Path.txt"), "source-replace")
+[IO.File]::WriteAllText((Join-Path $target "case-path.txt"), "target-replace")
 [IO.File]::WriteAllText((Join-Path $target "delete.txt"), "target-only")
 $combined = Join-Path $work "combined.txt"
 $listener = [Net.Sockets.TcpListener]::new([Net.IPAddress]::Loopback, 0); $listener.Start(); $port = ([Net.IPEndPoint]$listener.LocalEndpoint).Port; $listener.Stop()
@@ -33,12 +34,14 @@ try {
     if ($null -eq $version) { throw "rclone RC did not become ready." }
     $sourceFs = $source.FullName.Replace('\','/') + "/"
     $targetFs = $target.FullName.Replace('\','/') + "/"
-    $beforeSource = Invoke-Rc "operations/list" @{ fs = $sourceFs; remote = ""; recurse = $true }
-    $beforeTarget = Invoke-Rc "operations/list" @{ fs = $targetFs; remote = ""; recurse = $true }
-    $started = Invoke-Rc "sync/sync" @{ srcFs = $sourceFs; srcRemote = ""; dstFs = $targetFs; dstRemote = ""; combined = $combined; _async = $true; _group = "preview-validation"; _config = @{ DryRun = $true; Retries = 1 } }
+    $listOptions = @{ recurse = $true; showHash = $true }
+    $beforeSource = Invoke-Rc "operations/list" @{ fs = $sourceFs; remote = ""; opt = $listOptions }
+    $beforeTarget = Invoke-Rc "operations/list" @{ fs = $targetFs; remote = ""; opt = $listOptions }
+    $endpoint = "sync/$Operation"
+    $started = Invoke-Rc $endpoint @{ srcFs = $sourceFs; srcRemote = ""; dstFs = $targetFs; dstRemote = ""; combined = $combined; _async = $true; _group = "preview-validation-$Operation"; _config = @{ DryRun = $true; Retries = 1 } }
     do { Start-Sleep -Milliseconds 100; $status = Invoke-Rc "job/status" @{ jobid = $started.jobid } } while (-not $status.finished)
     $check = Invoke-Rc "operations/check" @{ srcFs = $sourceFs; srcRemote = ""; dstFs = $targetFs; dstRemote = ""; oneWay = $false }
-    $afterTarget = Invoke-Rc "operations/list" @{ fs = $targetFs; remote = ""; recurse = $true }
+    $afterTarget = Invoke-Rc "operations/list" @{ fs = $targetFs; remote = ""; opt = $listOptions }
     $changeFields = @("combined", "differ", "missingOnSrc", "missingOnDst", "match", "destAfter")
     $returnedFields = @($changeFields | Where-Object { $status.PSObject.Properties.Name -contains $_ })
     $checkFields = @("combined", "missingOnSrc", "missingOnDst", "match", "differ", "error")
@@ -46,7 +49,7 @@ try {
     $result = [ordered]@{
         rcloneVersion = $version.version
         architecture = $version.arch
-        operation = "sync/sync"
+        operation = $endpoint
         dryRun = $true
         retries = 1
         jobSucceeded = [bool]$status.success
@@ -56,6 +59,9 @@ try {
         sourceListingCount = @($beforeSource.list).Count
         targetListingCountBefore = @($beforeTarget.list).Count
         targetListingCountAfter = @($afterTarget.list).Count
+        sourceListingsContainHashes = (@($beforeSource.list | Where-Object { $_.Hashes.PSObject.Properties.Count -gt 0 }).Count -eq @($beforeSource.list).Count)
+        targetListingsContainHashes = (@($beforeTarget.list | Where-Object { $_.Hashes.PSObject.Properties.Count -gt 0 }).Count -eq @($beforeTarget.list).Count)
+        caseInsensitiveFixture = @{ source = "Case-Path.txt"; target = "case-path.txt" }
         dryRunLeftTargetUnchanged = (@($beforeTarget.list).Count -eq @($afterTarget.list).Count)
         checkStructuredFields = $checkStructuredFields
         checkHasStructuredArrays = ($checkStructuredFields.Count -gt 0)
@@ -63,7 +69,7 @@ try {
         conclusion = if ($returnedFields.Count -eq 0 -and -not (Test-Path -LiteralPath $combined)) { "rc-sync-exposes-neither-change-set-nor-command-logger" } else { "unexpected-contract" }
     }
     [IO.File]::WriteAllText($absoluteOutputPath, ($result | ConvertTo-Json -Depth 8), [Text.UTF8Encoding]::new($false))
-    if (-not $status.success -or -not $result.dryRunLeftTargetUnchanged -or -not $result.checkHasStructuredArrays -or $result.conclusion -ne "rc-sync-exposes-neither-change-set-nor-command-logger") { throw "rclone preview validation failed closed." }
+    if (-not $status.success -or -not $result.dryRunLeftTargetUnchanged -or -not $result.sourceListingsContainHashes -or -not $result.targetListingsContainHashes -or -not $result.checkHasStructuredArrays -or $result.conclusion -ne "rc-sync-exposes-neither-change-set-nor-command-logger") { throw "rclone preview validation failed closed." }
 }
 finally {
     try { Invoke-Rc "core/quit" | Out-Null } catch {}

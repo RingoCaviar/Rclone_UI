@@ -11,7 +11,7 @@ public sealed class MountManagerTests
         var fixture = new Fixture(new(true, true, false, false, true, 0, 0, 0));
         var result = await fixture.Manager.StartAsync(Profile(), cancellationToken);
         Assert.Equal(MountState.NeedsRemount, result.State);
-        Assert.Equal("readiness-not-proved", result.DiagnosticCode);
+        Assert.Equal("mount-namespace-not-presented", result.DiagnosticCode);
     }
 
     [Fact]
@@ -74,8 +74,48 @@ public sealed class MountManagerTests
         Assert.Equal(0, fixture.Adapter.StartCalls);
     }
 
-    private static MountProfile Profile() => new(MountProfileId.New(), 1, "Cloud", "cloud:", null, 'R', "Rclone Cloud", WindowsDriveType.Network, MountCachePreset.StandardReadWrite, "cache/mounts/id", 10L * 1024 * 1024 * 1024, false, "caps-v1");
+    [Theory]
+    [MemberData(nameof(ReadinessFailures))]
+    public async Task ReadyRequiresEveryIndependentWindowsProbe(MountEvidence evidence, string expectedCode)
+    {
+        var result = await new Fixture(evidence).Manager.StartAsync(Profile(), TestContext.Current.CancellationToken);
+        Assert.Equal(MountState.NeedsRemount, result.State);
+        Assert.Equal(expectedCode, result.DiagnosticCode);
+    }
+
+    public static TheoryData<MountEvidence, string> ReadinessFailures => new()
+    {
+        { ReadyEvidence() with { RcRequestAccepted = false }, "mount-rc-not-accepted" },
+        { ReadyEvidence() with { ProcessAlive = false }, "mount-process-exited" },
+        { ReadyEvidence() with { EndpointRegistered = false }, "mount-endpoint-not-registered" },
+        { ReadyEvidence() with { NamespacePresented = false }, "mount-namespace-not-presented" },
+        { ReadyEvidence() with { NamespaceOwnedByInstance = false }, "mount-namespace-owner-mismatch" },
+        { ReadyEvidence() with { ExpectedTokenVisible = false }, "mount-token-not-visible" },
+        { ReadyEvidence() with { RootProbeWithinDeadline = false }, "mount-root-probe-timeout" },
+        { ReadyEvidence() with { RootProbeSucceeded = false }, "mount-root-probe-failed" },
+        { ReadyEvidence() with { CacheObservable = false }, "mount-cache-observation-failed" }
+    };
+
+    [Theory]
+    [InlineData(MountPresentationMode.NetworkDrive)]
+    [InlineData(MountPresentationMode.FixedDrive)]
+    [InlineData(MountPresentationMode.FixedDirectory)]
+    public async Task AllPresentationModesHaveExplicitValidation(MountPresentationMode mode)
+    {
+        var profile = Profile() with
+        {
+            PresentationMode = mode,
+            FixedDirectoryPath = mode == MountPresentationMode.FixedDirectory ? "C:/mounts/cloud" : null,
+            ShareName = mode == MountPresentationMode.NetworkDrive ? "rclone-ui-cloud-1234" : null,
+            DriveLetterSelection = mode == MountPresentationMode.FixedDrive ? DriveLetterSelection.Automatic : DriveLetterSelection.Preferred
+        };
+        var result = await new Fixture(ReadyEvidence()).Manager.ValidateAsync(profile, TestContext.Current.CancellationToken);
+        Assert.True(result.IsValid);
+    }
+
+    private static MountProfile Profile() => new(MountProfileId.New(), 1, "Cloud", "cloud:", null, 'R', "Rclone Cloud", WindowsDriveType.Network, MountCachePreset.StandardReadWrite, "cache/mounts/id", 10L * 1024 * 1024 * 1024, false, "caps-v1", ShareName: "rclone-ui-cloud-1234");
     private static MountEnvironmentEvidence Environment() => new(true, true, true, true, true, false, true, "caps-v1");
+    private static MountEvidence ReadyEvidence() => new(true, true, true, true, true, 0, 0, 0);
 
     private sealed class Fixture
     {

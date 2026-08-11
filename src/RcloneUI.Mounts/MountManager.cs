@@ -9,14 +9,18 @@ public sealed class MountManager(IMountExecutionAdapter adapter, IMountJournal j
     public async ValueTask<MountValidation> ValidateAsync(MountProfile profile, CancellationToken cancellationToken = default)
     {
         if (profile.Id.Value == Guid.Empty || string.IsNullOrWhiteSpace(profile.Remote) || string.IsNullOrWhiteSpace(profile.VolumeName)) return new(false, "profile-invalid");
-        if (profile.PreferredDriveLetter is < 'A' or > 'Z') return new(false, "drive-letter-invalid");
+        if (profile.PresentationMode != MountPresentationMode.FixedDirectory && profile.DriveLetterSelection == DriveLetterSelection.Preferred && profile.PreferredDriveLetter is < 'A' or > 'Z') return new(false, "drive-letter-invalid");
+        if (profile.PresentationMode == MountPresentationMode.FixedDirectory && string.IsNullOrWhiteSpace(profile.FixedDirectoryPath)) return new(false, "fixed-directory-required");
+        if (profile.PresentationMode == MountPresentationMode.NetworkDrive && string.IsNullOrWhiteSpace(profile.ShareName)) return new(false, "share-name-required");
         if (profile.CachePreset != MountCachePreset.ReadOnlyBrowsing && profile.CacheCapacityBytes <= 0) return new(false, "cache-capacity-invalid");
         var environment = await adapter.InspectAsync(profile, cancellationToken).ConfigureAwait(false);
         if (!environment.OperationalSession) return new(false, "session-not-operational");
         if (!environment.RemoteHealthy) return new(false, "remote-unhealthy");
         if (!environment.SubpathExists) return new(false, "subpath-missing");
         if (!environment.WinFspCompatible) return new(false, "winfsp-incompatible");
-        if (!environment.DriveLetterAvailable && !environment.DriveLetterOwnedByProfile) return new(false, "drive-letter-conflict");
+        if (profile.PresentationMode != MountPresentationMode.FixedDirectory && !environment.DriveLetterAvailable && !environment.DriveLetterOwnedByProfile) return new(false, "drive-letter-conflict");
+        if (profile.PresentationMode == MountPresentationMode.NetworkDrive && !environment.ShareNameAvailable) return new(false, "share-name-conflict");
+        if (profile.PresentationMode == MountPresentationMode.FixedDirectory && !environment.DirectoryTargetAvailable) return new(false, "fixed-directory-conflict");
         if (profile.CachePreset != MountCachePreset.ReadOnlyBrowsing && !environment.CacheWritable) return new(false, "cache-not-writable");
         if (!StringComparer.Ordinal.Equals(profile.CapabilityBinding, environment.CapabilityBinding)) return new(false, "capability-binding-changed");
         return new(true, null);
@@ -35,9 +39,10 @@ public sealed class MountManager(IMountExecutionAdapter adapter, IMountJournal j
             await journal.SaveAsync(starting, cancellationToken).ConfigureAwait(false);
             await adapter.StartAsync(id, profile, cancellationToken).ConfigureAwait(false);
             var evidence = await adapter.ObserveAsync(id, profile, cancellationToken).ConfigureAwait(false);
-            var ready = Snapshot(id, profile, evidence.ProvesReady ? MountState.Ready : MountState.NeedsRemount,
-                evidence.ProvesReady ? MountRisk.None : MountRisk.CannotProveClean, evidence,
-                evidence.ProvesReady ? null : evidence.DiagnosticCode ?? "readiness-not-proved");
+            var provesReady = evidence.ProvesReadyFor(profile);
+            var ready = Snapshot(id, profile, provesReady ? MountState.Ready : MountState.NeedsRemount,
+                provesReady ? MountRisk.None : MountRisk.CannotProveClean, evidence,
+                provesReady ? null : ReadinessFailure(evidence));
             await journal.SaveAsync(ready, cancellationToken).ConfigureAwait(false);
             return ready;
         }
@@ -86,7 +91,7 @@ public sealed class MountManager(IMountExecutionAdapter adapter, IMountJournal j
         foreach (var snapshot in active)
         {
             var evidence = await adapter.ObserveAsync(snapshot.InstanceId, snapshot.Profile, cancellationToken).ConfigureAwait(false);
-            if (evidence.ProvesReady) { var live = snapshot with { State = MountState.Ready, Evidence = evidence, UpdatedUtc = DateTimeOffset.UtcNow }; await journal.SaveAsync(live, cancellationToken); results.Add(live); continue; }
+            if (evidence.ProvesReadyFor(snapshot.Profile)) { var live = snapshot with { State = MountState.Ready, Evidence = evidence, UpdatedUtc = DateTimeOffset.UtcNow }; await journal.SaveAsync(live, cancellationToken); results.Add(live); continue; }
             var interrupted = snapshot with { State = MountState.RecoveryRequired, Risk = MountRisk.Interrupted, Evidence = evidence, DiagnosticCode = "interrupted-mount", UpdatedUtc = DateTimeOffset.UtcNow };
             var path = await recoveryCaches.PreserveAsync(interrupted, interrupted.Risk, cancellationToken).ConfigureAwait(false);
             interrupted = interrupted with { RecoveryCachePath = path };
@@ -97,6 +102,19 @@ public sealed class MountManager(IMountExecutionAdapter adapter, IMountJournal j
     }
 
     private static MountRisk RiskFor(MountEvidence evidence) => evidence.PendingFiles > 0 || evidence.PendingBytes > 0 ? MountRisk.PendingWrites : MountRisk.CannotProveClean;
+    private static string ReadinessFailure(MountEvidence evidence)
+    {
+        if (!evidence.RcRequestAccepted) return "mount-rc-not-accepted";
+        if (!evidence.ProcessAlive) return "mount-process-exited";
+        if (!evidence.EndpointRegistered) return "mount-endpoint-not-registered";
+        if (!evidence.NamespacePresented) return "mount-namespace-not-presented";
+        if (!evidence.NamespaceOwnedByInstance) return "mount-namespace-owner-mismatch";
+        if (!evidence.ExpectedTokenVisible) return "mount-token-not-visible";
+        if (!evidence.RootProbeWithinDeadline) return "mount-root-probe-timeout";
+        if (!evidence.RootProbeSucceeded) return "mount-root-probe-failed";
+        if (evidence.CacheObservable is false) return "mount-cache-observation-failed";
+        return evidence.DiagnosticCode ?? "readiness-not-proved";
+    }
     private static MountEvidence EmptyEvidence() => new(false, false, false, false, null, null, null, null);
     private static MountSnapshot Snapshot(MountInstanceId id, MountProfile profile, MountState state, MountRisk risk, MountEvidence evidence, string? code = null) => new(id, profile, state, risk, evidence, DateTimeOffset.UtcNow, null, code);
 }

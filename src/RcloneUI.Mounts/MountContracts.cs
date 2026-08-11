@@ -5,6 +5,8 @@ public readonly record struct MountInstanceId(Guid Value) { public static MountI
 
 public enum MountCachePreset { ReadOnlyBrowsing, StandardReadWrite, MaximumCompatibility, Custom }
 public enum WindowsDriveType { Network, Fixed }
+public enum MountPresentationMode { NetworkDrive, FixedDrive, FixedDirectory }
+public enum DriveLetterSelection { Preferred, Automatic }
 public enum MountState { Stopped, Starting, Ready, DegradedConnection, SafeUnmount, NeedsRemount, RecoveryRequired }
 public enum MountStopMode { Safe, Force }
 public enum MountRisk { None, PendingWrites, CannotProveClean, Interrupted, CorruptCache }
@@ -22,7 +24,11 @@ public sealed record MountProfile(
     string CachePath,
     long CacheCapacityBytes,
     bool AutoMount,
-    string CapabilityBinding);
+    string CapabilityBinding,
+    MountPresentationMode PresentationMode = MountPresentationMode.NetworkDrive,
+    DriveLetterSelection DriveLetterSelection = DriveLetterSelection.Preferred,
+    string? FixedDirectoryPath = null,
+    string? ShareName = null);
 
 public sealed record MountEvidence(
     bool ProcessAlive,
@@ -33,9 +39,13 @@ public sealed record MountEvidence(
     int? PendingFiles,
     long? PendingBytes,
     int? OpenFiles,
-    string? DiagnosticCode = null)
+    string? DiagnosticCode = null,
+    bool RcRequestAccepted = true,
+    bool NamespaceOwnedByInstance = true,
+    bool ExpectedTokenVisible = true,
+    bool RootProbeWithinDeadline = true)
 {
-    public bool ProvesReady => ProcessAlive && EndpointRegistered && NamespacePresented && RootProbeSucceeded && CacheObservable is not false;
+    public bool ProvesReadyFor(MountProfile profile) => RcRequestAccepted && ProcessAlive && EndpointRegistered && NamespacePresented && NamespaceOwnedByInstance && ExpectedTokenVisible && RootProbeSucceeded && RootProbeWithinDeadline && CacheObservable is not false;
     public bool ProvesClean => CacheObservable == true && PendingFiles == 0 && PendingBytes == 0 && OpenFiles == 0;
 }
 

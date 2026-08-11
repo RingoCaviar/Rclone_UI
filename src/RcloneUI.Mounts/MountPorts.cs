@@ -9,7 +9,10 @@ public sealed record MountEnvironmentEvidence(
     bool DriveLetterOwnedByProfile,
     bool CacheWritable,
     string CapabilityBinding,
-    string? DiagnosticCode = null);
+    string? DiagnosticCode = null,
+    char? ResolvedDriveLetter = null,
+    bool ShareNameAvailable = true,
+    bool DirectoryTargetAvailable = true);
 
 public interface IMountExecutionAdapter
 {

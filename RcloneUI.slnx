@@ -1,0 +1,21 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/RcloneUI.Contracts/RcloneUI.Contracts.csproj" />
+    <Project Path="src/RcloneUI.DataRoot/RcloneUI.DataRoot.csproj" />
+    <Project Path="src/RcloneUI.Desktop/RcloneUI.Desktop.csproj" />
+    <Project Path="src/RcloneUI.Diagnostics/RcloneUI.Diagnostics.csproj" />
+    <Project Path="src/RcloneUI.Host/RcloneUI.Host.csproj" />
+    <Project Path="src/RcloneUI.Mounts/RcloneUI.Mounts.csproj" />
+    <Project Path="src/RcloneUI.Rclone/RcloneUI.Rclone.csproj" />
+    <Project Path="src/RcloneUI.Remotes/RcloneUI.Remotes.csproj" />
+    <Project Path="src/RcloneUI.Transfers/RcloneUI.Transfers.csproj" />
+    <Project Path="src/RcloneUI.Updater/RcloneUI.Updater.csproj" />
+    <Project Path="src/RcloneUI.Updates/RcloneUI.Updates.csproj" />
+    <Project Path="src/RcloneUI.Work/RcloneUI.Work.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/RcloneUI.Architecture.Tests/RcloneUI.Architecture.Tests.csproj" />
+    <Project Path="tests/RcloneUI.Contracts.Tests/RcloneUI.Contracts.Tests.csproj" />
+    <Project Path="tests/RcloneUI.IntegrationTests/RcloneUI.IntegrationTests.csproj" />
+  </Folder>
+</Solution>

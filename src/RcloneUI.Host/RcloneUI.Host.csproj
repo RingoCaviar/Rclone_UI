@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <AssemblyName>RcloneUI.Host</AssemblyName>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../RcloneUI.Contracts/RcloneUI.Contracts.csproj" />
+    <ProjectReference Include="../RcloneUI.DataRoot/RcloneUI.DataRoot.csproj" />
+    <ProjectReference Include="../RcloneUI.Diagnostics/RcloneUI.Diagnostics.csproj" />
+    <ProjectReference Include="../RcloneUI.Mounts/RcloneUI.Mounts.csproj" />
+    <ProjectReference Include="../RcloneUI.Rclone/RcloneUI.Rclone.csproj" />
+    <ProjectReference Include="../RcloneUI.Remotes/RcloneUI.Remotes.csproj" />
+    <ProjectReference Include="../RcloneUI.Transfers/RcloneUI.Transfers.csproj" />
+    <ProjectReference Include="../RcloneUI.Updates/RcloneUI.Updates.csproj" />
+    <ProjectReference Include="../RcloneUI.Work/RcloneUI.Work.csproj" />
+  </ItemGroup>
+</Project>

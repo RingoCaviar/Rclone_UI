@@ -1,0 +1,9 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <AssemblyName>RcloneUI.Updater</AssemblyName>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../RcloneUI.Contracts/RcloneUI.Contracts.csproj" />
+  </ItemGroup>
+</Project>

@@ -1,0 +1,12 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="RcloneUI.Desktop.MainWindow"
+        Width="960"
+        Height="640"
+        MinWidth="720"
+        MinHeight="480"
+        Title="Rclone UI">
+  <TextBlock HorizontalAlignment="Center"
+             VerticalAlignment="Center"
+             Text="Rclone UI engineering baseline" />
+</Window>

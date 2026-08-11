@@ -1,0 +1,7 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <ProjectReference Include="../RcloneUI.Contracts/RcloneUI.Contracts.csproj" />
+    <ProjectReference Include="../RcloneUI.DataRoot/RcloneUI.DataRoot.csproj" />
+    <ProjectReference Include="../RcloneUI.Rclone/RcloneUI.Rclone.csproj" />
+  </ItemGroup>
+</Project>

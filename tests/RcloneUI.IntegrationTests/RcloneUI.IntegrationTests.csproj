@@ -12,5 +12,6 @@
     <ProjectReference Include="../../src/RcloneUI.DataRoot/RcloneUI.DataRoot.csproj" />
     <ProjectReference Include="../../src/RcloneUI.Host/RcloneUI.Host.csproj" />
     <ProjectReference Include="../../src/RcloneUI.Rclone/RcloneUI.Rclone.csproj" />
+    <ProjectReference Include="../../src/RcloneUI.Remotes/RcloneUI.Remotes.csproj" />
   </ItemGroup>
 </Project>

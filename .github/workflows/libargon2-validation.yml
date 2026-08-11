@@ -1,0 +1,41 @@
+name: libargon2 validation
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+env:
+  ARGON2_REVISION: 62358ba2123abd17fccf2a108a301d4b52c01a7c
+jobs:
+  windows-x64-candidate:
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - shell: pwsh
+        run: |
+          git clone https://github.com/P-H-C/phc-winner-argon2.git artifacts/argon2-source
+          git -C artifacts/argon2-source checkout $env:ARGON2_REVISION
+          if ((git -C artifacts/argon2-source rev-parse HEAD) -ne $env:ARGON2_REVISION) { throw 'Argon2 source revision mismatch.' }
+      - shell: pwsh
+        run: |
+          msbuild artifacts/argon2-source/vs2015/Argon2OptDll/Argon2OptDll.vcxproj /m /p:Configuration=ReleaseStatic /p:Platform=x64 /p:WindowsTargetPlatformVersion=10.0
+          msbuild artifacts/argon2-source/vs2015/Argon2OptTestCI/Argon2OptTestCI.vcxproj /m /p:Configuration=ReleaseStatic /p:Platform=x64 /p:WindowsTargetPlatformVersion=10.0
+          & artifacts/argon2-source/vs2015/build/Argon2OptTestCI.exe
+          if ($LASTEXITCODE -ne 0) { throw 'Official Argon2 KAT failed.' }
+          $dll = Resolve-Path artifacts/argon2-source/vs2015/build/Argon2OptDll.dll
+          "RCLONEUI_ARGON2_DLL=$dll" | Out-File -FilePath $env:GITHUB_ENV -Append
+          "RCLONEUI_ARGON2_SHA256=$((Get-FileHash $dll -Algorithm SHA256).Hash)" | Out-File -FilePath $env:GITHUB_ENV -Append
+      - shell: pwsh
+        run: dotnet test tests/RcloneUI.IntegrationTests/RcloneUI.IntegrationTests.csproj -c Release --filter FullyQualifiedName~NativeArgon2CandidateTests --logger "console;verbosity=normal"
+      - shell: pwsh
+        run: |
+          [ordered]@{ sourceRevision = $env:ARGON2_REVISION; sha256 = $env:RCLONEUI_ARGON2_SHA256; runner = $env:ImageOS; architecture = 'x64'; toolchain = 'MSVC windows-2022'; clearing = 'FLAG_clear_internal_memory default enabled'; testedUtc = [DateTimeOffset]::UtcNow } | ConvertTo-Json | Set-Content artifacts/libargon2-candidate.json -Encoding utf8NoBOM
+      - uses: actions/upload-artifact@v4
+        with:
+          name: libargon2-windows-x64-validation
+          path: |
+            artifacts/argon2-source/vs2015/build/Argon2OptDll.dll
+            artifacts/libargon2-candidate.json
+          if-no-files-found: error

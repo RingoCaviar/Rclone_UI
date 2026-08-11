@@ -58,7 +58,7 @@ public sealed class DataRootSession : IDataRootSession
         {
             keyDeriver = new(request.Argon2);
         }
-        catch (Exception exception) when (exception is IOException or CryptographicException or FormatException)
+        catch (Exception exception) when (exception is IOException or CryptographicException or FormatException or BadImageFormatException or DllNotFoundException or EntryPointNotFoundException)
         {
             return ValueTask.FromResult(new DataRootOpenResult(
                 DataRootOpenStatus.Unavailable,

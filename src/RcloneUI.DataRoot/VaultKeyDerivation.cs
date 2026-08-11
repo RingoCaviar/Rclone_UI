@@ -32,6 +32,7 @@ internal interface IVaultKeyDeriver
 
 internal sealed class LibArgon2KeyDeriver : IVaultKeyDeriver, IDisposable
 {
+    private static readonly SemaphoreSlim Admission = new(1, 1);
     private readonly nint library;
     private readonly Argon2IdHashRaw derive;
 
@@ -64,25 +65,30 @@ internal sealed class LibArgon2KeyDeriver : IVaultKeyDeriver, IDisposable
             throw new ArgumentException("Argon2id requires a 16-byte salt and 32-byte output in Vault format v1.");
         }
 
-        fixed (byte* passwordPointer = password)
-        fixed (byte* saltPointer = salt)
-        fixed (byte* outputPointer = output)
+        Admission.Wait();
+        try
         {
-            var result = derive(
-                checked((uint)parameters.Iterations),
-                checked((uint)parameters.MemoryKiB),
-                checked((uint)parameters.Lanes),
-                passwordPointer,
-                (nuint)password.Length,
-                saltPointer,
-                (nuint)salt.Length,
-                outputPointer,
-                (nuint)output.Length);
-            if (result != 0)
+            fixed (byte* passwordPointer = password)
+            fixed (byte* saltPointer = salt)
+            fixed (byte* outputPointer = output)
             {
-                throw new CryptographicException($"libargon2 rejected the derivation with code {result}.");
+                var result = derive(
+                    checked((uint)parameters.Iterations),
+                    checked((uint)parameters.MemoryKiB),
+                    checked((uint)parameters.Lanes),
+                    passwordPointer,
+                    (nuint)password.Length,
+                    saltPointer,
+                    (nuint)salt.Length,
+                    outputPointer,
+                    (nuint)output.Length);
+                if (result != 0)
+                {
+                    throw new CryptographicException($"libargon2 rejected the derivation with code {result}.");
+                }
             }
         }
+        finally { Admission.Release(); }
     }
 
     public void Dispose() => NativeLibrary.Free(library);

@@ -4,6 +4,7 @@ using System.Text.Json;
 using RcloneUI.Desktop.Presentation;
 using RcloneUI.Host;
 using RcloneUI.Rclone;
+using RcloneUI.Remotes;
 
 namespace RcloneUI.IntegrationTests;
 
@@ -23,7 +24,7 @@ public sealed class DesktopHostClientTests
                 Assert.NotNull(host); host.Start();
                 var client = new NamedPipeDesktopHostClient(root);
                 var snapshot = await client.GetSnapshotAsync(cancellationToken);
-                Assert.Equal("operational", snapshot.Body.GetProperty("session").GetString());
+                Assert.Equal("locked", snapshot.Body.GetProperty("session").GetString());
                 Assert.Empty(snapshot.Body.GetProperty("remotes").EnumerateArray());
                 using var arguments = JsonDocument.Parse("{}");
                 var command = await client.SendCommandAsync("activate-ui", arguments.RootElement, cancellationToken);
@@ -79,5 +80,36 @@ public sealed class DesktopHostClientTests
             }
         }
         finally { Directory.Delete(root, recursive: true); }
+    }
+
+    [Fact]
+    public async Task SnapshotProjectsRemoteSummariesWithoutConfigurationSecrets()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var root = Path.Combine(Path.GetTempPath(), "RcloneUI.Desktop.Remote.Tests", Guid.NewGuid().ToString("N")); Directory.CreateDirectory(root);
+        var projection = new VaultHostRemoteProjection(new TestRemoteStore());
+        try
+        {
+            await using (var host = BackgroundHostShell.TryCreate(root, Guid.NewGuid(), remotes: projection))
+            {
+                Assert.NotNull(host); host.Start();
+                var snapshot = await new NamedPipeDesktopHostClient(root).GetSnapshotAsync(cancellationToken);
+                var json = snapshot.Body.GetRawText();
+                var remote = Assert.Single(snapshot.Body.GetProperty("remotes").EnumerateArray());
+                Assert.Equal("Personal Drive", remote.GetProperty("displayName").GetString());
+                Assert.DoesNotContain("super-secret", json, StringComparison.Ordinal);
+                Assert.DoesNotContain("configuration", json, StringComparison.OrdinalIgnoreCase);
+            }
+        }
+        finally { Directory.Delete(root, recursive: true); }
+    }
+
+    private sealed class TestRemoteStore : IRemoteStore
+    {
+        private readonly StoredRemote remote = new(new RcloneUI.Remotes.RemoteId(Guid.NewGuid()), "Personal Drive", "drive", 1, new Dictionary<string, string> { ["token"] = "super-secret" }, new(RemoteHealthKind.Healthy, DateTimeOffset.UtcNow, "caps", null));
+        public ValueTask<IReadOnlyList<RemoteSummary>> ListAsync(CancellationToken cancellationToken) => ValueTask.FromResult<IReadOnlyList<RemoteSummary>>([new(remote.Id, remote.DisplayName, remote.ProviderType, remote.Revision, remote.Health)]);
+        public ValueTask<StoredRemote?> ReadAsync(RcloneUI.Remotes.RemoteId id, CancellationToken cancellationToken) => ValueTask.FromResult<StoredRemote?>(remote);
+        public ValueTask<StoredRemote> UpsertAsync(StoredRemote value, ulong expectedRevision, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public ValueTask<bool> DeleteAsync(RcloneUI.Remotes.RemoteId id, ulong expectedRevision, CancellationToken cancellationToken) => throw new NotSupportedException();
     }
 }

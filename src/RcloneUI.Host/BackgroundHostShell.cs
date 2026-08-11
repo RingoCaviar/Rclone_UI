@@ -28,20 +28,21 @@ internal sealed class BackgroundHostShell : IAsyncDisposable
         HostOwnership ownership,
         HostEndpoint endpoint,
         HostWindowsIdentity identity,
-        IRcloneRuntime? rclone)
+        IRcloneRuntime? rclone,
+        IHostRemoteProjection? remotes)
     {
         this.dataRootPath = dataRootPath;
         this.ownership = ownership;
         this.endpoint = endpoint;
         this.identity = identity;
-        state = new(dataRootPath, rclone);
+        state = new(dataRootPath, rclone, remotes);
         workReconciler = new(dataRootPath);
         lifecycleJournal = new(dataRootPath);
     }
 
     internal HostEndpoint Endpoint => endpoint;
 
-    internal static BackgroundHostShell? TryCreate(string dataRootPath, Guid dataRootId, IRcloneRuntime? rclone = null)
+    internal static BackgroundHostShell? TryCreate(string dataRootPath, Guid dataRootId, IRcloneRuntime? rclone = null, IHostRemoteProjection? remotes = null)
     {
         var identity = HostWindowsIdentity.Current();
         var names = HostEndpointNaming.Derive(dataRootId, identity.LogonSid.Value);
@@ -50,7 +51,7 @@ internal sealed class BackgroundHostShell : IAsyncDisposable
         try
         {
             var endpoint = HostEndpointPublisher.Create(dataRootId, names.PipeName);
-            return new(dataRootPath, ownership, endpoint, identity, rclone);
+            return new(dataRootPath, ownership, endpoint, identity, rclone, remotes);
         }
         catch
         {

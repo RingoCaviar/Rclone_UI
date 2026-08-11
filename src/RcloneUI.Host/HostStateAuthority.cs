@@ -14,15 +14,17 @@ internal sealed class HostStateAuthority : IDisposable
     private readonly object sync = new();
     private readonly DurableIdempotencyStore idempotency;
     private readonly IRcloneRuntime? rclone;
+    private readonly IHostRemoteProjection? remotes;
     private readonly SemaphoreSlim dispatchGate = new(1, 1);
     private readonly Dictionary<Guid, CopyRunState> copyRuns = [];
     private readonly StateEpoch epoch = new(Guid.NewGuid().ToString("N"));
     private ulong revision;
     private int activationCount;
 
-    internal HostStateAuthority(string dataRootPath, IRcloneRuntime? rclone = null)
+    internal HostStateAuthority(string dataRootPath, IRcloneRuntime? rclone = null, IHostRemoteProjection? remotes = null)
     {
         this.rclone = rclone;
+        this.remotes = remotes;
         idempotency = new(Path.Combine(dataRootPath, "runtime", "idempotency.json"));
         foreach (var record in idempotency.Records)
         {
@@ -66,7 +68,13 @@ internal sealed class HostStateAuthority : IDisposable
             HostCommandResult result;
             if (commandType == "get-snapshot")
             {
-                lock (sync) result = CreateResult("snapshot", new { session = "operational", activationCount, remotes = Array.Empty<object>(), copyRuns = copyRuns.Values.OrderBy(x => x.CreatedUtc).ToArray(), rclone = new { status = rclone is null ? "unavailable" : "ready", capabilityBinding = rclone?.Capabilities.Binding } }, new(epoch, revision));
+                IReadOnlyList<HostRemoteSummary> summaries = [];
+                if (remotes is not null)
+                {
+                    try { summaries = await remotes.ListAsync(cancellationToken).ConfigureAwait(false); }
+                    catch (Exception exception) when (exception is not OperationCanceledException) { return CreateResult("snapshot-unavailable", new { code = "remote-projection-unavailable" }, Cursor); }
+                }
+                lock (sync) result = CreateResult("snapshot", new { session = remotes is null ? "locked" : "operational", activationCount, remotes = summaries, copyRuns = copyRuns.Values.OrderBy(x => x.CreatedUtc).ToArray(), rclone = new { status = rclone is null ? "unavailable" : "ready", capabilityBinding = rclone?.Capabilities.Binding } }, new(epoch, revision));
             }
             else if (commandType == "activate-ui")
             {

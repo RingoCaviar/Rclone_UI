@@ -21,6 +21,7 @@ public sealed class DesktopShellState : INotifyPropertyChanged
     private bool english;
     private string lastAction = string.Empty;
     private string remoteSummary = string.Empty;
+    private string[] remoteNames = [];
     private string copyStatus = string.Empty;
     private string? capabilityBinding;
 
@@ -40,6 +41,7 @@ public sealed class DesktopShellState : INotifyPropertyChanged
     public string RunningTasksLabel => T("0 个运行中", "0 running");
     public string LastAction => lastAction;
     public string RemoteSummary => remoteSummary;
+    public IReadOnlyList<string> RemoteNames => remoteNames;
     public string CopyStatus => copyStatus;
     public string CopySourceFs { get; set; } = string.Empty;
     public string CopySourcePath { get; set; } = string.Empty;
@@ -59,9 +61,12 @@ public sealed class DesktopShellState : INotifyPropertyChanged
     public void ApplySnapshot(HostSnapshot snapshot)
     {
         connection = snapshot.Body.TryGetProperty("session", out var session) ? session.GetString() switch { "operational" => DesktopConnectionState.ConnectedOperational, "locked" => DesktopConnectionState.ConnectedLocked, "read-only-recovery" => DesktopConnectionState.ReadOnlyRecovery, _ => DesktopConnectionState.ReadOnlyRecovery } : DesktopConnectionState.ReadOnlyRecovery;
-        remoteSummary = snapshot.Body.TryGetProperty("remotes", out var remotes) && remotes.ValueKind == JsonValueKind.Array
-            ? T($"{remotes.GetArrayLength()} 个远程存储", $"{remotes.GetArrayLength()} Remotes")
-            : T("远程存储状态未知", "Remote state unknown");
+        if (snapshot.Body.TryGetProperty("remotes", out var remotes) && remotes.ValueKind == JsonValueKind.Array)
+        {
+            remoteNames = remotes.EnumerateArray().Select(item => item.TryGetProperty("displayName", out var name) ? name.GetString() : null).Where(name => !string.IsNullOrWhiteSpace(name)).Select(name => name!).ToArray();
+            remoteSummary = remoteNames.Length == 0 ? T("尚未添加远程存储", "No Remotes added") : string.Join(" · ", remoteNames);
+        }
+        else { remoteNames = []; remoteSummary = T("远程存储状态未知", "Remote state unknown"); }
         capabilityBinding = snapshot.Body.TryGetProperty("rclone", out var rclone) && rclone.TryGetProperty("status", out var status) && status.GetString() == "ready" && rclone.TryGetProperty("capabilityBinding", out var binding) ? binding.GetString() : null;
         if (snapshot.Body.TryGetProperty("copyRuns", out var runs) && runs.ValueKind == JsonValueKind.Array && runs.GetArrayLength() > 0)
         {

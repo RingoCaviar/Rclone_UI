@@ -14,11 +14,22 @@ public sealed record MountEnvironmentEvidence(
     bool ShareNameAvailable = true,
     bool DirectoryTargetAvailable = true);
 
+public sealed record MountCleanupEvidence(
+    bool UnmountRequested,
+    bool NamespaceRemoved,
+    bool CompletedWithinDeadline,
+    bool HostExitRequired = false,
+    string? DiagnosticCode = null)
+{
+    public bool ProvesCleanup => UnmountRequested && NamespaceRemoved && CompletedWithinDeadline;
+}
+
 public interface IMountExecutionAdapter
 {
     ValueTask<MountEnvironmentEvidence> InspectAsync(MountProfile profile, CancellationToken cancellationToken);
     ValueTask StartAsync(MountInstanceId instanceId, MountProfile profile, CancellationToken cancellationToken);
     ValueTask<MountEvidence> ObserveAsync(MountInstanceId instanceId, MountProfile profile, CancellationToken cancellationToken);
+    ValueTask<MountCleanupEvidence> CleanupFailedStartAsync(MountInstanceId instanceId, MountProfile profile, CancellationToken cancellationToken);
     ValueTask StopAsync(MountInstanceId instanceId, bool force, CancellationToken cancellationToken);
 }
 

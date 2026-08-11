@@ -57,7 +57,8 @@ public sealed record MountSnapshot(
     MountEvidence Evidence,
     DateTimeOffset UpdatedUtc,
     string? RecoveryCachePath = null,
-    string? DiagnosticCode = null);
+    string? DiagnosticCode = null,
+    MountCleanupEvidence? StartupCleanup = null);
 
 public sealed record MountValidation(bool IsValid, string? DiagnosticCode);
 

@@ -12,6 +12,32 @@ public sealed class MountManagerTests
         var result = await fixture.Manager.StartAsync(Profile(), cancellationToken);
         Assert.Equal(MountState.NeedsRemount, result.State);
         Assert.Equal("mount-namespace-not-presented", result.DiagnosticCode);
+        Assert.True(result.StartupCleanup?.ProvesCleanup);
+    }
+
+    [Fact]
+    public async Task FailedStartBecomesRecoveryRequiredWhenNamespaceCleanupCannotBeProved()
+    {
+        var fixture = new Fixture(ReadyEvidence() with { ExpectedTokenVisible = false });
+        fixture.Adapter.CleanupEvidence = new(true, false, false, DiagnosticCode: "namespace-still-visible");
+
+        var result = await fixture.Manager.StartAsync(Profile(), TestContext.Current.CancellationToken);
+
+        Assert.Equal(MountState.RecoveryRequired, result.State);
+        Assert.Equal("failed-start-cleanup-not-proved", result.DiagnosticCode);
+        Assert.Equal("namespace-still-visible", result.StartupCleanup?.DiagnosticCode);
+    }
+
+    [Fact]
+    public async Task FailedNetworkStartRecordsWhenHostExitWasNeededForBoundedCleanup()
+    {
+        var fixture = new Fixture(ReadyEvidence() with { RootProbeSucceeded = false });
+        fixture.Adapter.CleanupEvidence = new(true, true, true, HostExitRequired: true);
+
+        var result = await fixture.Manager.StartAsync(Profile(), TestContext.Current.CancellationToken);
+
+        Assert.Equal(MountState.NeedsRemount, result.State);
+        Assert.True(result.StartupCleanup?.HostExitRequired);
     }
 
     [Fact]
@@ -129,9 +155,11 @@ public sealed class MountManagerTests
         public MountEnvironmentEvidence Environment { get; set; } = Environment();
         public int StartCalls { get; private set; }
         public int StopCalls { get; private set; }
+        public MountCleanupEvidence CleanupEvidence { get; set; } = new(true, true, true);
         public ValueTask<MountEnvironmentEvidence> InspectAsync(MountProfile profile, CancellationToken cancellationToken) => ValueTask.FromResult(Environment);
         public ValueTask StartAsync(MountInstanceId instanceId, MountProfile profile, CancellationToken cancellationToken) { StartCalls++; return ValueTask.CompletedTask; }
         public ValueTask<MountEvidence> ObserveAsync(MountInstanceId instanceId, MountProfile profile, CancellationToken cancellationToken) => ValueTask.FromResult(evidence);
+        public ValueTask<MountCleanupEvidence> CleanupFailedStartAsync(MountInstanceId instanceId, MountProfile profile, CancellationToken cancellationToken) => ValueTask.FromResult(CleanupEvidence);
         public ValueTask StopAsync(MountInstanceId instanceId, bool force, CancellationToken cancellationToken) { StopCalls++; return ValueTask.CompletedTask; }
     }
     private sealed class MemoryJournal : IMountJournal

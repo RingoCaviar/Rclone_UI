@@ -40,9 +40,13 @@ public sealed class MountManager(IMountExecutionAdapter adapter, IMountJournal j
             await adapter.StartAsync(id, profile, cancellationToken).ConfigureAwait(false);
             var evidence = await adapter.ObserveAsync(id, profile, cancellationToken).ConfigureAwait(false);
             var provesReady = evidence.ProvesReadyFor(profile);
-            var ready = Snapshot(id, profile, provesReady ? MountState.Ready : MountState.NeedsRemount,
+            MountCleanupEvidence? cleanup = null;
+            if (!provesReady) cleanup = await adapter.CleanupFailedStartAsync(id, profile, cancellationToken).ConfigureAwait(false);
+            var cleanupProved = cleanup?.ProvesCleanup == true;
+            var ready = Snapshot(id, profile, provesReady ? MountState.Ready : cleanupProved ? MountState.NeedsRemount : MountState.RecoveryRequired,
                 provesReady ? MountRisk.None : MountRisk.CannotProveClean, evidence,
-                provesReady ? null : ReadinessFailure(evidence));
+                provesReady ? null : cleanupProved ? ReadinessFailure(evidence) : "failed-start-cleanup-not-proved") with
+            { StartupCleanup = cleanup };
             await journal.SaveAsync(ready, cancellationToken).ConfigureAwait(false);
             return ready;
         }

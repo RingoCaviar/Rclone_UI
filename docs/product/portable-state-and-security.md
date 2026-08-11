@@ -23,7 +23,8 @@
 
 - Keep the Vault unlocked during a normal active session.
 - Lock sensitive UI state when the Windows session locks, the computer suspends, or the user chooses Lock.
-- Allow already-running transfers and Mounts to continue while locked; block sensitive details, Remote changes, and new work until unlock.
+- Allow already-running transfers and Mounts to continue while locked. After the session was successfully unlocked once, the Background Host may start previously configured and enabled schedules while the Windows session remains logged in and locked.
+- Block sensitive details, Remote changes, and new manual work until unlock. Clear operational unlock material when the user logs out or the Background Host exits.
 - Permit one writable application instance per Data Root. Record machine, Windows user, process ID, and start time in the ownership lock.
 - A second instance may activate the owner, choose another Data Root, or enter read-only diagnostic mode.
 - Recover a stale lock only after confirming that the owning process no longer exists.

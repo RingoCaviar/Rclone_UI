@@ -3,7 +3,7 @@ param(
     [Parameter(Mandatory)][string]$RcloneExecutable,
     [Parameter(Mandatory)][string]$OutputPath,
     [ValidateSet("copy", "sync")][string]$Operation = "sync",
-    [ValidateSet("local", "crypt")][string]$Backend = "local"
+    [ValidateSet("local", "crypt", "memory")][string]$Backend = "local"
 )
 
 $ErrorActionPreference = "Stop"
@@ -25,7 +25,7 @@ if ($Backend -eq "local") {
     Copy-Item -Path (Join-Path $targetSeed "*") -Destination $target -Force
     [IO.File]::WriteAllText($configPath, "", [Text.UTF8Encoding]::new($false))
 }
-else {
+elseif ($Backend -eq "crypt") {
     $obscuredPassword = (& $executable obscure "preview-validation-password").Trim()
     if ($LASTEXITCODE -ne 0 -or -not $obscuredPassword) { throw "Could not create the crypt fixture password." }
     $remotePath = $target.FullName.Replace('\','/')
@@ -33,6 +33,9 @@ else {
     [IO.File]::WriteAllText($configPath, $config, [Text.UTF8Encoding]::new($false))
     & $executable copy $targetSeed.FullName "encrypted:" "--config=$configPath" --log-level ERROR
     if ($LASTEXITCODE -ne 0) { throw "Could not populate the crypt fixture." }
+}
+else {
+    [IO.File]::WriteAllText($configPath, "[memory]`ntype = memory`n", [Text.UTF8Encoding]::new($false))
 }
 $listener = [Net.Sockets.TcpListener]::new([Net.IPAddress]::Loopback, 0); $listener.Start(); $port = ([Net.IPEndPoint]$listener.LocalEndpoint).Port; $listener.Stop()
 $address = "http://127.0.0.1:$port"
@@ -48,14 +51,26 @@ try {
         try { $version = Invoke-Rc "core/version" } catch { Start-Sleep -Milliseconds 100 }
     }
     if ($null -eq $version) { throw "rclone RC did not become ready." }
-    $sourceFs = $source.FullName.Replace('\','/') + "/"
-    $targetFs = if ($Backend -eq "crypt") { "encrypted:" } else { $target.FullName.Replace('\','/') + "/" }
+    $localSourceFs = $source.FullName.Replace('\','/') + "/"
+    $localTargetSeedFs = $targetSeed.FullName.Replace('\','/') + "/"
+    if ($Backend -eq "memory") {
+        Invoke-Rc "sync/copy" @{ srcFs = $localSourceFs; srcRemote = ""; dstFs = "memory:source"; dstRemote = ""; _config = @{ Retries = 1 } } | Out-Null
+        Invoke-Rc "sync/copy" @{ srcFs = $localTargetSeedFs; srcRemote = ""; dstFs = "memory:target"; dstRemote = ""; _config = @{ Retries = 1 } } | Out-Null
+        $sourceFs = "memory:source"
+        $targetFs = "memory:target"
+    }
+    else {
+        $sourceFs = $localSourceFs
+        $targetFs = if ($Backend -eq "crypt") { "encrypted:" } else { $target.FullName.Replace('\','/') + "/" }
+    }
     $listOptions = @{ recurse = $true; showHash = $true }
     $beforeSource = Invoke-Rc "operations/list" @{ fs = $sourceFs; remote = ""; opt = $listOptions }
     $beforeTarget = Invoke-Rc "operations/list" @{ fs = $targetFs; remote = ""; opt = $listOptions }
     $endpoint = "sync/$Operation"
     $started = Invoke-Rc $endpoint @{ srcFs = $sourceFs; srcRemote = ""; dstFs = $targetFs; dstRemote = ""; combined = $combined; _async = $true; _group = "preview-validation-$Operation"; _config = @{ DryRun = $true; Retries = 1 } }
     do { Start-Sleep -Milliseconds 100; $status = Invoke-Rc "job/status" @{ jobid = $started.jobid } } while (-not $status.finished)
+    $errorStarted = Invoke-Rc $endpoint @{ srcFs = "undefined-preview-remote:"; srcRemote = ""; dstFs = $targetFs; dstRemote = ""; _async = $true; _group = "preview-validation-error-$Operation"; _config = @{ DryRun = $true; Retries = 1 } }
+    do { Start-Sleep -Milliseconds 100; $errorStatus = Invoke-Rc "job/status" @{ jobid = $errorStarted.jobid } } while (-not $errorStatus.finished)
     $check = Invoke-Rc "operations/check" @{ srcFs = $sourceFs; srcRemote = ""; dstFs = $targetFs; dstRemote = ""; oneWay = $false }
     $afterTarget = Invoke-Rc "operations/list" @{ fs = $targetFs; remote = ""; opt = $listOptions }
     $changeFields = @("combined", "differ", "missingOnSrc", "missingOnDst", "match", "destAfter")
@@ -67,9 +82,11 @@ try {
         architecture = $version.arch
         operation = $endpoint
         backend = $Backend
+        serverSideOperationCandidate = ($Backend -eq "memory")
         dryRun = $true
         retries = 1
         jobSucceeded = [bool]$status.success
+        errorFixtureFailedClosed = (-not [bool]$errorStatus.success -and -not [string]::IsNullOrWhiteSpace([string]$errorStatus.error))
         jobStatusChangeFields = $returnedFields
         rcCombinedParameterHonored = Test-Path -LiteralPath $combined
         loggerLineCount = if (Test-Path -LiteralPath $combined) { @(Get-Content -LiteralPath $combined).Count } else { 0 }
@@ -86,8 +103,8 @@ try {
         conclusion = if ($returnedFields.Count -eq 0 -and -not (Test-Path -LiteralPath $combined)) { "rc-sync-exposes-neither-change-set-nor-command-logger" } else { "unexpected-contract" }
     }
     [IO.File]::WriteAllText($absoluteOutputPath, ($result | ConvertTo-Json -Depth 8), [Text.UTF8Encoding]::new($false))
-    $hashExpectationMet = $result.sourceListingsContainHashes -and ($Backend -eq "crypt" -or $result.targetListingsContainHashes)
-    if (-not $status.success -or -not $result.dryRunLeftTargetUnchanged -or -not $hashExpectationMet -or -not $result.checkHasStructuredArrays -or $result.conclusion -ne "rc-sync-exposes-neither-change-set-nor-command-logger") { throw "rclone preview validation failed closed." }
+    $hashExpectationMet = ($Backend -eq "crypt") -or ($result.sourceListingsContainHashes -and $result.targetListingsContainHashes)
+    if (-not $status.success -or -not $result.errorFixtureFailedClosed -or -not $result.dryRunLeftTargetUnchanged -or -not $hashExpectationMet -or -not $result.checkHasStructuredArrays -or $result.conclusion -ne "rc-sync-exposes-neither-change-set-nor-command-logger") { throw "rclone preview validation failed closed." }
 }
 finally {
     try { Invoke-Rc "core/quit" | Out-Null } catch {}

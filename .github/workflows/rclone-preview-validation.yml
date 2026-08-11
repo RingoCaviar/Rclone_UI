@@ -11,7 +11,7 @@ jobs:
       matrix:
         version: ["1.74.4", "1.75.0"]
         operation: ["copy", "sync"]
-        backend: ["local", "crypt"]
+        backend: ["local", "crypt", "memory"]
     steps:
       - uses: actions/checkout@v4
       - shell: pwsh

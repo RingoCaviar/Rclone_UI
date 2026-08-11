@@ -18,6 +18,7 @@ internal sealed class BackgroundHostShell : IAsyncDisposable
     private readonly HostStateAuthority state;
     private readonly HostWorkReconciler workReconciler;
     private readonly HostLifecycleJournal lifecycleJournal;
+    private readonly HostVaultSession? ownedVault;
     private readonly CancellationTokenSource shutdown = new();
     private readonly ConcurrentDictionary<int, Task> sessions = new();
     private Task? listener;
@@ -37,7 +38,8 @@ internal sealed class BackgroundHostShell : IAsyncDisposable
         this.ownership = ownership;
         this.endpoint = endpoint;
         this.identity = identity;
-        state = new(dataRootPath, rclone, remotes, argon2);
+        ownedVault = remotes is null ? new(dataRootPath, argon2) : null;
+        state = new(dataRootPath, rclone, remotes ?? ownedVault, argon2);
         workReconciler = new(dataRootPath);
         lifecycleJournal = new(dataRootPath);
     }
@@ -100,6 +102,7 @@ internal sealed class BackgroundHostShell : IAsyncDisposable
         await StopAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
         lifecycleWindow?.Dispose();
         state.Dispose();
+        if (ownedVault is not null) await ownedVault.DisposeAsync().ConfigureAwait(false);
         shutdown.Dispose();
         ownership.Dispose();
     }

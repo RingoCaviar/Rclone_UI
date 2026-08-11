@@ -1,3 +1,5 @@
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
 
 namespace RcloneUI.Desktop.Presentation;
@@ -33,6 +35,23 @@ public sealed class DesktopHostController(IDesktopHostClient client, DesktopShel
         shell.ApplyAction(resultType);
         await ReconnectAsync(cancellationToken);
         if (resultType == "copy-accepted") _ = ObserveCopyAsync(cancellationToken);
+    }
+
+    public async ValueTask UnlockAsync(CancellationToken cancellationToken = default)
+    {
+        var password = Encoding.UTF8.GetBytes(shell.MasterPassword);
+        try
+        {
+            using var arguments = JsonDocument.Parse(JsonSerializer.Serialize(new { passwordUtf8 = Convert.ToBase64String(password) }));
+            var result = await client.SendCommandAsync("unlock-vault", arguments.RootElement, cancellationToken);
+            shell.ApplyAction(result.GetProperty("resultType").GetString() ?? "unknown-result");
+        }
+        finally
+        {
+            CryptographicOperations.ZeroMemory(password);
+            shell.MasterPassword = string.Empty;
+        }
+        await ReconnectAsync(cancellationToken);
     }
 
     private async Task ObserveCopyAsync(CancellationToken cancellationToken)

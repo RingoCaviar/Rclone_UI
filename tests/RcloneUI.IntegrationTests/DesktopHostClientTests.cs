@@ -1,6 +1,7 @@
 using System.Collections.Immutable;
 using System.Runtime.Versioning;
 using System.Text.Json;
+using RcloneUI.DataRoot;
 using RcloneUI.Desktop.Presentation;
 using RcloneUI.Host;
 using RcloneUI.Rclone;
@@ -63,7 +64,7 @@ public sealed class DesktopHostClientTests
         var runtime = new ScriptedRcloneRuntime(capabilities, [new(RclonePrimitive.Copy, new(64, 64, 1, 0, 64, TimeSpan.FromSeconds(1), true), ScriptedRcloneRuntime.Success())]);
         try
         {
-            await using (var host = BackgroundHostShell.TryCreate(root, Guid.NewGuid(), runtime))
+            await using (var host = BackgroundHostShell.TryCreate(root, Guid.NewGuid(), runtime, new VaultHostRemoteProjection(new TestRemoteStore())))
             {
                 Assert.NotNull(host); host.Start(); var client = new NamedPipeDesktopHostClient(root);
                 using var arguments = JsonDocument.Parse(JsonSerializer.Serialize(new { sourceFs = "source:", sourcePath = "from", destinationFs = "target:", destinationPath = "to", capabilityBinding = capabilities.Binding }));
@@ -80,6 +81,27 @@ public sealed class DesktopHostClientTests
             }
         }
         finally { Directory.Delete(root, recursive: true); }
+    }
+
+    [Fact]
+    public async Task UnlockCommandOpensVaultWithoutPersistingPasswordMaterial()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var root = Path.Combine(Path.GetTempPath(), "RcloneUI.Desktop.Unlock.Tests", Guid.NewGuid().ToString("N")); Directory.CreateDirectory(root);
+        var vault = new HostVaultSession(root, new("C:\\not-loaded-in-test.dll", new string('A', 64)), (request, _) => ValueTask.FromResult(new DataRootOpenResult(DataRootOpenStatus.Opened, new EmptyDataRootSession(root), null)));
+        try
+        {
+            await using (var host = BackgroundHostShell.TryCreate(root, Guid.NewGuid(), remotes: vault))
+            {
+                Assert.NotNull(host); host.Start(); var client = new NamedPipeDesktopHostClient(root);
+                using var arguments = JsonDocument.Parse(JsonSerializer.Serialize(new { passwordUtf8 = Convert.ToBase64String("correct horse"u8) }));
+                var result = await client.SendCommandAsync("unlock-vault", arguments.RootElement, cancellationToken);
+                Assert.Equal("vault-unlocked", result.GetProperty("resultType").GetString());
+                Assert.Equal("operational", (await client.GetSnapshotAsync(cancellationToken)).Body.GetProperty("session").GetString());
+                Assert.False(File.Exists(Path.Combine(root, "runtime", "idempotency.json")));
+            }
+        }
+        finally { await vault.DisposeAsync(); Directory.Delete(root, recursive: true); }
     }
 
     [Fact]
@@ -111,5 +133,16 @@ public sealed class DesktopHostClientTests
         public ValueTask<StoredRemote?> ReadAsync(RcloneUI.Remotes.RemoteId id, CancellationToken cancellationToken) => ValueTask.FromResult<StoredRemote?>(remote);
         public ValueTask<StoredRemote> UpsertAsync(StoredRemote value, ulong expectedRevision, CancellationToken cancellationToken) => throw new NotSupportedException();
         public ValueTask<bool> DeleteAsync(RcloneUI.Remotes.RemoteId id, ulong expectedRevision, CancellationToken cancellationToken) => throw new NotSupportedException();
+    }
+
+    private sealed class EmptyDataRootSession(string root) : IDataRootSession
+    {
+        public DataRootSnapshot Observe() => new(new(Guid.NewGuid()), Guid.NewGuid(), 1, 0, DataRootSessionState.Unlocked, root);
+        public ValueTask<DataRootCommandResult> ExecuteAsync(DataRootCommand command, ulong expectedRevision, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public ValueTask<VaultRecord?> ReadAsync(Guid recordId, CancellationToken cancellationToken = default) => ValueTask.FromResult<VaultRecord?>(null);
+        public void Lock() { }
+        public ValueTask<bool> UnlockAsync(ReadOnlyMemory<byte> masterPasswordUtf8, CancellationToken cancellationToken = default) => ValueTask.FromResult(true);
+        public ValueTask CloseAsync(string reason, CancellationToken cancellationToken = default) => ValueTask.CompletedTask;
+        public ValueTask DisposeAsync() => ValueTask.CompletedTask;
     }
 }

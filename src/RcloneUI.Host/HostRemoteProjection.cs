@@ -6,11 +6,19 @@ internal sealed record HostRemoteSummary(Guid Id, string DisplayName, string Pro
 
 internal interface IHostRemoteProjection
 {
+    string SessionState { get; }
     ValueTask<IReadOnlyList<HostRemoteSummary>> ListAsync(CancellationToken cancellationToken);
+}
+
+internal interface IHostVaultSession : IHostRemoteProjection
+{
+    ValueTask<string> UnlockAsync(byte[] masterPasswordUtf8, CancellationToken cancellationToken);
 }
 
 internal sealed class VaultHostRemoteProjection(IRemoteStore store) : IHostRemoteProjection
 {
+    public string SessionState => "operational";
+
     public async ValueTask<IReadOnlyList<HostRemoteSummary>> ListAsync(CancellationToken cancellationToken)
     {
         var remotes = await store.ListAsync(cancellationToken).ConfigureAwait(false);

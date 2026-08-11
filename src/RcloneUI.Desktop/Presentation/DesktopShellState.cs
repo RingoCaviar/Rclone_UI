@@ -24,6 +24,7 @@ public sealed class DesktopShellState : INotifyPropertyChanged
     private string[] remoteNames = [];
     private string copyStatus = string.Empty;
     private string? capabilityBinding;
+    private string masterPassword = string.Empty;
 
     public event PropertyChangedEventHandler? PropertyChanged;
     public string PageTitle => route switch { "Home" => T("主页", "Home"), "Remotes" => T("远程存储", "Remotes"), "Transfers" => T("传输任务", "Transfer Tasks"), "Browser" => T("文件浏览器", "File Browser"), "Mounts" => T("挂载磁盘", "Mounts"), "Schedules" => T("计划任务", "Schedules"), "Activity" => T("活动与日志", "Activity & Logs"), _ => T("设置", "Settings") };
@@ -35,6 +36,12 @@ public sealed class DesktopShellState : INotifyPropertyChanged
     public string SessionLabel => connection switch { DesktopConnectionState.ConnectedOperational => T("数据保险库已解锁", "Vault unlocked"), DesktopConnectionState.ConnectedLocked => T("需要解锁数据保险库", "Vault unlock required"), DesktopConnectionState.ReadOnlyRecovery => T("写入已停用，数据保持原状", "Writes disabled; data preserved"), _ => T("后台任务状态可能不是最新", "Background state may be stale") };
     public IBrush StatusBrush => connection == DesktopConnectionState.ConnectedOperational ? Brushes.MediumSeaGreen : connection == DesktopConnectionState.Disconnected ? Brushes.IndianRed : Brushes.DarkOrange;
     public bool NeedsAttention => connection != DesktopConnectionState.ConnectedOperational;
+    public bool IsVaultLocked => connection == DesktopConnectionState.ConnectedLocked;
+    public string MasterPassword
+    {
+        get => masterPassword;
+        set { if (masterPassword == value) return; masterPassword = value; PropertyChanged?.Invoke(this, new(nameof(MasterPassword))); }
+    }
     public string AttentionTitle => connection switch { DesktopConnectionState.ConnectedLocked => T("保险库已锁定", "Vault is locked"), DesktopConnectionState.ReadOnlyRecovery => T("需要恢复", "Recovery required"), DesktopConnectionState.Disconnected => T("后台服务连接中断", "Background Host disconnected"), _ => T("正在连接后台服务", "Connecting to Background Host") };
     public string AttentionDetail => connection switch { DesktopConnectionState.ReadOnlyRecovery => T("不会自动清理或覆盖未知状态。请检查恢复详情。", "Unknown state will not be cleared or overwritten. Review recovery details."), DesktopConnectionState.Disconnected => T("现有后台任务可能仍在运行；重新连接前不会猜测其结果。", "Existing work may still run; results remain unknown until reconnection."), _ => T("需要连接并解锁后才能启动新任务。", "Connect and unlock before starting new work.") };
     public string AttentionAction => connection switch { DesktopConnectionState.ConnectedLocked => T("解锁", "Unlock"), DesktopConnectionState.ReadOnlyRecovery => T("检查恢复", "Review recovery"), DesktopConnectionState.Disconnected => T("重新连接", "Reconnect"), _ => T("等待", "Wait") };

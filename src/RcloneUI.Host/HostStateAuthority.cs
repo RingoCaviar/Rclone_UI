@@ -72,16 +72,20 @@ internal sealed class HostStateAuthority : IDisposable
             if (commandType == "get-snapshot")
             {
                 IReadOnlyList<HostRemoteSummary> summaries = [];
-                if (remotes is not null)
+                if (remotes is not null && remotes.SessionState == "operational")
                 {
                     try { summaries = await remotes.ListAsync(cancellationToken).ConfigureAwait(false); }
                     catch (Exception exception) when (exception is not OperationCanceledException) { return CreateResult("snapshot-unavailable", new { code = "remote-projection-unavailable" }, Cursor); }
                 }
-                lock (sync) result = CreateResult("snapshot", new { session = remotes is null ? "locked" : "operational", activationCount, remotes = summaries, copyRuns = copyRuns.Values.OrderBy(x => x.CreatedUtc).ToArray(), rclone = new { status = rclone is null ? "unavailable" : "ready", capabilityBinding = rclone?.Capabilities.Binding }, vault = new { kdfStatus = argon2 is null ? "unavailable" : "ready" } }, new(epoch, revision));
+                lock (sync) result = CreateResult("snapshot", new { session = remotes?.SessionState ?? "locked", activationCount, remotes = summaries, copyRuns = copyRuns.Values.OrderBy(x => x.CreatedUtc).ToArray(), rclone = new { status = rclone is null ? "unavailable" : "ready", capabilityBinding = rclone?.Capabilities.Binding }, vault = new { kdfStatus = argon2 is null ? "unavailable" : "ready" } }, new(epoch, revision));
             }
             else if (commandType == "activate-ui")
             {
                 lock (sync) { activationCount++; revision = checked(revision + 1); result = CreateResult("activated", new { activationCount }, new(epoch, revision), stateChanged: true); }
+            }
+            else if (commandType == "unlock-vault")
+            {
+                result = await UnlockVaultAsync(envelope.Body, cancellationToken).ConfigureAwait(false);
             }
             else if (commandType == "start-copy")
             {
@@ -92,7 +96,7 @@ internal sealed class HostStateAuthority : IDisposable
                 lock (sync) result = CreateResult("unknown-command", new { }, new(epoch, revision));
             }
 
-            if (commandType != "get-snapshot")
+            if (commandType is not ("get-snapshot" or "unlock-vault"))
                 lock (sync) idempotency.Record(new(envelope.Request.IdempotencyKey.Value, semanticHash, result.ResultType, result.Body.GetRawText(), result.State.Revision));
             return result;
         }
@@ -101,6 +105,7 @@ internal sealed class HostStateAuthority : IDisposable
 
     private async ValueTask<HostCommandResult> StartCopyAsync(JsonElement body, CancellationToken cancellationToken)
     {
+        if (remotes?.SessionState != "operational") return CreateResult("vault-locked", new { }, Cursor);
         if (rclone is null) return CreateResult("rclone-unavailable", new { recoveryAction = "Install or repair the managed rclone component." }, Cursor);
         if (!body.TryGetProperty("arguments", out var arguments) || arguments.ValueKind != JsonValueKind.Object) return CreateResult("copy-invalid", new { code = "arguments-missing" }, Cursor);
         var sourceFs = ReadArgument(arguments, "sourceFs"); var sourcePath = ReadArgument(arguments, "sourcePath");
@@ -126,6 +131,29 @@ internal sealed class HostStateAuthority : IDisposable
         }
         _ = ObserveCopyAsync(handle);
         return CreateResult("copy-accepted", new { runId = id }, Cursor, stateChanged: true);
+    }
+
+    private async ValueTask<HostCommandResult> UnlockVaultAsync(JsonElement body, CancellationToken cancellationToken)
+    {
+        if (remotes is not IHostVaultSession vault) return CreateResult("vault-unavailable", new { }, Cursor);
+        if (!body.TryGetProperty("arguments", out var arguments)
+            || !arguments.TryGetProperty("passwordUtf8", out var encoded)
+            || encoded.ValueKind != JsonValueKind.String
+            || encoded.GetString() is not { Length: > 0 and <= 2048 } value)
+            return CreateResult("vault-password-invalid", new { }, Cursor);
+        byte[] password;
+        try { password = Convert.FromBase64String(value); }
+        catch (FormatException) { return CreateResult("vault-password-invalid", new { }, Cursor); }
+        try
+        {
+            var resultType = await vault.UnlockAsync(password, cancellationToken).ConfigureAwait(false);
+            lock (sync)
+            {
+                if (resultType == "vault-unlocked") revision = checked(revision + 1);
+                return CreateResult(resultType, new { }, new(epoch, revision), resultType == "vault-unlocked");
+            }
+        }
+        finally { CryptographicOperations.ZeroMemory(password); }
     }
 
     private async Task ObserveCopyAsync(RcloneExecutionHandle handle)

@@ -5,7 +5,11 @@ internal static class Program
     public static async Task<int> Main(string[] args)
     {
         if (!OperatingSystem.IsWindows() || args.Length != 2 || !Guid.TryParse(args[1], out var dataRootId)) return 2;
-        await using var host = BackgroundHostShell.TryCreate(args[0], dataRootId);
+        ManagedRcloneSession? rclone = null;
+        try { rclone = await ManagedRcloneBootstrap.TryStartAsync(args[0], AppContext.BaseDirectory, CancellationToken.None).ConfigureAwait(false); }
+        catch (Exception exception) { await Console.Error.WriteLineAsync($"Managed rclone unavailable: {exception.GetType().Name}").ConfigureAwait(false); }
+        await using var managedRclone = rclone;
+        await using var host = BackgroundHostShell.TryCreate(args[0], dataRootId, rclone?.Runtime);
         if (host is null) return 3;
         host.Start();
         using var shutdown = new CancellationTokenSource();

@@ -3,7 +3,9 @@ param(
     [string]$Runtime = "win-x64",
     [string]$Configuration = "Release",
     [string]$Version = "0.0.0-local",
-    [string]$SigningThumbprint = ""
+    [string]$SigningThumbprint = "",
+    [string]$RcloneExecutable = "",
+    [string]$RcloneVersion = ""
 )
 
 $ErrorActionPreference = "Stop"
@@ -21,6 +23,14 @@ foreach ($project in @("Desktop", "Host", "Updater")) {
 
 Copy-Item (Join-Path $repositoryRoot "README.md") $staging
 Copy-Item (Join-Path $repositoryRoot "THIRD-PARTY-NOTICES.md") $staging
+if ($RcloneExecutable) {
+    if (-not $RcloneVersion) { throw "-RcloneVersion is required with -RcloneExecutable." }
+    $rcloneDirectory = New-Item -ItemType Directory -Path (Join-Path $staging "components\rclone") -Force
+    Copy-Item -LiteralPath (Resolve-Path $RcloneExecutable) (Join-Path $rcloneDirectory "rclone.exe")
+    $rcloneHash = (Get-FileHash (Join-Path $rcloneDirectory "rclone.exe") -Algorithm SHA256).Hash
+    $rcloneManifest = [ordered]@{ format = 1; version = $RcloneVersion; sha256 = $rcloneHash; executable = "rclone.exe" }
+    [IO.File]::WriteAllText((Join-Path $rcloneDirectory "manifest.json"), ($rcloneManifest | ConvertTo-Json), [Text.UTF8Encoding]::new($false))
+}
 if ($SigningThumbprint) {
     $signTool = Get-Command signtool.exe -ErrorAction Stop
     Get-ChildItem $staging -Recurse -Filter *.exe | ForEach-Object { & $signTool.Source sign /sha1 $SigningThumbprint /fd SHA256 /tr http://timestamp.digicert.com /td SHA256 $_.FullName; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE } }

@@ -12,15 +12,20 @@ public sealed record RcloneDaemonConfiguration(Uri Address, string UserName, str
         return new(new($"http://127.0.0.1:{port}/"), "host", Convert.ToBase64String(RandomNumberGenerator.GetBytes(32)));
     }
 
-    public IReadOnlyList<string> BuildArguments() =>
-    [
-        "rcd",
-        $"--rc-addr={Address.Host}:{Address.Port}",
-        $"--rc-user={UserName}",
-        $"--rc-pass={Password}",
-        "--rc-enable-metrics=false",
-        "--log-format=date,time,microseconds,UTC",
-    ];
+    public IReadOnlyList<string> BuildArguments(string? configurationPath = null)
+    {
+        var arguments = new List<string>
+        {
+            "rcd",
+            $"--rc-addr={Address.Host}:{Address.Port}",
+            $"--rc-user={UserName}",
+            $"--rc-pass={Password}",
+            "--rc-enable-metrics=false",
+            "--log-format=date,time,microseconds,UTC",
+        };
+        if (configurationPath is not null) arguments.Add($"--config={Path.GetFullPath(configurationPath)}");
+        return arguments;
+    }
 
     public HttpClient CreateClient(HttpMessageHandler? handler = null)
     {

@@ -12,6 +12,10 @@ _Avoid_: Account, cloud disk, connection
 A user-defined copy, move, or sync operation between two locations, including its filters and runtime limits.
 _Avoid_: Job, command, script
 
+**Mirror Sync**:
+A one-way Transfer Task that makes the target match the source, including removal of target content absent from the source. It is not a bidirectional merge.
+_Avoid_: Two-way sync, backup, mirror copy
+
 **Mount**:
 A Remote exposed as a Windows drive or filesystem location for interactive access.
 _Avoid_: Mapping, virtual disk

@@ -20,6 +20,10 @@ _Avoid_: Two-way sync, backup, mirror copy
 A Remote exposed as a Windows drive or filesystem location for interactive access.
 _Avoid_: Mapping, virtual disk
 
+**Mount Profile**:
+A saved definition for creating a Mount, including its Remote path, preferred drive letter, Windows drive type, cache preset, and lifecycle preferences. A Mount Profile can exist while no Mount is active.
+_Avoid_: Mount, drive, mount task
+
 **Portable App**:
 The distributable Rclone UI package that runs without installing the application itself and keeps its application-owned files together.
 _Avoid_: Installer edition, installed app

@@ -122,7 +122,7 @@ public sealed class TransferOrchestrationTests
     private class ScriptedAdapter : ITransferExecutionAdapter
     {
         internal List<string> Calls { get; } = [];
-        public ValueTask<AdapterPreviewResult> PreviewAsync(TransferTaskRevision task, CancellationToken cancellationToken) { Calls.Add("preview"); return ValueTask.FromResult(new AdapterPreviewResult(new(1, 0, task.Operation == TransferOperation.MirrorSync ? 1 : 0, 0, 0, 0, 1), [new("a", TransferPathOutcome.Copied, 1)], TransferFailureClass.None, null)); }
+        public ValueTask<AdapterPreviewResult> PreviewAsync(TransferTaskRevision task, CancellationToken cancellationToken) { Calls.Add("preview"); return ValueTask.FromResult(new AdapterPreviewResult(new(1, 0, task.Operation == TransferOperation.MirrorSync ? 1 : 0, 0, 0, 0, 1), [new("a", TransferPathOutcome.Copied, 1)], TransferFailureClass.None, null, RclonePreviewEvidencePolicy.Evaluate(task.Operation, new(true, true, true)))); }
         public ValueTask<AdapterPhaseResult> PrepareSafetyCopiesAsync(TransferPreview preview, CancellationToken cancellationToken) => Result("safety", TransferPathOutcome.Skipped);
         public virtual ValueTask<AdapterPhaseResult> CopyAsync(TransferPreview preview, CancellationToken cancellationToken) => Result("copy", TransferPathOutcome.Copied);
         public ValueTask<AdapterPhaseResult> VerifyAsync(TransferPreview preview, CancellationToken cancellationToken) => Result("verify", TransferPathOutcome.Verified);

@@ -2,7 +2,7 @@ using System.Collections.Immutable;
 
 namespace RcloneUI.Transfers;
 
-public sealed record AdapterPreviewResult(PreviewCounts Counts, ImmutableArray<PreviewPath> Paths, TransferFailureClass Failure, string? DiagnosticCode);
+public sealed record AdapterPreviewResult(PreviewCounts Counts, ImmutableArray<PreviewPath> Paths, TransferFailureClass Failure, string? DiagnosticCode, PreviewEvidenceDecision EvidenceDecision);
 public sealed record AdapterPhaseResult(bool Success, TransferFailureClass Failure, ImmutableArray<TransferExecutionEvidence> Evidence);
 
 public interface ITransferExecutionAdapter

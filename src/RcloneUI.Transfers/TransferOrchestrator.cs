@@ -20,6 +20,8 @@ public sealed class TransferOrchestrator(ITransferExecutionAdapter adapter, ITra
             return new(null, TransferFailureClass.Configuration, "safety-retention-invalid");
         var result = await adapter.PreviewAsync(task, cancellationToken).ConfigureAwait(false);
         if (result.Failure != TransferFailureClass.None) return new(null, result.Failure, result.DiagnosticCode);
+        if (!result.EvidenceDecision.CanCreateAcceptedPreview)
+            return new(null, TransferFailureClass.Configuration, result.EvidenceDecision.DiagnosticCode ?? "preview-evidence-incomplete");
         var created = DateTimeOffset.UtcNow;
         var preview = new TransferPreview(
             AcceptedPreviewId.New(), task, created, created + PreviewLifetime, result.Counts, result.Paths,

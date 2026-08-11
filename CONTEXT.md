@@ -31,3 +31,7 @@ _Avoid_: Profile, AppData, workspace
 **Master Password**:
 The user-held secret that unlocks an encrypted rclone configuration. Remembering it for one Windows user on one computer is an optional convenience and is not part of the portable data.
 _Avoid_: PIN, account password, encryption key
+
+**Vault**:
+The encrypted portion of the Data Root containing Remote metadata, Transfer Task definitions, schedules, and activity history. It is unlocked with the Master Password but remains distinct from rclone's encrypted configuration.
+_Avoid_: Database, secure storage, rclone config

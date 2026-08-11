@@ -5,6 +5,7 @@
     <Project Path="src/RcloneUI.Desktop/RcloneUI.Desktop.csproj" />
     <Project Path="src/RcloneUI.Diagnostics/RcloneUI.Diagnostics.csproj" />
     <Project Path="src/RcloneUI.Host/RcloneUI.Host.csproj" />
+    <Project Path="src/RcloneUI.Launcher/RcloneUI.Launcher.csproj" />
     <Project Path="src/RcloneUI.Mounts/RcloneUI.Mounts.csproj" />
     <Project Path="src/RcloneUI.Rclone/RcloneUI.Rclone.csproj" />
     <Project Path="src/RcloneUI.Remotes/RcloneUI.Remotes.csproj" />

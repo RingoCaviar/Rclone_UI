@@ -23,6 +23,12 @@ foreach ($project in @("Desktop", "Host", "Updater")) {
     if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 }
 
+$launcherOutput = Join-Path $staging "launcher"
+dotnet publish (Join-Path $repositoryRoot "src\RcloneUI.Launcher\RcloneUI.Launcher.csproj") --configuration $Configuration --runtime $Runtime --self-contained true --no-restore --output $launcherOutput -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+Move-Item -LiteralPath (Join-Path $launcherOutput "Rclone UI.exe") -Destination (Join-Path $staging "Rclone UI.exe")
+Remove-Item -LiteralPath $launcherOutput -Recurse -Force
+
 Copy-Item (Join-Path $repositoryRoot "README.md") $staging
 Copy-Item (Join-Path $repositoryRoot "THIRD-PARTY-NOTICES.md") $staging
 if ($RcloneExecutable) {

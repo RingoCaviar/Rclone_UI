@@ -13,6 +13,7 @@ The Background Host is the only process allowed to mutate application state or o
 
 | Module | Interface | Owns | Must not own |
 |---|---|---|---|
+| `RcloneUI.Launcher` | Root portable executable | Locate and start the bundled Desktop child, forward command-line arguments, report incomplete extraction | Host state, update logic, configuration, or package mutation |
 | `RcloneUI.Desktop` | User interaction over `HostClient` | Avalonia shell, navigation, forms, localization, accessibility, tray presentation | Vault/rclone/Win32 state, business lifecycle decisions |
 | `RcloneUI.Host` | `host-ipc/v1` commands, snapshots, events | Composition root, sole state authority, scheduling, workflow admission, lifecycle reconciliation | Visual controls or updater file replacement |
 | `RcloneUI.Updater` | One authenticated `UpdatePlan` and one-time handoff | Verified version staging, paired pointer transaction, health timeout and rollback | Vault business data, rclone operations, UI state |

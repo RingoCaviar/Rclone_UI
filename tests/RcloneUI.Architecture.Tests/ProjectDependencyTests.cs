@@ -18,7 +18,8 @@ public sealed class ProjectDependencyTests
             ["RcloneUI.Diagnostics"] = ["RcloneUI.Contracts", "RcloneUI.DataRoot"],
             ["RcloneUI.Desktop"] = ["RcloneUI.Contracts"],
             ["RcloneUI.Updater"] = ["RcloneUI.Contracts"],
-            ["RcloneUI.Host"] = ["RcloneUI.Contracts", "RcloneUI.DataRoot", "RcloneUI.Diagnostics", "RcloneUI.Mounts", "RcloneUI.Rclone", "RcloneUI.Remotes", "RcloneUI.Transfers", "RcloneUI.Updates", "RcloneUI.Work"]
+            ["RcloneUI.Host"] = ["RcloneUI.Contracts", "RcloneUI.DataRoot", "RcloneUI.Diagnostics", "RcloneUI.Mounts", "RcloneUI.Rclone", "RcloneUI.Remotes", "RcloneUI.Transfers", "RcloneUI.Updates", "RcloneUI.Work"],
+            ["RcloneUI.Launcher"] = []
         };
 
     [Fact]

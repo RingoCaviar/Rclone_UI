@@ -5,7 +5,7 @@ using RcloneUI.Rclone;
 
 namespace RcloneUI.Host;
 
-internal sealed record HostMountSnapshot(Guid InstanceId, Guid? ProfileId, Guid RemoteId, string Subpath, string MountPoint, string VolumeName, MountPresentationMode PresentationMode, string State, string? DiagnosticCode, DateTimeOffset UpdatedUtc);
+internal sealed record HostMountSnapshot(Guid InstanceId, Guid? ProfileId, Guid RemoteId, string Subpath, string MountPoint, string VolumeName, MountPresentationMode PresentationMode, string State, string? DiagnosticCode, DateTimeOffset StartedUtc, DateTimeOffset UpdatedUtc);
 
 internal interface IWindowsMountNamespace
 {
@@ -40,16 +40,41 @@ internal sealed class WindowsMountNamespace : IWindowsMountNamespace
     private static string Root(string mountPoint) => mountPoint.TrimEnd('\\', '/') + Path.DirectorySeparatorChar;
 }
 
-internal sealed class HostMountCoordinator(IRcloneRuntime rclone, IHostRemoteResolver remotes, IWindowsMountNamespace? windowsNamespace = null, IWinFspDetector? winFspDetector = null)
+internal sealed class HostMountCoordinator
 {
-    private readonly IWindowsMountNamespace windowsNamespace = windowsNamespace ?? new WindowsMountNamespace();
-    private readonly IWinFspDetector winFspDetector = winFspDetector ?? new WindowsWinFspDetector();
+    private readonly IRcloneRuntime rclone;
+    private readonly IHostRemoteResolver remotes;
+    private readonly IWindowsMountNamespace windowsNamespace;
+    private readonly IWinFspDetector winFspDetector;
+    private readonly IHostMountLifecycleJournal? journal;
     private readonly ConcurrentDictionary<Guid, HostMountSnapshot> mounts = [];
+    private bool journalCorrupt;
+
+    internal HostMountCoordinator(IRcloneRuntime rclone, IHostRemoteResolver remotes, IWindowsMountNamespace? windowsNamespace = null, IWinFspDetector? winFspDetector = null, IHostMountLifecycleJournal? journal = null)
+    {
+        this.rclone = rclone;
+        this.remotes = remotes;
+        this.windowsNamespace = windowsNamespace ?? new WindowsMountNamespace();
+        this.winFspDetector = winFspDetector ?? new WindowsWinFspDetector();
+        this.journal = journal;
+        ReconcileJournal();
+    }
 
     internal IReadOnlyList<HostMountSnapshot> Snapshots => [.. mounts.Values.OrderBy(value => value.UpdatedUtc)];
 
     internal async ValueTask<(string ResultType, HostMountSnapshot? Snapshot)> StartReadOnlyAsync(Guid remoteId, string subpath, MountPresentationMode presentationMode, DriveLetterSelection driveSelection, char driveLetter, string? fixedDirectoryPath, string volumeName, string capabilityBinding, CancellationToken cancellationToken, Guid? profileId = null)
     {
+        if (journalCorrupt) return ("mount-recovery-required", Failed(remoteId, subpath, string.Empty, volumeName, presentationMode, "mount-lifecycle-journal-corrupt"));
+        if (profileId is not null)
+        {
+            var previous = mounts.Values.FirstOrDefault(value => value.ProfileId == profileId);
+            if (previous is not null && previous.State == "needs-remount" && !windowsNamespace.IsPresented(previous.MountPoint))
+            {
+                mounts.TryRemove(previous.InstanceId, out _);
+                Persist();
+            }
+            else if (previous is not null) return ("mount-already-active", previous);
+        }
         var mountPoint = presentationMode == MountPresentationMode.FixedDirectory ? fixedDirectoryPath?.Trim() ?? string.Empty : driveSelection == DriveLetterSelection.Automatic ? "*" : $"{char.ToUpperInvariant(driveLetter)}:";
         if (!Enum.IsDefined(presentationMode) || presentationMode == MountPresentationMode.FixedDirectory && driveSelection != DriveLetterSelection.Preferred) return ("mount-invalid", Failed(remoteId, subpath, mountPoint, volumeName, presentationMode, "presentation-invalid"));
         if (presentationMode != MountPresentationMode.FixedDirectory && driveSelection == DriveLetterSelection.Preferred && driveLetter is < 'D' or > 'Z' && driveLetter is < 'd' or > 'z') return ("mount-invalid", Failed(remoteId, subpath, mountPoint, volumeName, presentationMode, "drive-letter-invalid"));
@@ -65,25 +90,42 @@ internal sealed class HostMountCoordinator(IRcloneRuntime rclone, IHostRemoteRes
         var fileSystem = await remotes.ResolveFileSystemAsync(remoteId, cancellationToken).ConfigureAwait(false);
         if (fileSystem is null) return ("mount-invalid", Failed(remoteId, subpath, mountPoint, volumeName, presentationMode, "remote-not-found"));
         var id = Guid.NewGuid();
+        var started = DateTimeOffset.UtcNow;
         try
         {
+            mounts[id] = new(id, profileId, remoteId, subpath, mountPoint, volumeName.Trim(), presentationMode, "starting", null, started, started);
+            Persist();
             var handle = await rclone.StartAsync(new(id, capabilityBinding, RclonePrimitive.Mount, new(fileSystem, subpath), new(string.Empty, mountPoint), $"mount/{id:N}", MountOptions: new(mountType, true, volumeName.Trim(), presentationMode == MountPresentationMode.NetworkDrive)), cancellationToken).ConfigureAwait(false);
             var result = await rclone.WaitAsync(handle, cancellationToken).ConfigureAwait(false);
-            if (!result.Success) return ("mount-not-started", Failed(remoteId, subpath, mountPoint, volumeName, presentationMode, result.ErrorCode ?? "mount-rc-failed"));
+            if (!result.Success)
+            {
+                RemoveAndPersist(id);
+                return ("mount-not-started", Failed(remoteId, subpath, mountPoint, volumeName, presentationMode, result.ErrorCode ?? "mount-rc-failed"));
+            }
             var resolvedMountPoint = ReadMountPoint(result.Body);
-            if (mountPoint == "*" && string.IsNullOrWhiteSpace(resolvedMountPoint)) return ("mount-not-ready", Failed(remoteId, subpath, mountPoint, volumeName, presentationMode, "automatic-mount-point-not-returned"));
+            if (mountPoint == "*" && string.IsNullOrWhiteSpace(resolvedMountPoint))
+            {
+                RemoveAndPersist(id);
+                return ("mount-not-ready", Failed(remoteId, subpath, mountPoint, volumeName, presentationMode, "automatic-mount-point-not-returned"));
+            }
             mountPoint = resolvedMountPoint ?? mountPoint;
             if (!await windowsNamespace.WaitForAsync(mountPoint, true, TimeSpan.FromSeconds(10), cancellationToken).ConfigureAwait(false))
             {
                 await TryUnmountAsync(mountPoint, capabilityBinding, cancellationToken).ConfigureAwait(false);
+                RemoveAndPersist(id);
                 return ("mount-not-ready", Failed(remoteId, subpath, mountPoint, volumeName, presentationMode, "mount-namespace-not-presented"));
             }
-            var snapshot = new HostMountSnapshot(id, profileId, remoteId, subpath, mountPoint, volumeName.Trim(), presentationMode, "ready", null, DateTimeOffset.UtcNow);
+            var now = DateTimeOffset.UtcNow;
+            var snapshot = new HostMountSnapshot(id, profileId, remoteId, subpath, mountPoint, volumeName.Trim(), presentationMode, "ready", null, started, now);
             mounts[id] = snapshot;
+            Persist();
             return ("mount-ready", snapshot);
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
+            mounts.TryRemove(id, out _);
+            try { Persist(); } catch (Exception journalException) when (journalException is IOException or UnauthorizedAccessException or InvalidDataException) { journalCorrupt = true; }
+            if (windowsNamespace.IsPresented(mountPoint)) await TryUnmountAsync(mountPoint, capabilityBinding, cancellationToken).ConfigureAwait(false);
             return ("mount-not-started", Failed(remoteId, subpath, mountPoint, volumeName, presentationMode, exception.GetType().Name.ToLowerInvariant()));
         }
     }
@@ -91,10 +133,12 @@ internal sealed class HostMountCoordinator(IRcloneRuntime rclone, IHostRemoteRes
     internal async ValueTask<(string ResultType, HostMountSnapshot? Snapshot)> StopAsync(Guid instanceId, string capabilityBinding, CancellationToken cancellationToken)
     {
         if (!mounts.TryGetValue(instanceId, out var current)) return ("mount-not-found", null);
+        if (current.State != "ready") return ("mount-recovery-required", current);
         if (!StringComparer.Ordinal.Equals(capabilityBinding, rclone.Capabilities.Binding)) return ("mount-unmount-failed", current with { DiagnosticCode = "capability-binding-changed" });
         if (!await TryUnmountAsync(current.MountPoint, capabilityBinding, cancellationToken).ConfigureAwait(false)) return ("mount-unmount-failed", current with { DiagnosticCode = "unmount-rc-failed", UpdatedUtc = DateTimeOffset.UtcNow });
         if (!await windowsNamespace.WaitForAsync(current.MountPoint, false, TimeSpan.FromSeconds(10), cancellationToken).ConfigureAwait(false)) return ("mount-unmount-failed", current with { DiagnosticCode = "mount-namespace-still-present", UpdatedUtc = DateTimeOffset.UtcNow });
         mounts.TryRemove(instanceId, out _);
+        Persist();
         return ("mount-stopped", current with { State = "stopped", DiagnosticCode = null, UpdatedUtc = DateTimeOffset.UtcNow });
     }
 
@@ -116,5 +160,43 @@ internal sealed class HostMountCoordinator(IRcloneRuntime rclone, IHostRemoteRes
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or ArgumentException) { return false; }
     }
 
-    private static HostMountSnapshot Failed(Guid remoteId, string subpath, string mountPoint, string volumeName, MountPresentationMode presentationMode, string code) => new(Guid.Empty, null, remoteId, subpath, mountPoint, volumeName, presentationMode, "failed", code, DateTimeOffset.UtcNow);
+    private void ReconcileJournal()
+    {
+        if (journal is null) return;
+        try
+        {
+            foreach (var record in journal.Read())
+            {
+                var presented = windowsNamespace.IsPresented(record.MountPoint);
+                var state = presented ? "recovery-required" : "needs-remount";
+                var code = presented ? "mount-namespace-ownership-unknown" : "mount-process-interrupted";
+                mounts[record.InstanceId] = new(record.InstanceId, record.ProfileId, Guid.Empty, string.Empty, record.MountPoint, string.Empty, record.PresentationMode, state, code, record.StartedUtc, DateTimeOffset.UtcNow);
+            }
+            if (!mounts.IsEmpty) Persist();
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or InvalidDataException)
+        {
+            journalCorrupt = true;
+            var now = DateTimeOffset.UtcNow;
+            mounts[Guid.Empty] = new(Guid.Empty, null, Guid.Empty, string.Empty, string.Empty, string.Empty, MountPresentationMode.NetworkDrive, "recovery-required", "mount-lifecycle-journal-corrupt", now, now);
+        }
+    }
+
+    private void Persist()
+    {
+        if (journal is null || journalCorrupt) return;
+        journal.Write(mounts.Values.Where(value => value.InstanceId != Guid.Empty).Select(value => new HostMountLifecycleRecord(value.InstanceId, value.ProfileId, value.MountPoint, value.PresentationMode, value.State, value.StartedUtc, value.UpdatedUtc, value.DiagnosticCode)).ToArray());
+    }
+
+    private void RemoveAndPersist(Guid instanceId)
+    {
+        mounts.TryRemove(instanceId, out _);
+        Persist();
+    }
+
+    private static HostMountSnapshot Failed(Guid remoteId, string subpath, string mountPoint, string volumeName, MountPresentationMode presentationMode, string code)
+    {
+        var now = DateTimeOffset.UtcNow;
+        return new(Guid.Empty, null, remoteId, subpath, mountPoint, volumeName, presentationMode, "failed", code, now, now);
+    }
 }

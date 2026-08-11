@@ -32,7 +32,7 @@ internal sealed class HostStateAuthority : IDisposable
         this.remotes = remotes;
         this.argon2 = argon2;
         this.winFsp = winFsp ?? new WindowsWinFspDetector();
-        if (rclone is not null && remotes is IHostRemoteResolver resolver) mounts = new(rclone, resolver, winFspDetector: this.winFsp);
+        if (rclone is not null && remotes is IHostRemoteResolver resolver) mounts = new(rclone, resolver, winFspDetector: this.winFsp, journal: new HostMountLifecycleJournal(dataRootPath));
         idempotency = new(Path.Combine(dataRootPath, "runtime", "idempotency.json"));
         foreach (var record in idempotency.Records)
         {
@@ -90,7 +90,7 @@ internal sealed class HostStateAuthority : IDisposable
                 }
                 var winFspStatus = winFsp.Inspect();
                 var rcloneMountAvailable = rclone is not null && rclone.Capabilities.Endpoints.Contains("mount/mount") && rclone.Capabilities.Endpoints.Contains("mount/unmount") && (rclone.Capabilities.MountTypes.Contains("mount") || rclone.Capabilities.MountTypes.Contains("cmount"));
-                lock (sync) result = CreateResult("snapshot", new { session = remotes?.SessionState ?? "locked", activationCount, remotes = summaries, mountProfiles, copyRuns = copyRuns.Values.OrderBy(x => x.CreatedUtc).ToArray(), mounts = mounts?.Snapshots ?? [], rclone = new { status = rclone is null ? "unavailable" : "ready", capabilityBinding = rclone?.Capabilities.Binding, mountAvailable = rcloneMountAvailable }, winFsp = winFspStatus, vault = new { kdfStatus = argon2 is null ? "unavailable" : "ready" } }, new(epoch, revision));
+                lock (sync) result = CreateResult("snapshot", new { session = remotes?.SessionState ?? "locked", activationCount, remotes = summaries, mountProfiles, copyRuns = copyRuns.Values.OrderBy(x => x.CreatedUtc).ToArray(), mounts = mounts?.Snapshots ?? [], rclone = new { status = rclone is null ? "unavailable" : "ready", version = rclone?.Capabilities.Binary.Version, capabilityBinding = rclone?.Capabilities.Binding, mountAvailable = rcloneMountAvailable }, winFsp = winFspStatus, vault = new { kdfStatus = argon2 is null ? "unavailable" : "ready" } }, new(epoch, revision));
             }
             else if (commandType == "activate-ui")
             {

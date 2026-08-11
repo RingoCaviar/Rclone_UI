@@ -29,11 +29,14 @@ public sealed class DesktopShellState : INotifyPropertyChanged
     private DesktopRemoteOption[] remoteOptions = [];
     private string copyStatus = string.Empty;
     private string? capabilityBinding;
+    private string? rcloneVersion;
     private string masterPassword = string.Empty;
     private bool advancedOptionsExpanded;
     private DesktopTransferMode transferMode;
     private string downloadDestinationPath = string.Empty;
     private Guid? activeMountId;
+    private string mountLifecycleState = "stopped";
+    private Guid? mountLifecycleProfileId;
     private string mountStatus = string.Empty;
     private string mountFixedDirectoryPath = string.Empty;
     private DesktopChoice[] mountPresentationOptions = [];
@@ -157,6 +160,8 @@ public sealed class DesktopShellState : INotifyPropertyChanged
     public bool IsFixedDirectoryMount => mountPresentation.Key == "fixed-directory";
     public Guid? ActiveMountId => activeMountId;
     public bool HasActiveMount => activeMountId is not null;
+    public bool MountRecoveryRequired => mountLifecycleState == "recovery-required";
+    public bool MountNeedsRemount => mountLifecycleState == "needs-remount" && selectedMountProfile?.Id == mountLifecycleProfileId;
     public string MountStatus => mountStatus;
     public string MountRemoteHint => T("选择要挂载的 Remote", "Select a Remote to mount");
     public string MountSubpathHint => T("远程子目录（可留空）", "Remote subfolder (optional)");
@@ -168,7 +173,7 @@ public sealed class DesktopShellState : INotifyPropertyChanged
     public string PickMountDirectoryLabel => T("选择目录…", "Choose directory…");
     public string MountReadOnlyNotice => T("当前安全预设为只读浏览，不会向云端写入文件。", "The current safe preset is read-only browsing and cannot write to the cloud.");
     public bool MountPrerequisitesReady => winFspStatus == "ready" && rcloneMountAvailable;
-    public bool IsJourneyPrimaryEnabled => connection == DesktopConnectionState.ConnectedOperational && (route != "Mounts" || HasActiveMount || MountPrerequisitesReady && selectedMountProfile is not null);
+    public bool IsJourneyPrimaryEnabled => connection == DesktopConnectionState.ConnectedOperational && (route != "Mounts" || !MountRecoveryRequired && (HasActiveMount || MountPrerequisitesReady && selectedMountProfile is not null));
     public string MountPrerequisiteHeading => T("挂载运行环境", "Mount prerequisites");
     public string MountPrerequisiteStatus => winFspStatus switch
     {
@@ -193,7 +198,7 @@ public sealed class DesktopShellState : INotifyPropertyChanged
     public string JourneyDescription => route switch { "Remotes" => T("通过三步向导添加云端账号；凭据只发送给后台服务并写入加密保险库。", "Add cloud accounts in three guided steps. Credentials go only to the Host and encrypted Vault."), "Transfers" => T("复制、移动或单向镜像。执行前必须接受预览，涉及删除时需要明确确认。", "Copy, move, or one-way mirror. Accept a preview before execution; deletion requires explicit confirmation."), "Mounts" => T("创建稳定盘符的挂载配置。Ready 与安全卸载均需要完整证据。", "Create stable drive profiles. Ready and safe unmount require complete evidence."), "Activity" => T("查看真实结果、部分完成、未知状态和可脱敏导出的诊断信息。", "Review truthful outcomes, partial results, unknown states, and redacted diagnostics."), _ => T("此功能通过后台服务快照和命令工作；界面不直接操作 rclone 或保险库。", "This journey uses Host snapshots and commands; the UI never operates rclone or the Vault directly.") };
     public string JourneyStatus => connection == DesktopConnectionState.ConnectedOperational ? T("可以开始", "Ready") : T("当前不可执行", "Action unavailable");
     public string JourneyActionHint => connection == DesktopConnectionState.ConnectedOperational ? T("普通用户默认值已启用，高级选项按需展开。", "Ordinary-user defaults are active; advanced options remain available on demand.") : AttentionDetail;
-    public string JourneyPrimaryAction => route switch { "Remotes" => T("添加远程存储", "Add Remote"), "Transfers" => T("创建并预览", "Create & Preview"), "Mounts" when HasActiveMount => T("安全卸载", "Safe unmount"), "Mounts" => T("只读挂载", "Mount read-only"), "Activity" => T("导出脱敏诊断", "Export Redacted Diagnostics"), _ => T("继续", "Continue") };
+    public string JourneyPrimaryAction => route switch { "Remotes" => T("添加远程存储", "Add Remote"), "Transfers" => T("创建并预览", "Create & Preview"), "Mounts" when HasActiveMount => T("安全卸载", "Safe unmount"), "Mounts" when MountNeedsRemount => T("重新挂载", "Remount"), "Mounts" when MountRecoveryRequired => T("需要人工恢复", "Manual recovery required"), "Mounts" => T("只读挂载", "Mount read-only"), "Activity" => T("导出脱敏诊断", "Export Redacted Diagnostics"), _ => T("继续", "Continue") };
 
     public void Navigate(string value) { route = value; advancedOptionsExpanded = false; ChangedAll(); }
     public void ToggleLanguage() { english = !english; RefreshMountChoices(); ChangedAll(); }
@@ -219,6 +224,7 @@ public sealed class DesktopShellState : INotifyPropertyChanged
         }
         else { remoteNames = []; remoteOptions = []; CopySourceRemote = null; CopyDestinationRemote = null; MountRemote = null; remoteSummary = T("远程存储状态未知", "Remote state unknown"); }
         capabilityBinding = snapshot.Body.TryGetProperty("rclone", out var rclone) && rclone.TryGetProperty("status", out var status) && status.GetString() == "ready" && rclone.TryGetProperty("capabilityBinding", out var binding) ? binding.GetString() : null;
+        rcloneVersion = rclone.ValueKind == JsonValueKind.Object && rclone.TryGetProperty("version", out var rcloneVersionValue) && rcloneVersionValue.ValueKind == JsonValueKind.String ? rcloneVersionValue.GetString() : null;
         rcloneMountAvailable = snapshot.Body.TryGetProperty("rclone", out rclone) && rclone.TryGetProperty("mountAvailable", out var mountAvailable) && mountAvailable.GetBoolean();
         if (snapshot.Body.TryGetProperty("winFsp", out var winFsp))
         {
@@ -237,10 +243,22 @@ public sealed class DesktopShellState : INotifyPropertyChanged
         if (snapshot.Body.TryGetProperty("mounts", out var mountRuns) && mountRuns.ValueKind == JsonValueKind.Array && mountRuns.GetArrayLength() > 0)
         {
             var mount = mountRuns.EnumerateArray().Last();
-            activeMountId = mount.GetProperty("instanceId").GetGuid();
-            mountStatus = $"{mount.GetProperty("state").GetString()} · {mount.GetProperty("mountPoint").GetString()}";
+            mountLifecycleState = mount.GetProperty("state").GetString() ?? "unknown";
+            mountLifecycleProfileId = mount.TryGetProperty("profileId", out var profileId) && profileId.ValueKind == JsonValueKind.String ? profileId.GetGuid() : null;
+            activeMountId = mountLifecycleState == "ready" ? mount.GetProperty("instanceId").GetGuid() : null;
+            var point = mount.GetProperty("mountPoint").GetString();
+            var diagnostic = mount.TryGetProperty("diagnosticCode", out var code) && code.ValueKind == JsonValueKind.String ? code.GetString() : null;
+            var startedUtc = mount.TryGetProperty("startedUtc", out var started) ? started.GetDateTimeOffset() : DateTimeOffset.UtcNow;
+            var uptime = DateTimeOffset.UtcNow - startedUtc;
+            var components = $"rclone {rcloneVersion ?? "?"} · WinFsp {winFspVersion ?? "?"}";
+            mountStatus = mountLifecycleState switch
+            {
+                "needs-remount" => T($"上次挂载已中断 · {point} · 可手动重新挂载", $"Previous Mount was interrupted · {point} · remount explicitly"),
+                "recovery-required" => T($"需要人工恢复 · {point} · {diagnostic}", $"Manual recovery required · {point} · {diagnostic}"),
+                _ => T($"{mountLifecycleState} · {point} · 已运行 {uptime:hh\\:mm\\:ss} · {components}", $"{mountLifecycleState} · {point} · uptime {uptime:hh\\:mm\\:ss} · {components}")
+            };
         }
-        else { activeMountId = null; mountStatus = T("尚未挂载", "Not mounted"); }
+        else { activeMountId = null; mountLifecycleState = "stopped"; mountLifecycleProfileId = null; mountStatus = T("尚未挂载", "Not mounted"); }
         if (snapshot.Body.TryGetProperty("mountProfiles", out var profiles) && profiles.ValueKind == JsonValueKind.Array)
         {
             var selectedId = selectedMountProfile?.Id;

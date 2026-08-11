@@ -13,6 +13,7 @@ jobs:
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: 10.0.x
+      - uses: microsoft/setup-msbuild@v2
       - shell: pwsh
         run: |
           git clone https://github.com/P-H-C/phc-winner-argon2.git artifacts/argon2-source

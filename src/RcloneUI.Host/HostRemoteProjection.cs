@@ -1,3 +1,4 @@
+using RcloneUI.Mounts;
 using RcloneUI.Rclone;
 using RcloneUI.Remotes;
 
@@ -25,6 +26,14 @@ internal interface IHostRemoteResolver : IHostRemoteProjection
 internal interface IHostRemoteManager : IHostRemoteProjection
 {
     ValueTask<string> AddTokenRemoteAsync(string displayName, string providerType, string token, IRcloneRuntime rclone, CancellationToken cancellationToken);
+}
+
+internal interface IHostMountProfileManager
+{
+    ValueTask<IReadOnlyList<SavedMountProfile>> ListMountProfilesAsync(CancellationToken cancellationToken);
+    ValueTask<SavedMountProfile?> ReadMountProfileAsync(MountProfileId id, CancellationToken cancellationToken);
+    ValueTask<(string ResultType, SavedMountProfile? Profile)> UpsertMountProfileAsync(SavedMountProfile profile, ulong expectedRevision, CancellationToken cancellationToken);
+    ValueTask<string> DeleteMountProfileAsync(MountProfileId id, ulong expectedRevision, CancellationToken cancellationToken);
 }
 
 internal sealed class VaultHostRemoteProjection(IRemoteStore store, HostRcloneConfigWriter? writer = null) : IHostRemoteProjection, IHostRemoteResolver

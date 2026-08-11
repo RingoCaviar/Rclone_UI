@@ -140,6 +140,13 @@
                     <Button Grid.Column="1" Content="{Binding RedetectLabel}" Click="RedetectClicked" />
                   </Grid>
                 </Border>
+                <Grid ColumnDefinitions="*,Auto,Auto,Auto" ColumnSpacing="8">
+                  <ComboBox ItemsSource="{Binding MountProfiles}" SelectedItem="{Binding SelectedMountProfile}" DisplayMemberBinding="{Binding DisplayName}" PlaceholderText="{Binding MountProfileHint}" AutomationProperties.Name="Saved Mount Profiles" />
+                  <Button Grid.Column="1" Content="{Binding NewMountProfileLabel}" Click="NewMountProfileClicked" />
+                  <Button Grid.Column="2" Content="{Binding SaveMountProfileLabel}" Click="SaveMountProfileClicked" />
+                  <Button Grid.Column="3" IsEnabled="{Binding HasSelectedMountProfile}" Content="{Binding DeleteMountProfileLabel}" Click="DeleteMountProfileClicked" />
+                </Grid>
+                <TextBox Text="{Binding MountProfileName}" PlaceholderText="{Binding MountProfileNameHint}" AutomationProperties.Name="Mount Profile name" />
                 <ComboBox ItemsSource="{Binding RemoteOptions}" SelectedItem="{Binding MountRemote}" DisplayMemberBinding="{Binding DisplayName}" PlaceholderText="{Binding MountRemoteHint}" AutomationProperties.Name="Mount Remote" />
                 <TextBox Text="{Binding MountSubpath}" PlaceholderText="{Binding MountSubpathHint}" AutomationProperties.Name="Mount subpath" />
                 <Grid ColumnDefinitions="*,*" ColumnSpacing="10">

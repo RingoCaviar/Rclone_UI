@@ -133,12 +133,8 @@ public sealed class DesktopShellStateTests
 
         await controller.ActivatePrimaryAsync(TestContext.Current.CancellationToken);
 
-        Assert.Equal("start-read-only-mount", client.CommandType);
-        Assert.Equal(RecordingClient.SourceId, client.Arguments.GetProperty("remoteId").GetGuid());
-        Assert.Equal("R", client.Arguments.GetProperty("driveLetter").GetString());
-        Assert.Equal("network-drive", client.Arguments.GetProperty("presentationMode").GetString());
-        Assert.Equal("preferred", client.Arguments.GetProperty("driveSelection").GetString());
-        Assert.Equal("photos", client.Arguments.GetProperty("subpath").GetString());
+        Assert.Equal("start-mount-profile", client.CommandType);
+        Assert.Equal(RecordingClient.ProfileId, client.Arguments.GetProperty("profileId").GetGuid());
     }
 
     [Fact]
@@ -171,11 +167,12 @@ public sealed class DesktopShellStateTests
     {
         internal static readonly Guid SourceId = Guid.Parse("11111111-1111-1111-1111-111111111111");
         internal static readonly Guid DestinationId = Guid.Parse("22222222-2222-2222-2222-222222222222");
+        internal static readonly Guid ProfileId = Guid.Parse("33333333-3333-3333-3333-333333333333");
         public string? CommandType { get; private set; }
         public JsonElement Arguments { get; private set; }
         public ValueTask<HostSnapshot> GetSnapshotAsync(CancellationToken cancellationToken)
         {
-            using var document = JsonDocument.Parse(JsonSerializer.Serialize(new { session = "operational", remotes = new[] { new { id = SourceId, displayName = "Source" }, new { id = DestinationId, displayName = "Destination" } }, copyRuns = Array.Empty<object>(), rclone = new { status = "ready", capabilityBinding = "caps", mountAvailable = true }, winFsp = new { status = "ready", version = "2.1-test" } }));
+            using var document = JsonDocument.Parse(JsonSerializer.Serialize(new { session = "operational", remotes = new[] { new { id = SourceId, displayName = "Source" }, new { id = DestinationId, displayName = "Destination" } }, mountProfiles = new[] { new { id = new { value = ProfileId }, revision = 1UL, displayName = "Photos", remoteId = SourceId, subpath = "photos", presentationMode = 0, driveLetterSelection = 0, preferredDriveLetter = 'R', fixedDirectoryPath = (string?)null, volumeName = "Cloud", cachePreset = 0, autoMount = false } }, copyRuns = Array.Empty<object>(), mounts = Array.Empty<object>(), rclone = new { status = "ready", capabilityBinding = "caps", mountAvailable = true }, winFsp = new { status = "ready", version = "2.1-test" } }));
             return ValueTask.FromResult(new HostSnapshot(new(new("epoch"), 1), DateTimeOffset.UtcNow, document.RootElement.Clone()));
         }
         public ValueTask<JsonElement> SendCommandAsync(string commandType, JsonElement arguments, CancellationToken cancellationToken)

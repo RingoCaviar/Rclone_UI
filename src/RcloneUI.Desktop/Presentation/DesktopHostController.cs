@@ -77,12 +77,31 @@ public sealed class DesktopHostController(IDesktopHostClient client, DesktopShel
         }
         else
         {
-            if (shell.MountRemote is null) { shell.ApplyAction("mount-remote-required"); return; }
-            command = "start-read-only-mount";
-            payload = new { remoteId = shell.MountRemote.Id, subpath = shell.MountSubpath, presentationMode = shell.MountPresentation.Key, driveSelection = shell.IsFixedDirectoryMount ? "preferred" : shell.MountDriveSelection.Key, driveLetter = shell.MountDriveLetter, fixedDirectoryPath = shell.IsFixedDirectoryMount ? shell.MountFixedDirectoryPath : null, volumeName = shell.MountVolumeName, capabilityBinding = shell.CapabilityBinding };
+            if (shell.SelectedMountProfile is null) { shell.ApplyAction("mount-profile-required"); return; }
+            command = "start-mount-profile";
+            payload = new { profileId = shell.SelectedMountProfile.Id, capabilityBinding = shell.CapabilityBinding };
         }
         using var arguments = JsonDocument.Parse(JsonSerializer.Serialize(payload));
         var result = await client.SendCommandAsync(command, arguments.RootElement, cancellationToken);
+        shell.ApplyAction(result.GetProperty("resultType").GetString() ?? "unknown-result");
+        await ReconnectAsync(cancellationToken);
+    }
+
+    public async ValueTask SaveMountProfileAsync(CancellationToken cancellationToken = default)
+    {
+        if (shell.MountRemote is null) { shell.ApplyAction("mount-remote-required"); return; }
+        var existing = shell.SelectedMountProfile;
+        using var arguments = JsonDocument.Parse(JsonSerializer.Serialize(new { profileId = existing?.Id ?? Guid.NewGuid(), expectedRevision = existing?.Revision ?? 0, displayName = shell.MountProfileName, remoteId = shell.MountRemote.Id, subpath = shell.MountSubpath, presentationMode = shell.MountPresentation.Key, driveSelection = shell.IsFixedDirectoryMount ? "preferred" : shell.MountDriveSelection.Key, driveLetter = shell.MountDriveLetter, fixedDirectoryPath = shell.IsFixedDirectoryMount ? shell.MountFixedDirectoryPath : null, volumeName = shell.MountVolumeName }));
+        var result = await client.SendCommandAsync("save-mount-profile", arguments.RootElement, cancellationToken);
+        shell.ApplyAction(result.GetProperty("resultType").GetString() ?? "unknown-result");
+        await ReconnectAsync(cancellationToken);
+    }
+
+    public async ValueTask DeleteMountProfileAsync(CancellationToken cancellationToken = default)
+    {
+        if (shell.SelectedMountProfile is not { } profile) return;
+        using var arguments = JsonDocument.Parse(JsonSerializer.Serialize(new { profileId = profile.Id, expectedRevision = profile.Revision }));
+        var result = await client.SendCommandAsync("delete-mount-profile", arguments.RootElement, cancellationToken);
         shell.ApplyAction(result.GetProperty("resultType").GetString() ?? "unknown-result");
         await ReconnectAsync(cancellationToken);
     }

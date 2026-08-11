@@ -77,14 +77,20 @@ internal sealed class HostStateAuthority : IDisposable
             if (commandType == "get-snapshot")
             {
                 IReadOnlyList<HostRemoteSummary> summaries = [];
+                IReadOnlyList<SavedMountProfile> mountProfiles = [];
                 if (remotes is not null && remotes.SessionState == "operational")
                 {
                     try { summaries = await remotes.ListAsync(cancellationToken).ConfigureAwait(false); }
                     catch (Exception exception) when (exception is not OperationCanceledException) { return CreateResult("snapshot-unavailable", new { code = "remote-projection-unavailable" }, Cursor); }
+                    if (remotes is IHostMountProfileManager profileManager)
+                    {
+                        try { mountProfiles = await profileManager.ListMountProfilesAsync(cancellationToken).ConfigureAwait(false); }
+                        catch (Exception exception) when (exception is not OperationCanceledException) { return CreateResult("snapshot-unavailable", new { code = "mount-profile-projection-unavailable" }, Cursor); }
+                    }
                 }
                 var winFspStatus = winFsp.Inspect();
                 var rcloneMountAvailable = rclone is not null && rclone.Capabilities.Endpoints.Contains("mount/mount") && rclone.Capabilities.Endpoints.Contains("mount/unmount") && (rclone.Capabilities.MountTypes.Contains("mount") || rclone.Capabilities.MountTypes.Contains("cmount"));
-                lock (sync) result = CreateResult("snapshot", new { session = remotes?.SessionState ?? "locked", activationCount, remotes = summaries, copyRuns = copyRuns.Values.OrderBy(x => x.CreatedUtc).ToArray(), mounts = mounts?.Snapshots ?? [], rclone = new { status = rclone is null ? "unavailable" : "ready", capabilityBinding = rclone?.Capabilities.Binding, mountAvailable = rcloneMountAvailable }, winFsp = winFspStatus, vault = new { kdfStatus = argon2 is null ? "unavailable" : "ready" } }, new(epoch, revision));
+                lock (sync) result = CreateResult("snapshot", new { session = remotes?.SessionState ?? "locked", activationCount, remotes = summaries, mountProfiles, copyRuns = copyRuns.Values.OrderBy(x => x.CreatedUtc).ToArray(), mounts = mounts?.Snapshots ?? [], rclone = new { status = rclone is null ? "unavailable" : "ready", capabilityBinding = rclone?.Capabilities.Binding, mountAvailable = rcloneMountAvailable }, winFsp = winFspStatus, vault = new { kdfStatus = argon2 is null ? "unavailable" : "ready" } }, new(epoch, revision));
             }
             else if (commandType == "activate-ui")
             {
@@ -105,6 +111,18 @@ internal sealed class HostStateAuthority : IDisposable
             else if (commandType == "start-read-only-mount")
             {
                 result = await StartMountAsync(envelope.Body, cancellationToken).ConfigureAwait(false);
+            }
+            else if (commandType == "start-mount-profile")
+            {
+                result = await StartMountProfileAsync(envelope.Body, cancellationToken).ConfigureAwait(false);
+            }
+            else if (commandType == "save-mount-profile")
+            {
+                result = await SaveMountProfileAsync(envelope.Body, cancellationToken).ConfigureAwait(false);
+            }
+            else if (commandType == "delete-mount-profile")
+            {
+                result = await DeleteMountProfileAsync(envelope.Body, cancellationToken).ConfigureAwait(false);
             }
             else if (commandType == "stop-mount")
             {
@@ -211,6 +229,60 @@ internal sealed class HostStateAuthority : IDisposable
         {
             if (resultType == "mount-stopped") revision = checked(revision + 1);
             return CreateResult(resultType, (object?)snapshot ?? new { }, new(epoch, revision), resultType == "mount-stopped");
+        }
+    }
+
+    private async ValueTask<HostCommandResult> StartMountProfileAsync(JsonElement body, CancellationToken cancellationToken)
+    {
+        if (remotes?.SessionState != "operational") return CreateResult("vault-locked", new { }, Cursor);
+        if (mounts is null || remotes is not IHostMountProfileManager profiles) return CreateResult("mount-unavailable", new { code = "mount-profile-engine-unavailable" }, Cursor);
+        if (!body.TryGetProperty("arguments", out var arguments) || ReadGuidArgument(arguments, "profileId") is not { } profileId || ReadArgument(arguments, "capabilityBinding") is not { } binding) return CreateResult("mount-invalid", new { code = "arguments-invalid" }, Cursor);
+        var profile = await profiles.ReadMountProfileAsync(new(profileId), cancellationToken).ConfigureAwait(false);
+        if (profile is null) return CreateResult("mount-profile-not-found", new { }, Cursor);
+        var (resultType, snapshot) = await mounts.StartReadOnlyAsync(profile.RemoteId, profile.Subpath, profile.PresentationMode, profile.DriveLetterSelection, profile.PreferredDriveLetter, profile.FixedDirectoryPath, profile.VolumeName, binding, cancellationToken, profile.Id.Value).ConfigureAwait(false);
+        lock (sync)
+        {
+            if (resultType == "mount-ready") revision = checked(revision + 1);
+            return CreateResult(resultType, (object?)snapshot ?? new { }, new(epoch, revision), resultType == "mount-ready");
+        }
+    }
+
+    private async ValueTask<HostCommandResult> SaveMountProfileAsync(JsonElement body, CancellationToken cancellationToken)
+    {
+        if (remotes is not IHostMountProfileManager profiles) return CreateResult("mount-profile-unavailable", new { }, Cursor);
+        if (!body.TryGetProperty("arguments", out var arguments)
+            || ReadGuidArgument(arguments, "profileId") is not { } profileId
+            || ReadArgument(arguments, "displayName", 80) is not { } displayName
+            || ReadGuidArgument(arguments, "remoteId") is not { } remoteId
+            || ReadArgument(arguments, "subpath") is not { } subpath
+            || ReadArgument(arguments, "presentationMode") is not { } presentationValue
+            || ReadArgument(arguments, "driveSelection") is not { } driveSelectionValue
+            || ReadArgument(arguments, "driveLetter", 1) is not { Length: 1 } driveLetter
+            || ReadArgument(arguments, "volumeName", 64) is not { } volumeName
+            || !arguments.TryGetProperty("expectedRevision", out var revisionValue) || !revisionValue.TryGetUInt64(out var expectedRevision))
+            return CreateResult("mount-profile-invalid", new { code = "arguments-invalid" }, Cursor);
+        var presentation = presentationValue switch { "network-drive" => MountPresentationMode.NetworkDrive, "fixed-drive" => MountPresentationMode.FixedDrive, "fixed-directory" => MountPresentationMode.FixedDirectory, _ => (MountPresentationMode)(-1) };
+        var driveSelection = driveSelectionValue switch { "preferred" => DriveLetterSelection.Preferred, "automatic" => DriveLetterSelection.Automatic, _ => (DriveLetterSelection)(-1) };
+        if (mounts?.Snapshots.Any(snapshot => snapshot.ProfileId == profileId) == true) return CreateResult("mount-profile-active", new { }, Cursor);
+        var profile = new SavedMountProfile(new(profileId), expectedRevision, displayName, remoteId, subpath, presentation, driveSelection, char.ToUpperInvariant(driveLetter[0]), ReadArgument(arguments, "fixedDirectoryPath", 32767), volumeName, MountCachePreset.ReadOnlyBrowsing, false);
+        var (resultType, saved) = await profiles.UpsertMountProfileAsync(profile, expectedRevision, cancellationToken).ConfigureAwait(false);
+        lock (sync)
+        {
+            if (resultType == "mount-profile-saved") revision = checked(revision + 1);
+            return CreateResult(resultType, (object?)saved ?? new { }, new(epoch, revision), resultType == "mount-profile-saved");
+        }
+    }
+
+    private async ValueTask<HostCommandResult> DeleteMountProfileAsync(JsonElement body, CancellationToken cancellationToken)
+    {
+        if (remotes is not IHostMountProfileManager profiles) return CreateResult("mount-profile-unavailable", new { }, Cursor);
+        if (!body.TryGetProperty("arguments", out var arguments) || ReadGuidArgument(arguments, "profileId") is not { } profileId || !arguments.TryGetProperty("expectedRevision", out var revisionValue) || !revisionValue.TryGetUInt64(out var expectedRevision)) return CreateResult("mount-profile-invalid", new { code = "arguments-invalid" }, Cursor);
+        if (mounts?.Snapshots.Any(snapshot => snapshot.ProfileId == profileId) == true) return CreateResult("mount-profile-active", new { }, Cursor);
+        var resultType = await profiles.DeleteMountProfileAsync(new(profileId), expectedRevision, cancellationToken).ConfigureAwait(false);
+        lock (sync)
+        {
+            if (resultType == "mount-profile-deleted") revision = checked(revision + 1);
+            return CreateResult(resultType, new { }, new(epoch, revision), resultType == "mount-profile-deleted");
         }
     }
 

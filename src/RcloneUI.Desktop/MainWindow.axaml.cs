@@ -26,6 +26,9 @@ public sealed partial class MainWindow : Window
     private async void AttentionClicked(object? sender, RoutedEventArgs args) { if (controller is not null) { if (shell.IsVaultLocked) await controller.UnlockAsync(); else await controller.ReconnectAsync(); } }
     private async void LockVaultClicked(object? sender, RoutedEventArgs args) { if (controller is not null) await controller.LockAsync(); }
     private async void RedetectClicked(object? sender, RoutedEventArgs args) { if (controller is not null) await controller.ReconnectAsync(); }
+    private async void SaveMountProfileClicked(object? sender, RoutedEventArgs args) { if (controller is not null) await controller.SaveMountProfileAsync(); }
+    private async void DeleteMountProfileClicked(object? sender, RoutedEventArgs args) { if (controller is not null) await controller.DeleteMountProfileAsync(); }
+    private void NewMountProfileClicked(object? sender, RoutedEventArgs args) => shell.BeginNewMountProfile();
     private async void JourneyPrimaryClicked(object? sender, RoutedEventArgs args) { if (controller is not null) await controller.ActivatePrimaryAsync(); }
     private async void PickDownloadFolderClicked(object? sender, RoutedEventArgs args)
     {

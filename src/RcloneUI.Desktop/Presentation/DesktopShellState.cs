@@ -10,6 +10,7 @@ public enum DesktopConnectionState { Connecting, ConnectedLocked, ConnectedOpera
 public enum DesktopTransferMode { Download, RemoteCopy }
 public sealed record DesktopRemoteOption(Guid Id, string DisplayName);
 public sealed record DesktopChoice(string Key, string DisplayName);
+public sealed record DesktopMountProfileOption(Guid Id, ulong Revision, string DisplayName, Guid RemoteId, string Subpath, string PresentationMode, string DriveSelection, string DriveLetter, string? FixedDirectoryPath, string VolumeName);
 
 public interface IDesktopHostClient
 {
@@ -42,6 +43,8 @@ public sealed class DesktopShellState : INotifyPropertyChanged
     private string winFspStatus = "unknown";
     private string? winFspVersion;
     private bool rcloneMountAvailable;
+    private DesktopMountProfileOption[] mountProfiles = [];
+    private DesktopMountProfileOption? selectedMountProfile;
 
     public DesktopShellState() => RefreshMountChoices();
 
@@ -165,7 +168,7 @@ public sealed class DesktopShellState : INotifyPropertyChanged
     public string PickMountDirectoryLabel => T("选择目录…", "Choose directory…");
     public string MountReadOnlyNotice => T("当前安全预设为只读浏览，不会向云端写入文件。", "The current safe preset is read-only browsing and cannot write to the cloud.");
     public bool MountPrerequisitesReady => winFspStatus == "ready" && rcloneMountAvailable;
-    public bool IsJourneyPrimaryEnabled => connection == DesktopConnectionState.ConnectedOperational && (route != "Mounts" || HasActiveMount || MountPrerequisitesReady);
+    public bool IsJourneyPrimaryEnabled => connection == DesktopConnectionState.ConnectedOperational && (route != "Mounts" || HasActiveMount || MountPrerequisitesReady && selectedMountProfile is not null);
     public string MountPrerequisiteHeading => T("挂载运行环境", "Mount prerequisites");
     public string MountPrerequisiteStatus => winFspStatus switch
     {
@@ -177,6 +180,15 @@ public sealed class DesktopShellState : INotifyPropertyChanged
     };
     public IBrush MountPrerequisiteBrush => MountPrerequisitesReady ? Brushes.MediumSeaGreen : Brushes.IndianRed;
     public string RedetectLabel => T("重新检测", "Detect again");
+    public IReadOnlyList<DesktopMountProfileOption> MountProfiles => mountProfiles;
+    public DesktopMountProfileOption? SelectedMountProfile { get => selectedMountProfile; set { if (selectedMountProfile?.Id == value?.Id) return; selectedMountProfile = value; if (value is not null) ApplyMountProfile(value); ChangedAll(); } }
+    public string MountProfileName { get; set; } = string.Empty;
+    public bool HasSelectedMountProfile => selectedMountProfile is not null;
+    public string MountProfileHint => T("选择已保存的挂载配置", "Select a saved Mount Profile");
+    public string MountProfileNameHint => T("配置名称", "Profile name");
+    public string SaveMountProfileLabel => selectedMountProfile is null ? T("保存新配置", "Save new profile") : T("保存修改", "Save changes");
+    public string DeleteMountProfileLabel => T("删除配置", "Delete profile");
+    public string NewMountProfileLabel => T("新建", "New");
     public string JourneyHeading => PageTitle;
     public string JourneyDescription => route switch { "Remotes" => T("通过三步向导添加云端账号；凭据只发送给后台服务并写入加密保险库。", "Add cloud accounts in three guided steps. Credentials go only to the Host and encrypted Vault."), "Transfers" => T("复制、移动或单向镜像。执行前必须接受预览，涉及删除时需要明确确认。", "Copy, move, or one-way mirror. Accept a preview before execution; deletion requires explicit confirmation."), "Mounts" => T("创建稳定盘符的挂载配置。Ready 与安全卸载均需要完整证据。", "Create stable drive profiles. Ready and safe unmount require complete evidence."), "Activity" => T("查看真实结果、部分完成、未知状态和可脱敏导出的诊断信息。", "Review truthful outcomes, partial results, unknown states, and redacted diagnostics."), _ => T("此功能通过后台服务快照和命令工作；界面不直接操作 rclone 或保险库。", "This journey uses Host snapshots and commands; the UI never operates rclone or the Vault directly.") };
     public string JourneyStatus => connection == DesktopConnectionState.ConnectedOperational ? T("可以开始", "Ready") : T("当前不可执行", "Action unavailable");
@@ -186,6 +198,11 @@ public sealed class DesktopShellState : INotifyPropertyChanged
     public void Navigate(string value) { route = value; advancedOptionsExpanded = false; ChangedAll(); }
     public void ToggleLanguage() { english = !english; RefreshMountChoices(); ChangedAll(); }
     public void ToggleAdvancedOptions() { if (!IsAdvancedOptionsAvailable) return; advancedOptionsExpanded = !advancedOptionsExpanded; ChangedAll(); }
+    public void BeginNewMountProfile()
+    {
+        selectedMountProfile = null; MountProfileName = string.Empty; MountRemote = remoteOptions.FirstOrDefault(); MountSubpath = string.Empty; MountVolumeName = "Rclone Cloud"; MountDriveLetter = "R"; mountFixedDirectoryPath = string.Empty;
+        mountPresentation = mountPresentationOptions.Single(option => option.Key == "network-drive"); mountDriveSelection = driveSelectionOptions.Single(option => option.Key == "preferred"); ChangedAll();
+    }
     public void ApplyConnection(DesktopConnectionState value) { connection = value; ChangedAll(); }
     public void ApplyAction(string value) { lastAction = value; ChangedAll(); }
     public void ApplySnapshot(HostSnapshot snapshot)
@@ -224,6 +241,17 @@ public sealed class DesktopShellState : INotifyPropertyChanged
             mountStatus = $"{mount.GetProperty("state").GetString()} · {mount.GetProperty("mountPoint").GetString()}";
         }
         else { activeMountId = null; mountStatus = T("尚未挂载", "Not mounted"); }
+        if (snapshot.Body.TryGetProperty("mountProfiles", out var profiles) && profiles.ValueKind == JsonValueKind.Array)
+        {
+            var selectedId = selectedMountProfile?.Id;
+            mountProfiles = profiles.EnumerateArray().Select(profile => new DesktopMountProfileOption(
+                profile.GetProperty("id").GetProperty("value").GetGuid(), profile.GetProperty("revision").GetUInt64(), profile.GetProperty("displayName").GetString()!, profile.GetProperty("remoteId").GetGuid(), profile.GetProperty("subpath").GetString() ?? string.Empty,
+                ToPresentationKey(profile.GetProperty("presentationMode")), ToDriveSelectionKey(profile.GetProperty("driveLetterSelection")), profile.GetProperty("preferredDriveLetter").GetString()!,
+                profile.TryGetProperty("fixedDirectoryPath", out var directory) && directory.ValueKind == JsonValueKind.String ? directory.GetString() : null, profile.GetProperty("volumeName").GetString()!)).ToArray();
+            selectedMountProfile = mountProfiles.FirstOrDefault(profile => profile.Id == selectedId) ?? mountProfiles.FirstOrDefault();
+            if (selectedMountProfile is not null) ApplyMountProfile(selectedMountProfile);
+        }
+        else { mountProfiles = []; selectedMountProfile = null; }
         ChangedAll();
     }
     private string T(string zh, string en) => english ? en : zh;
@@ -246,5 +274,13 @@ public sealed class DesktopShellState : INotifyPropertyChanged
         mountDriveSelection = driveSelectionOptions.Single(option => option.Key == driveKey);
     }
     private static DesktopRemoteOption? KeepSelection(DesktopRemoteOption? selected, DesktopRemoteOption[] options) => selected is null ? null : options.FirstOrDefault(option => option.Id == selected.Id);
+    private void ApplyMountProfile(DesktopMountProfileOption profile)
+    {
+        MountProfileName = profile.DisplayName; MountRemote = remoteOptions.FirstOrDefault(remote => remote.Id == profile.RemoteId); MountSubpath = profile.Subpath; MountVolumeName = profile.VolumeName; MountDriveLetter = profile.DriveLetter; mountFixedDirectoryPath = profile.FixedDirectoryPath ?? string.Empty;
+        mountPresentation = mountPresentationOptions.Single(option => option.Key == profile.PresentationMode);
+        mountDriveSelection = driveSelectionOptions.Single(option => option.Key == profile.DriveSelection);
+    }
+    private static string ToPresentationKey(JsonElement value) => value.ValueKind == JsonValueKind.String ? value.GetString() switch { "NetworkDrive" => "network-drive", "FixedDrive" => "fixed-drive", "FixedDirectory" => "fixed-directory", _ => "network-drive" } : value.GetInt32() switch { 1 => "fixed-drive", 2 => "fixed-directory", _ => "network-drive" };
+    private static string ToDriveSelectionKey(JsonElement value) => value.ValueKind == JsonValueKind.String ? value.GetString() == "Automatic" ? "automatic" : "preferred" : value.GetInt32() == 1 ? "automatic" : "preferred";
     private void ChangedAll() { foreach (var property in GetType().GetProperties().Where(x => x.GetIndexParameters().Length == 0)) PropertyChanged?.Invoke(this, new(property.Name)); }
 }

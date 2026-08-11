@@ -5,7 +5,7 @@ using RcloneUI.Rclone;
 
 namespace RcloneUI.Host;
 
-internal sealed record HostMountSnapshot(Guid InstanceId, Guid RemoteId, string Subpath, string MountPoint, string VolumeName, MountPresentationMode PresentationMode, string State, string? DiagnosticCode, DateTimeOffset UpdatedUtc);
+internal sealed record HostMountSnapshot(Guid InstanceId, Guid? ProfileId, Guid RemoteId, string Subpath, string MountPoint, string VolumeName, MountPresentationMode PresentationMode, string State, string? DiagnosticCode, DateTimeOffset UpdatedUtc);
 
 internal interface IWindowsMountNamespace
 {
@@ -48,7 +48,7 @@ internal sealed class HostMountCoordinator(IRcloneRuntime rclone, IHostRemoteRes
 
     internal IReadOnlyList<HostMountSnapshot> Snapshots => [.. mounts.Values.OrderBy(value => value.UpdatedUtc)];
 
-    internal async ValueTask<(string ResultType, HostMountSnapshot? Snapshot)> StartReadOnlyAsync(Guid remoteId, string subpath, MountPresentationMode presentationMode, DriveLetterSelection driveSelection, char driveLetter, string? fixedDirectoryPath, string volumeName, string capabilityBinding, CancellationToken cancellationToken)
+    internal async ValueTask<(string ResultType, HostMountSnapshot? Snapshot)> StartReadOnlyAsync(Guid remoteId, string subpath, MountPresentationMode presentationMode, DriveLetterSelection driveSelection, char driveLetter, string? fixedDirectoryPath, string volumeName, string capabilityBinding, CancellationToken cancellationToken, Guid? profileId = null)
     {
         var mountPoint = presentationMode == MountPresentationMode.FixedDirectory ? fixedDirectoryPath?.Trim() ?? string.Empty : driveSelection == DriveLetterSelection.Automatic ? "*" : $"{char.ToUpperInvariant(driveLetter)}:";
         if (!Enum.IsDefined(presentationMode) || presentationMode == MountPresentationMode.FixedDirectory && driveSelection != DriveLetterSelection.Preferred) return ("mount-invalid", Failed(remoteId, subpath, mountPoint, volumeName, presentationMode, "presentation-invalid"));
@@ -78,7 +78,7 @@ internal sealed class HostMountCoordinator(IRcloneRuntime rclone, IHostRemoteRes
                 await TryUnmountAsync(mountPoint, capabilityBinding, cancellationToken).ConfigureAwait(false);
                 return ("mount-not-ready", Failed(remoteId, subpath, mountPoint, volumeName, presentationMode, "mount-namespace-not-presented"));
             }
-            var snapshot = new HostMountSnapshot(id, remoteId, subpath, mountPoint, volumeName.Trim(), presentationMode, "ready", null, DateTimeOffset.UtcNow);
+            var snapshot = new HostMountSnapshot(id, profileId, remoteId, subpath, mountPoint, volumeName.Trim(), presentationMode, "ready", null, DateTimeOffset.UtcNow);
             mounts[id] = snapshot;
             return ("mount-ready", snapshot);
         }
@@ -116,5 +116,5 @@ internal sealed class HostMountCoordinator(IRcloneRuntime rclone, IHostRemoteRes
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or ArgumentException) { return false; }
     }
 
-    private static HostMountSnapshot Failed(Guid remoteId, string subpath, string mountPoint, string volumeName, MountPresentationMode presentationMode, string code) => new(Guid.Empty, remoteId, subpath, mountPoint, volumeName, presentationMode, "failed", code, DateTimeOffset.UtcNow);
+    private static HostMountSnapshot Failed(Guid remoteId, string subpath, string mountPoint, string volumeName, MountPresentationMode presentationMode, string code) => new(Guid.Empty, null, remoteId, subpath, mountPoint, volumeName, presentationMode, "failed", code, DateTimeOffset.UtcNow);
 }

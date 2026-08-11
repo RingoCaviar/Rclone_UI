@@ -74,6 +74,28 @@ public sealed record MountSnapshot(
 
 public sealed record MountValidation(bool IsValid, string? DiagnosticCode);
 
+public sealed record SavedMountProfile(
+    MountProfileId Id,
+    ulong Revision,
+    string DisplayName,
+    Guid RemoteId,
+    string Subpath,
+    MountPresentationMode PresentationMode,
+    DriveLetterSelection DriveLetterSelection,
+    char PreferredDriveLetter,
+    string? FixedDirectoryPath,
+    string VolumeName,
+    MountCachePreset CachePreset,
+    bool AutoMount);
+
+public interface IMountProfileStore
+{
+    ValueTask<IReadOnlyList<SavedMountProfile>> ListAsync(CancellationToken cancellationToken = default);
+    ValueTask<SavedMountProfile?> ReadAsync(MountProfileId id, CancellationToken cancellationToken = default);
+    ValueTask<SavedMountProfile> UpsertAsync(SavedMountProfile profile, ulong expectedRevision, CancellationToken cancellationToken = default);
+    ValueTask<bool> DeleteAsync(MountProfileId id, ulong expectedRevision, CancellationToken cancellationToken = default);
+}
+
 public interface IMountManager
 {
     ValueTask<MountValidation> ValidateAsync(MountProfile profile, CancellationToken cancellationToken = default);

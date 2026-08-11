@@ -1,4 +1,5 @@
 using RcloneUI.DataRoot;
+using RcloneUI.Mounts;
 using RcloneUI.Rclone;
 using RcloneUI.Remotes;
 
@@ -6,7 +7,7 @@ namespace RcloneUI.Host;
 
 internal delegate ValueTask<DataRootOpenResult> DataRootOpener(DataRootOpenRequest request, CancellationToken cancellationToken);
 
-internal sealed class HostVaultSession : IHostVaultSession, IHostRemoteResolver, IHostRemoteManager, IAsyncDisposable
+internal sealed class HostVaultSession : IHostVaultSession, IHostRemoteResolver, IHostRemoteManager, IHostMountProfileManager, IAsyncDisposable
 {
     private readonly string dataRootPath;
     private readonly LibArgon2Binding? argon2;
@@ -14,6 +15,7 @@ internal sealed class HostVaultSession : IHostVaultSession, IHostRemoteResolver,
     private readonly SemaphoreSlim gate = new(1, 1);
     private IDataRootSession? session;
     private VaultRemoteStore? store;
+    private VaultMountProfileStore? mountProfiles;
     private string sessionState = "locked";
     private readonly HostRcloneConfigWriter configWriter;
 
@@ -57,6 +59,7 @@ internal sealed class HostVaultSession : IHostVaultSession, IHostRemoteResolver,
             }
             session = opened.Session;
             store = new(session);
+            mountProfiles = new(session);
             sessionState = "operational";
             return "vault-unlocked";
         }
@@ -130,12 +133,51 @@ internal sealed class HostVaultSession : IHostVaultSession, IHostRemoteResolver,
         finally { gate.Release(); }
     }
 
+    public async ValueTask<IReadOnlyList<SavedMountProfile>> ListMountProfilesAsync(CancellationToken cancellationToken)
+    {
+        await gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try { return sessionState == "operational" && mountProfiles is not null ? await mountProfiles.ListAsync(cancellationToken).ConfigureAwait(false) : []; }
+        finally { gate.Release(); }
+    }
+
+    public async ValueTask<SavedMountProfile?> ReadMountProfileAsync(MountProfileId id, CancellationToken cancellationToken)
+    {
+        await gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try { return sessionState == "operational" && mountProfiles is not null ? await mountProfiles.ReadAsync(id, cancellationToken).ConfigureAwait(false) : null; }
+        finally { gate.Release(); }
+    }
+
+    public async ValueTask<(string ResultType, SavedMountProfile? Profile)> UpsertMountProfileAsync(SavedMountProfile profile, ulong expectedRevision, CancellationToken cancellationToken)
+    {
+        await gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            if (sessionState != "operational" || mountProfiles is null) return ("vault-locked", null);
+            try { return ("mount-profile-saved", await mountProfiles.UpsertAsync(profile, expectedRevision, cancellationToken).ConfigureAwait(false)); }
+            catch (InvalidOperationException exception) when (exception.Message == "mount-profile-revision-conflict") { return ("mount-profile-conflict", null); }
+            catch (ArgumentException) { return ("mount-profile-invalid", null); }
+        }
+        finally { gate.Release(); }
+    }
+
+    public async ValueTask<string> DeleteMountProfileAsync(MountProfileId id, ulong expectedRevision, CancellationToken cancellationToken)
+    {
+        await gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            if (sessionState != "operational" || mountProfiles is null) return "vault-locked";
+            return await mountProfiles.DeleteAsync(id, expectedRevision, cancellationToken).ConfigureAwait(false) ? "mount-profile-deleted" : "mount-profile-conflict";
+        }
+        finally { gate.Release(); }
+    }
+
     public async ValueTask DisposeAsync()
     {
         await gate.WaitAsync().ConfigureAwait(false);
         try
         {
             store?.Dispose();
+            mountProfiles?.Dispose();
             if (session is not null) await session.DisposeAsync().ConfigureAwait(false);
             configWriter.Dispose();
             sessionState = "closed";

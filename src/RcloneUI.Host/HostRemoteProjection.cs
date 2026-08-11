@@ -14,6 +14,7 @@ internal interface IHostRemoteProjection
 internal interface IHostVaultSession : IHostRemoteProjection
 {
     ValueTask<string> UnlockAsync(byte[] masterPasswordUtf8, CancellationToken cancellationToken);
+    ValueTask<string> LockAsync(CancellationToken cancellationToken);
 }
 
 internal interface IHostRemoteResolver : IHostRemoteProjection

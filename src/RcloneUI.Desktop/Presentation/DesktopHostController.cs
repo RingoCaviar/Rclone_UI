@@ -8,6 +8,20 @@ public sealed class DesktopHostController(IDesktopHostClient client, DesktopShel
 {
     private int reconnecting;
 
+    public async ValueTask InitializeDesktopSessionAsync(CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            using var arguments = JsonDocument.Parse("{}");
+            await client.SendCommandAsync("lock-vault", arguments.RootElement, cancellationToken).ConfigureAwait(false);
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            // Reconnect supplies the truthful disconnected state and retry action.
+        }
+        await ReconnectAsync(cancellationToken);
+    }
+
     public async ValueTask ReconnectAsync(CancellationToken cancellationToken = default)
     {
         if (Interlocked.Exchange(ref reconnecting, 1) != 0) return;
@@ -78,6 +92,14 @@ public sealed class DesktopHostController(IDesktopHostClient client, DesktopShel
             CryptographicOperations.ZeroMemory(password);
             shell.MasterPassword = string.Empty;
         }
+        await ReconnectAsync(cancellationToken);
+    }
+
+    public async ValueTask LockAsync(CancellationToken cancellationToken = default)
+    {
+        using var arguments = JsonDocument.Parse("{}");
+        var result = await client.SendCommandAsync("lock-vault", arguments.RootElement, cancellationToken);
+        shell.ApplyAction(result.GetProperty("resultType").GetString() ?? "unknown-result");
         await ReconnectAsync(cancellationToken);
     }
 

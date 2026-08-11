@@ -87,6 +87,10 @@ internal sealed class HostStateAuthority : IDisposable
             {
                 result = await UnlockVaultAsync(envelope.Body, cancellationToken).ConfigureAwait(false);
             }
+            else if (commandType == "lock-vault")
+            {
+                result = await LockVaultAsync(cancellationToken).ConfigureAwait(false);
+            }
             else if (commandType == "start-copy")
             {
                 result = await StartCopyAsync(envelope.Body, cancellationToken).ConfigureAwait(false);
@@ -100,7 +104,7 @@ internal sealed class HostStateAuthority : IDisposable
                 lock (sync) result = CreateResult("unknown-command", new { }, new(epoch, revision));
             }
 
-            if (commandType is not ("get-snapshot" or "unlock-vault" or "add-token-remote"))
+            if (commandType is not ("get-snapshot" or "unlock-vault" or "lock-vault" or "add-token-remote"))
                 lock (sync) idempotency.Record(new(envelope.Request.IdempotencyKey.Value, semanticHash, result.ResultType, result.Body.GetRawText(), result.State.Revision));
             return result;
         }
@@ -177,6 +181,17 @@ internal sealed class HostStateAuthority : IDisposable
             }
         }
         finally { CryptographicOperations.ZeroMemory(password); }
+    }
+
+    private async ValueTask<HostCommandResult> LockVaultAsync(CancellationToken cancellationToken)
+    {
+        if (remotes is not IHostVaultSession vault) return CreateResult("vault-unavailable", new { }, Cursor);
+        var resultType = await vault.LockAsync(cancellationToken).ConfigureAwait(false);
+        lock (sync)
+        {
+            if (resultType == "vault-locked") revision = checked(revision + 1);
+            return CreateResult(resultType, new { }, new(epoch, revision), resultType == "vault-locked");
+        }
     }
 
     private async ValueTask<HostCommandResult> AddTokenRemoteAsync(JsonElement body, CancellationToken cancellationToken)

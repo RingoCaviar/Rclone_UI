@@ -136,6 +136,10 @@ public sealed class DesktopHostClientTests
                 var result = await client.SendCommandAsync("unlock-vault", arguments.RootElement, cancellationToken);
                 Assert.Equal("vault-unlocked", result.GetProperty("resultType").GetString());
                 Assert.Equal("operational", (await client.GetSnapshotAsync(cancellationToken)).Body.GetProperty("session").GetString());
+                using var empty = JsonDocument.Parse("{}");
+                var locked = await client.SendCommandAsync("lock-vault", empty.RootElement, cancellationToken);
+                Assert.Equal("vault-locked", locked.GetProperty("resultType").GetString());
+                Assert.Equal("locked", (await client.GetSnapshotAsync(cancellationToken)).Body.GetProperty("session").GetString());
                 Assert.False(File.Exists(Path.Combine(root, "runtime", "idempotency.json")));
             }
         }

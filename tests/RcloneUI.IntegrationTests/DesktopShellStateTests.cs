@@ -94,6 +94,18 @@ public sealed class DesktopShellStateTests
         Assert.Empty(shell.RemoteToken);
     }
 
+    [Fact]
+    public async Task NewDesktopSessionLocksVaultBeforePresentingSnapshot()
+    {
+        var client = new RecordingClient();
+        var shell = new DesktopShellState();
+        var controller = new DesktopHostController(client, shell);
+
+        await controller.InitializeDesktopSessionAsync(TestContext.Current.CancellationToken);
+
+        Assert.Equal("lock-vault", client.CommandType);
+    }
+
     private sealed class RecordingClient : IDesktopHostClient
     {
         internal static readonly Guid SourceId = Guid.Parse("11111111-1111-1111-1111-111111111111");

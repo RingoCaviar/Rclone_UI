@@ -38,6 +38,19 @@ internal sealed class HostRcloneConfigWriter(string dataRootPath) : IDisposable
         finally { gate.Release(); }
     }
 
+    internal async ValueTask ClearAsync(CancellationToken cancellationToken)
+    {
+        await gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            bound.Clear();
+            try { File.Delete(path); }
+            catch (IOException) { }
+            catch (UnauthorizedAccessException) { }
+        }
+        finally { gate.Release(); }
+    }
+
     private string Serialize()
     {
         var text = new StringBuilder();

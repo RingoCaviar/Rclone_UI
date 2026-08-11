@@ -33,6 +33,7 @@
             <StackPanel>
               <TextBlock Text="{Binding VaultHeading}" FontWeight="SemiBold" />
               <TextBlock Text="{Binding VaultStatusLabel}" Foreground="{Binding VaultStatusBrush}" />
+              <Button IsVisible="{Binding CanLockVault}" Content="{Binding LockVaultLabel}" Margin="0,6,0,0" Click="LockVaultClicked" />
             </StackPanel>
           </Border>
           <Button Content="{Binding ExitLabel}" HorizontalAlignment="Stretch" Click="ExitClicked" />

@@ -63,6 +63,20 @@ internal sealed class HostVaultSession : IHostVaultSession, IHostRemoteResolver,
         finally { gate.Release(); }
     }
 
+    public async ValueTask<string> LockAsync(CancellationToken cancellationToken)
+    {
+        await gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            if (sessionState != "operational" || session is null) return "vault-already-locked";
+            session.Lock();
+            sessionState = "locked";
+            await configWriter.ClearAsync(CancellationToken.None).ConfigureAwait(false);
+            return "vault-locked";
+        }
+        finally { gate.Release(); }
+    }
+
     public async ValueTask<IReadOnlyList<HostRemoteSummary>> ListAsync(CancellationToken cancellationToken)
     {
         await gate.WaitAsync(cancellationToken).ConfigureAwait(false);

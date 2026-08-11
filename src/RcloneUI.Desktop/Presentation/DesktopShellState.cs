@@ -51,6 +51,8 @@ public sealed class DesktopShellState : INotifyPropertyChanged
         _ => T("状态未知", "Status unknown")
     };
     public IBrush VaultStatusBrush => connection == DesktopConnectionState.ConnectedOperational ? Brushes.MediumSeaGreen : connection == DesktopConnectionState.ConnectedLocked ? Brushes.DarkOrange : Brushes.Gray;
+    public bool CanLockVault => connection == DesktopConnectionState.ConnectedOperational;
+    public string LockVaultLabel => T("立即锁定", "Lock now");
     public string ExitLabel => T("退出界面", "Exit Desktop");
     public string NotificationsLabel => T("通知", "Notifications");
     public string HomeHeading => T("一切尽在掌握", "Everything under control");

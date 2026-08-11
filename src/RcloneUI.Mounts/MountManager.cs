@@ -97,9 +97,13 @@ public sealed class MountManager(IMountExecutionAdapter adapter, IMountJournal j
         {
             var evidence = await adapter.ObserveAsync(snapshot.InstanceId, snapshot.Profile, cancellationToken).ConfigureAwait(false);
             if (evidence.ProvesReadyFor(snapshot.Profile)) { var live = snapshot with { State = MountState.Ready, Evidence = evidence, UpdatedUtc = DateTimeOffset.UtcNow }; await journal.SaveAsync(live, cancellationToken); results.Add(live); continue; }
-            var interrupted = snapshot with { State = MountState.RecoveryRequired, Risk = MountRisk.Interrupted, Evidence = evidence, DiagnosticCode = "interrupted-mount", UpdatedUtc = DateTimeOffset.UtcNow };
-            var path = await recoveryCaches.PreserveAsync(interrupted, interrupted.Risk, cancellationToken).ConfigureAwait(false);
-            interrupted = interrupted with { RecoveryCachePath = path };
+            var risk = ReconciliationRisk(evidence);
+            var interrupted = snapshot with { State = MountState.RecoveryRequired, Risk = risk, Evidence = evidence, DiagnosticCode = ReconciliationDiagnostic(evidence), UpdatedUtc = DateTimeOffset.UtcNow };
+            if (string.IsNullOrWhiteSpace(interrupted.RecoveryCachePath))
+            {
+                var path = await recoveryCaches.PreserveAsync(interrupted, interrupted.Risk, cancellationToken).ConfigureAwait(false);
+                interrupted = interrupted with { RecoveryCachePath = path };
+            }
             await journal.SaveAsync(interrupted, cancellationToken).ConfigureAwait(false);
             results.Add(interrupted);
         }
@@ -107,6 +111,15 @@ public sealed class MountManager(IMountExecutionAdapter adapter, IMountJournal j
     }
 
     private static MountRisk RiskFor(MountEvidence evidence) => evidence.PendingFiles > 0 || evidence.PendingBytes > 0 || evidence.UploadingFiles > 0 || evidence.FailedUploads > 0 ? MountRisk.PendingWrites : MountRisk.CannotProveClean;
+    private static MountRisk ReconciliationRisk(MountEvidence evidence) => evidence.CacheObservable == false && StringComparer.Ordinal.Equals(evidence.DiagnosticCode, "cache-missing") ? MountRisk.CorruptCache : MountRisk.Interrupted;
+    private static string ReconciliationDiagnostic(MountEvidence evidence)
+    {
+        if (!evidence.NamespaceOwnedByInstance) return "stale-namespace-owner-mismatch";
+        if (evidence.CacheObservable == false && StringComparer.Ordinal.Equals(evidence.DiagnosticCode, "cache-missing")) return "recovery-cache-missing";
+        if (!evidence.ProcessAlive) return "mount-process-terminated";
+        if (!evidence.NamespacePresented) return "mount-namespace-delayed-or-missing";
+        return "interrupted-mount";
+    }
     private static string ReadinessFailure(MountEvidence evidence)
     {
         if (!evidence.RcRequestAccepted) return "mount-rc-not-accepted";

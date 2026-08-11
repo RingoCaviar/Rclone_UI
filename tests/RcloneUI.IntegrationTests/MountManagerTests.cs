@@ -129,6 +129,55 @@ public sealed class MountManagerTests
         Assert.Equal(0, fixture.Adapter.StartCalls);
     }
 
+    [Fact]
+    public async Task ReconciliationNeverTouchesUnattributedStaleNamespace()
+    {
+        var fixture = new Fixture(ReadyEvidence() with { NamespaceOwnedByInstance = false });
+        var profile = Profile();
+        var id = MountInstanceId.New();
+        await fixture.Journal.SaveAsync(new(id, profile, MountState.Ready, MountRisk.None, ReadyEvidence(), DateTimeOffset.UtcNow), TestContext.Current.CancellationToken);
+
+        var result = Assert.Single(await fixture.Manager.ReconcileInterruptedAsync(TestContext.Current.CancellationToken));
+
+        Assert.Equal(id, result.InstanceId);
+        Assert.Equal(profile.PreferredDriveLetter, result.Profile.PreferredDriveLetter);
+        Assert.Equal("stale-namespace-owner-mismatch", result.DiagnosticCode);
+        Assert.Equal(0, fixture.Adapter.StartCalls);
+        Assert.Equal(0, fixture.Adapter.StopCalls);
+        Assert.Equal(0, fixture.Adapter.CleanupCalls);
+    }
+
+    [Fact]
+    public async Task MissingRemovableCacheFailsClosedWithoutClearingRecoveryReference()
+    {
+        var fixture = new Fixture(ReadyEvidence() with { CacheObservable = false, DiagnosticCode = "cache-missing" });
+        var profile = Profile();
+        var id = MountInstanceId.New();
+        await fixture.Journal.SaveAsync(new(id, profile, MountState.RecoveryRequired, MountRisk.Interrupted, ReadyEvidence(), DateTimeOffset.UtcNow, "recovery/original"), TestContext.Current.CancellationToken);
+
+        var result = Assert.Single(await fixture.Manager.ReconcileInterruptedAsync(TestContext.Current.CancellationToken));
+
+        Assert.Equal(MountRisk.CorruptCache, result.Risk);
+        Assert.Equal("recovery-cache-missing", result.DiagnosticCode);
+        Assert.Equal("recovery/original", result.RecoveryCachePath);
+        Assert.Equal(0, fixture.Recovery.PreserveCalls);
+    }
+
+    [Fact]
+    public async Task RepeatedCrashReconciliationCreatesOnlyOneRecoveryRecord()
+    {
+        var fixture = new Fixture(ReadyEvidence() with { ProcessAlive = false, NamespacePresented = false });
+        var id = MountInstanceId.New();
+        await fixture.Journal.SaveAsync(new(id, Profile(), MountState.Ready, MountRisk.None, ReadyEvidence(), DateTimeOffset.UtcNow), TestContext.Current.CancellationToken);
+
+        await fixture.Manager.ReconcileInterruptedAsync(TestContext.Current.CancellationToken);
+        var result = Assert.Single(await fixture.Manager.ReconcileInterruptedAsync(TestContext.Current.CancellationToken));
+
+        Assert.Equal("mount-process-terminated", result.DiagnosticCode);
+        Assert.Equal(1, fixture.Recovery.PreserveCalls);
+        Assert.Equal(0, fixture.Adapter.StartCalls);
+    }
+
     [Theory]
     [MemberData(nameof(ReadinessFailures))]
     public async Task ReadyRequiresEveryIndependentWindowsProbe(MountEvidence evidence, string expectedCode)
@@ -188,20 +237,22 @@ public sealed class MountManagerTests
     {
         public FakeAdapter Adapter { get; }
         public MemoryJournal Journal { get; } = new();
+        public FakeRecovery Recovery { get; } = new();
         public MountManager Manager { get; }
-        public Fixture(MountEvidence evidence) { Adapter = new(evidence) { Environment = Environment() }; Manager = new(Adapter, Journal, new FakeRecovery()); }
+        public Fixture(MountEvidence evidence) { Adapter = new(evidence) { Environment = Environment() }; Manager = new(Adapter, Journal, Recovery); }
     }
     private sealed class FakeAdapter(MountEvidence evidence) : IMountExecutionAdapter
     {
         public MountEnvironmentEvidence Environment { get; set; } = Environment();
         public int StartCalls { get; private set; }
         public int StopCalls { get; private set; }
+        public int CleanupCalls { get; private set; }
         public MountCleanupEvidence CleanupEvidence { get; set; } = new(true, true, true);
         public MountStopEvidence StopEvidence { get; set; } = new(true, true, true);
         public ValueTask<MountEnvironmentEvidence> InspectAsync(MountProfile profile, CancellationToken cancellationToken) => ValueTask.FromResult(Environment);
         public ValueTask StartAsync(MountInstanceId instanceId, MountProfile profile, CancellationToken cancellationToken) { StartCalls++; return ValueTask.CompletedTask; }
         public ValueTask<MountEvidence> ObserveAsync(MountInstanceId instanceId, MountProfile profile, CancellationToken cancellationToken) => ValueTask.FromResult(evidence);
-        public ValueTask<MountCleanupEvidence> CleanupFailedStartAsync(MountInstanceId instanceId, MountProfile profile, CancellationToken cancellationToken) => ValueTask.FromResult(CleanupEvidence);
+        public ValueTask<MountCleanupEvidence> CleanupFailedStartAsync(MountInstanceId instanceId, MountProfile profile, CancellationToken cancellationToken) { CleanupCalls++; return ValueTask.FromResult(CleanupEvidence); }
         public ValueTask<MountStopEvidence> StopAsync(MountInstanceId instanceId, bool force, CancellationToken cancellationToken) { StopCalls++; return ValueTask.FromResult(StopEvidence); }
     }
     private sealed class MemoryJournal : IMountJournal
@@ -211,5 +262,9 @@ public sealed class MountManagerTests
         public ValueTask<MountSnapshot?> ReadAsync(MountInstanceId id, CancellationToken cancellationToken) => ValueTask.FromResult(values.GetValueOrDefault(id));
         public ValueTask<IReadOnlyList<MountSnapshot>> ReadActiveAsync(CancellationToken cancellationToken) => ValueTask.FromResult<IReadOnlyList<MountSnapshot>>([.. values.Values.Where(x => x.State is not MountState.Stopped)]);
     }
-    private sealed class FakeRecovery : IRecoveryCacheRegistry { public ValueTask<string> PreserveAsync(MountSnapshot snapshot, MountRisk risk, CancellationToken cancellationToken) => ValueTask.FromResult("recovery/cache"); }
+    private sealed class FakeRecovery : IRecoveryCacheRegistry
+    {
+        public int PreserveCalls { get; private set; }
+        public ValueTask<string> PreserveAsync(MountSnapshot snapshot, MountRisk risk, CancellationToken cancellationToken) { PreserveCalls++; return ValueTask.FromResult("recovery/cache"); }
+    }
 }

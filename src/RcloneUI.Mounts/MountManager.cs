@@ -13,6 +13,9 @@ public sealed class MountManager(IMountExecutionAdapter adapter, IMountJournal j
         if (profile.PresentationMode == MountPresentationMode.FixedDirectory && string.IsNullOrWhiteSpace(profile.FixedDirectoryPath)) return new(false, "fixed-directory-required");
         if (profile.PresentationMode == MountPresentationMode.NetworkDrive && string.IsNullOrWhiteSpace(profile.ShareName)) return new(false, "share-name-required");
         if (profile.CachePreset != MountCachePreset.ReadOnlyBrowsing && profile.CacheCapacityBytes <= 0) return new(false, "cache-capacity-invalid");
+        if ((profile.MaximumTransferBytes is not null || profile.CutoffMode is not null) && profile.CachePreset != MountCachePreset.Custom) return new(false, "mount-cutoff-not-supported-by-preset");
+        if ((profile.MaximumTransferBytes is null) != (profile.CutoffMode is null)) return new(false, "mount-cutoff-incomplete");
+        if (profile.MaximumTransferBytes <= 0) return new(false, "mount-cutoff-invalid");
         var environment = await adapter.InspectAsync(profile, cancellationToken).ConfigureAwait(false);
         if (!environment.OperationalSession) return new(false, "session-not-operational");
         if (!environment.RemoteHealthy) return new(false, "remote-unhealthy");
@@ -45,7 +48,7 @@ public sealed class MountManager(IMountExecutionAdapter adapter, IMountJournal j
             var cleanupProved = cleanup?.ProvesCleanup == true;
             var ready = Snapshot(id, profile, provesReady ? MountState.Ready : cleanupProved ? MountState.NeedsRemount : MountState.RecoveryRequired,
                 provesReady ? MountRisk.None : MountRisk.CannotProveClean, evidence,
-                provesReady ? null : cleanupProved ? ReadinessFailure(evidence) : "failed-start-cleanup-not-proved") with
+                provesReady ? null : cleanupProved ? ReadinessFailure(profile, evidence) : "failed-start-cleanup-not-proved") with
             { StartupCleanup = cleanup };
             await journal.SaveAsync(ready, cancellationToken).ConfigureAwait(false);
             return ready;
@@ -134,7 +137,7 @@ public sealed class MountManager(IMountExecutionAdapter adapter, IMountJournal j
         if (!evidence.NamespacePresented) return "mount-namespace-delayed-or-missing";
         return "interrupted-mount";
     }
-    private static string ReadinessFailure(MountEvidence evidence)
+    private static string ReadinessFailure(MountProfile profile, MountEvidence evidence)
     {
         if (!evidence.RcRequestAccepted) return "mount-rc-not-accepted";
         if (!evidence.ProcessAlive) return "mount-process-exited";
@@ -145,6 +148,7 @@ public sealed class MountManager(IMountExecutionAdapter adapter, IMountJournal j
         if (!evidence.RootProbeWithinDeadline) return "mount-root-probe-timeout";
         if (!evidence.RootProbeSucceeded) return "mount-root-probe-failed";
         if (evidence.CacheObservable is false) return "mount-cache-observation-failed";
+        if (!string.IsNullOrWhiteSpace(profile.ResolvedRecoveryContractBinding) && !StringComparer.Ordinal.Equals(profile.ResolvedRecoveryContractBinding, evidence.ResolvedRecoveryContractBinding)) return "mount-recovery-contract-mismatch";
         return evidence.DiagnosticCode ?? "readiness-not-proved";
     }
     private static MountEvidence EmptyEvidence() => new(false, false, false, false, null, null, null, null);

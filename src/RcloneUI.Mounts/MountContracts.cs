@@ -10,6 +10,7 @@ public enum DriveLetterSelection { Preferred, Automatic }
 public enum MountState { Stopped, Starting, Ready, DegradedConnection, SafeUnmount, NeedsRemount, RecoveryRequired }
 public enum MountStopMode { Safe, Force }
 public enum MountRisk { None, PendingWrites, CannotProveClean, Interrupted, CorruptCache }
+public enum MountCutoffMode { Soft, Hard, Cautious }
 
 public sealed record MountProfile(
     MountProfileId Id,
@@ -28,7 +29,10 @@ public sealed record MountProfile(
     MountPresentationMode PresentationMode = MountPresentationMode.NetworkDrive,
     DriveLetterSelection DriveLetterSelection = DriveLetterSelection.Preferred,
     string? FixedDirectoryPath = null,
-    string? ShareName = null);
+    string? ShareName = null,
+    string? ResolvedRecoveryContractBinding = null,
+    long? MaximumTransferBytes = null,
+    MountCutoffMode? CutoffMode = null);
 
 public sealed record MountEvidence(
     bool ProcessAlive,
@@ -49,9 +53,10 @@ public sealed record MountEvidence(
     int? FailedUploads = 0,
     bool? OutOfSpace = false,
     bool RemoteHealthy = true,
-    bool QuietIntervalObserved = true)
+    bool QuietIntervalObserved = true,
+    string? ResolvedRecoveryContractBinding = null)
 {
-    public bool ProvesReadyFor(MountProfile profile) => RcRequestAccepted && ProcessAlive && EndpointRegistered && NamespacePresented && NamespaceOwnedByInstance && ExpectedTokenVisible && RootProbeSucceeded && RootProbeWithinDeadline && CacheObservable is not false;
+    public bool ProvesReadyFor(MountProfile profile) => RcRequestAccepted && ProcessAlive && EndpointRegistered && NamespacePresented && NamespaceOwnedByInstance && ExpectedTokenVisible && RootProbeSucceeded && RootProbeWithinDeadline && CacheObservable is not false && (string.IsNullOrWhiteSpace(profile.ResolvedRecoveryContractBinding) || StringComparer.Ordinal.Equals(profile.ResolvedRecoveryContractBinding, ResolvedRecoveryContractBinding));
     public bool ProvesCleanDrain => CacheObservable == true && QueueObservable && PendingFiles == 0 && PendingBytes == 0 && UploadingFiles == 0 && FailedUploads == 0 && OpenFiles == 0 && OutOfSpace == false && RemoteHealthy && QuietIntervalObserved;
 }
 

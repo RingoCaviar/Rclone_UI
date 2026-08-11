@@ -260,6 +260,41 @@ public sealed class MountManagerTests
         Assert.True(result.IsValid);
     }
 
+    [Fact]
+    public async Task NormalPresetsRejectTransferCutoffGuarantees()
+    {
+        var profile = Profile() with { MaximumTransferBytes = 1024, CutoffMode = MountCutoffMode.Soft };
+        var result = await new Fixture(ReadyEvidence()).Manager.ValidateAsync(profile, TestContext.Current.CancellationToken);
+        Assert.False(result.IsValid);
+        Assert.Equal("mount-cutoff-not-supported-by-preset", result.DiagnosticCode);
+    }
+
+    [Fact]
+    public async Task InterruptedCacheRequiresExactResolvedRecoveryContract()
+    {
+        var profile = Profile() with { ResolvedRecoveryContractBinding = "resolved-contract-a" };
+        var fixture = new Fixture(ReadyEvidence() with { ResolvedRecoveryContractBinding = "resolved-contract-b" });
+        var id = MountInstanceId.New();
+        await fixture.Journal.SaveAsync(new(id, profile, MountState.Starting, MountRisk.None, ReadyEvidence(), DateTimeOffset.UtcNow), TestContext.Current.CancellationToken);
+        var result = Assert.Single(await fixture.Manager.ReconcileInterruptedAsync(TestContext.Current.CancellationToken));
+        Assert.Equal(MountState.RecoveryRequired, result.State);
+        Assert.Equal(0, fixture.Adapter.StartCalls);
+    }
+
+    [Fact]
+    public async Task IdenticalResolvedRecoveryContractCanReattachOriginalInstance()
+    {
+        var profile = Profile() with { ResolvedRecoveryContractBinding = "resolved-contract-a" };
+        var evidence = ReadyEvidence() with { ResolvedRecoveryContractBinding = "resolved-contract-a" };
+        var fixture = new Fixture(evidence);
+        var id = MountInstanceId.New();
+        await fixture.Journal.SaveAsync(new(id, profile, MountState.Ready, MountRisk.None, evidence, DateTimeOffset.UtcNow), TestContext.Current.CancellationToken);
+        var result = Assert.Single(await fixture.Manager.ReconcileInterruptedAsync(TestContext.Current.CancellationToken));
+        Assert.Equal(MountState.Ready, result.State);
+        Assert.Equal(id, result.InstanceId);
+        Assert.Equal(0, fixture.Adapter.StartCalls);
+    }
+
     private static MountProfile Profile() => new(MountProfileId.New(), 1, "Cloud", "cloud:", null, 'R', "Rclone Cloud", WindowsDriveType.Network, MountCachePreset.StandardReadWrite, "cache/mounts/id", 10L * 1024 * 1024 * 1024, false, "caps-v1", ShareName: "rclone-ui-cloud-1234");
     private static MountEnvironmentEvidence Environment() => new(true, true, true, true, true, false, true, "caps-v1");
     private static MountEvidence ReadyEvidence() => new(true, true, true, true, true, 0, 0, 0);

@@ -34,7 +34,7 @@ internal sealed class HostProtocolSession
                     throw new ProtocolException(ProtocolErrorCode.InvalidField);
                 if (request.MessageType is not (MessageType.Command or MessageType.Cancel))
                     throw new ProtocolException(ProtocolErrorCode.UnknownMessageType);
-                var result = state.Dispatch(request);
+                var result = await state.DispatchAsync(request, cancellationToken).ConfigureAwait(false);
                 var body = BuildResponseBody(result);
                 var response = ProtocolEnvelope.CreateRequest(
                     result.ResultType == "snapshot" ? MessageType.Snapshot : MessageType.Response,

@@ -1,7 +1,9 @@
+using System.Collections.Immutable;
 using System.Runtime.Versioning;
 using System.Text.Json;
 using RcloneUI.Desktop.Presentation;
 using RcloneUI.Host;
+using RcloneUI.Rclone;
 
 namespace RcloneUI.IntegrationTests;
 
@@ -48,5 +50,34 @@ public sealed class DesktopHostClientTests
         await controller.ReconnectAsync(cancellationToken);
         Assert.Equal("连接已中断", shell.ConnectionLabel);
         Assert.True(shell.NeedsAttention);
+    }
+
+    [Fact]
+    public async Task CopyCommandReportsActualRcloneRuntimeTerminalState()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var root = Path.Combine(Path.GetTempPath(), "RcloneUI.Desktop.Copy.Tests", Guid.NewGuid().ToString("N")); Directory.CreateDirectory(root);
+        var binary = new RcloneBinaryIdentity("test", new string('A', 64), 1);
+        var capabilities = new RcloneCapabilitySnapshot(binary, new string('B', 64), new string('C', 64), ImmutableSortedSet.Create("sync/copy"), ImmutableSortedSet<string>.Empty, DateTimeOffset.UtcNow);
+        var runtime = new ScriptedRcloneRuntime(capabilities, [new(RclonePrimitive.Copy, new(64, 64, 1, 0, 64, TimeSpan.FromSeconds(1), true), ScriptedRcloneRuntime.Success())]);
+        try
+        {
+            await using (var host = BackgroundHostShell.TryCreate(root, Guid.NewGuid(), runtime))
+            {
+                Assert.NotNull(host); host.Start(); var client = new NamedPipeDesktopHostClient(root);
+                using var arguments = JsonDocument.Parse(JsonSerializer.Serialize(new { sourceFs = "source:", sourcePath = "from", destinationFs = "target:", destinationPath = "to", capabilityBinding = capabilities.Binding }));
+                var accepted = await client.SendCommandAsync("start-copy", arguments.RootElement, cancellationToken);
+                Assert.Equal("copy-accepted", accepted.GetProperty("resultType").GetString());
+                JsonElement run;
+                do
+                {
+                    await Task.Delay(10, cancellationToken);
+                    run = (await client.GetSnapshotAsync(cancellationToken)).Body.GetProperty("copyRuns").EnumerateArray().Single().Clone();
+                } while (run.GetProperty("state").GetString() == "running");
+                Assert.Equal("succeeded", run.GetProperty("state").GetString());
+                Assert.Equal(64, run.GetProperty("bytes").GetInt64());
+            }
+        }
+        finally { Directory.Delete(root, recursive: true); }
     }
 }

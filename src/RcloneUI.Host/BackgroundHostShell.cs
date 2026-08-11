@@ -3,6 +3,7 @@ using System.IO.Pipes;
 using System.Runtime.Versioning;
 using System.Security.Cryptography;
 using RcloneUI.Contracts.HostProtocol.V1;
+using RcloneUI.Rclone;
 
 namespace RcloneUI.Host;
 
@@ -26,20 +27,21 @@ internal sealed class BackgroundHostShell : IAsyncDisposable
         string dataRootPath,
         HostOwnership ownership,
         HostEndpoint endpoint,
-        HostWindowsIdentity identity)
+        HostWindowsIdentity identity,
+        IRcloneRuntime? rclone)
     {
         this.dataRootPath = dataRootPath;
         this.ownership = ownership;
         this.endpoint = endpoint;
         this.identity = identity;
-        state = new(dataRootPath);
+        state = new(dataRootPath, rclone);
         workReconciler = new(dataRootPath);
         lifecycleJournal = new(dataRootPath);
     }
 
     internal HostEndpoint Endpoint => endpoint;
 
-    internal static BackgroundHostShell? TryCreate(string dataRootPath, Guid dataRootId)
+    internal static BackgroundHostShell? TryCreate(string dataRootPath, Guid dataRootId, IRcloneRuntime? rclone = null)
     {
         var identity = HostWindowsIdentity.Current();
         var names = HostEndpointNaming.Derive(dataRootId, identity.LogonSid.Value);
@@ -48,7 +50,7 @@ internal sealed class BackgroundHostShell : IAsyncDisposable
         try
         {
             var endpoint = HostEndpointPublisher.Create(dataRootId, names.PipeName);
-            return new(dataRootPath, ownership, endpoint, identity);
+            return new(dataRootPath, ownership, endpoint, identity, rclone);
         }
         catch
         {
@@ -94,6 +96,7 @@ internal sealed class BackgroundHostShell : IAsyncDisposable
     {
         await StopAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
         lifecycleWindow?.Dispose();
+        state.Dispose();
         shutdown.Dispose();
         ownership.Dispose();
     }

@@ -105,7 +105,7 @@ public sealed class BackgroundHostIpcTests
     }
 
     [Fact]
-    public void RestartPreservesIdempotentMutationTruth()
+    public async Task RestartPreservesIdempotentMutationTruth()
     {
         var root = CreateTemporaryRoot();
         try
@@ -119,10 +119,10 @@ public sealed class BackgroundHostIpcTests
                 new(new("durable-key"), new("durable-cancel"), deadline),
                 JsonSerializer.SerializeToUtf8Bytes(new { commandType = "activate-ui" }));
             var firstRun = new HostStateAuthority(root);
-            Assert.True(firstRun.Dispatch(command).StateChanged);
+            Assert.True((await firstRun.DispatchAsync(command, TestContext.Current.CancellationToken)).StateChanged);
 
             var restarted = new HostStateAuthority(root);
-            var replay = restarted.Dispatch(command);
+            var replay = await restarted.DispatchAsync(command, TestContext.Current.CancellationToken);
             var snapshotCommand = ProtocolEnvelope.CreateRequest(
                 MessageType.Command,
                 new("snapshot-request"),
@@ -130,7 +130,7 @@ public sealed class BackgroundHostIpcTests
                 new(new("client-epoch"), 0),
                 new(new("snapshot-key"), new("snapshot-cancel"), deadline),
                 JsonSerializer.SerializeToUtf8Bytes(new { commandType = "get-snapshot" }));
-            var snapshot = restarted.Dispatch(snapshotCommand);
+            var snapshot = await restarted.DispatchAsync(snapshotCommand, TestContext.Current.CancellationToken);
 
             Assert.False(replay.StateChanged);
             Assert.Equal(1, snapshot.Body.GetProperty("activationCount").GetInt32());

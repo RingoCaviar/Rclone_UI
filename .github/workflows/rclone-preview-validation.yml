@@ -1,0 +1,30 @@
+name: rclone preview validation
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  local-backend-matrix:
+    runs-on: windows-2022
+    strategy:
+      fail-fast: false
+      matrix:
+        version: ["1.74.4", "1.75.0"]
+    steps:
+      - uses: actions/checkout@v4
+      - shell: pwsh
+        run: |
+          $name = "rclone-v${{ matrix.version }}-windows-amd64.zip"
+          Invoke-WebRequest "https://downloads.rclone.org/v${{ matrix.version }}/$name" -OutFile "artifacts/$name"
+          Invoke-WebRequest "https://downloads.rclone.org/v${{ matrix.version }}/SHA256SUMS" -OutFile "artifacts/SHA256SUMS"
+          $expected = (Get-Content artifacts/SHA256SUMS | Where-Object { $_ -match [regex]::Escape($name) } | Select-Object -First 1).Split(' ')[0].ToUpperInvariant()
+          $actual = (Get-FileHash "artifacts/$name" -Algorithm SHA256).Hash
+          if (-not $expected -or $actual -ne $expected) { throw 'Official rclone archive digest mismatch.' }
+          Expand-Archive "artifacts/$name" -DestinationPath artifacts/rclone
+          $exe = Get-ChildItem artifacts/rclone -Recurse -Filter rclone.exe | Select-Object -First 1
+          ./scripts/validate-rclone-preview.ps1 -RcloneExecutable $exe.FullName -OutputPath "artifacts/rclone-preview-${{ matrix.version }}.json"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: rclone-preview-${{ matrix.version }}
+          path: artifacts/rclone-preview-${{ matrix.version }}.json
+          if-no-files-found: error

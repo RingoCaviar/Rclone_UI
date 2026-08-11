@@ -15,6 +15,8 @@
     <ProjectReference Include="../../src/RcloneUI.Rclone/RcloneUI.Rclone.csproj" />
     <ProjectReference Include="../../src/RcloneUI.Remotes/RcloneUI.Remotes.csproj" />
     <ProjectReference Include="../../src/RcloneUI.Transfers/RcloneUI.Transfers.csproj" />
+    <ProjectReference Include="../../src/RcloneUI.Updates/RcloneUI.Updates.csproj" />
+    <ProjectReference Include="../../src/RcloneUI.Updater/RcloneUI.Updater.csproj" />
     <ProjectReference Include="../../src/RcloneUI.Work/RcloneUI.Work.csproj" />
   </ItemGroup>
 </Project>

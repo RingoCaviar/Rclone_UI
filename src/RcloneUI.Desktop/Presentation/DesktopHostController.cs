@@ -25,9 +25,23 @@ public sealed class DesktopHostController(IDesktopHostClient client, DesktopShel
 
     public async ValueTask ActivatePrimaryAsync(CancellationToken cancellationToken = default)
     {
-        using var arguments = JsonDocument.Parse("{}");
-        var result = await client.SendCommandAsync("activate-ui", arguments.RootElement, cancellationToken).ConfigureAwait(false);
-        shell.ApplyAction(result.GetProperty("resultType").GetString() ?? "unknown-result");
-        await ReconnectAsync(cancellationToken).ConfigureAwait(false);
+        if (shell.CurrentRoute != "Transfers") { await ReconnectAsync(cancellationToken); return; }
+        if (shell.CapabilityBinding is null) { shell.ApplyAction("rclone-unavailable"); return; }
+        using var arguments = JsonDocument.Parse(JsonSerializer.Serialize(new { sourceFs = shell.CopySourceFs, sourcePath = shell.CopySourcePath, destinationFs = shell.CopyDestinationFs, destinationPath = shell.CopyDestinationPath, capabilityBinding = shell.CapabilityBinding }));
+        var result = await client.SendCommandAsync("start-copy", arguments.RootElement, cancellationToken);
+        var resultType = result.GetProperty("resultType").GetString() ?? "unknown-result";
+        shell.ApplyAction(resultType);
+        await ReconnectAsync(cancellationToken);
+        if (resultType == "copy-accepted") _ = ObserveCopyAsync(cancellationToken);
+    }
+
+    private async Task ObserveCopyAsync(CancellationToken cancellationToken)
+    {
+        for (var attempt = 0; attempt < 600 && !cancellationToken.IsCancellationRequested; attempt++)
+        {
+            await Task.Delay(500, cancellationToken);
+            await ReconnectAsync(cancellationToken);
+            if (!shell.CopyStatus.StartsWith("running", StringComparison.Ordinal)) return;
+        }
     }
 }

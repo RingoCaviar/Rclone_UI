@@ -95,6 +95,18 @@
             <StackPanel Spacing="14">
               <TextBlock Text="{Binding JourneyStatus}" FontWeight="SemiBold" FontSize="17" />
               <TextBlock Text="{Binding JourneyActionHint}" TextWrapping="Wrap" />
+              <StackPanel IsVisible="{Binding IsTransferJourney}" Spacing="10">
+                <TextBlock Text="Copy 来源与目标" FontWeight="SemiBold" />
+                <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto" ColumnSpacing="10" RowSpacing="8">
+                  <TextBox Grid.Row="0" Grid.Column="0" PlaceholderText="来源文件系统，例如 remote:" Text="{Binding CopySourceFs}" AutomationProperties.Name="Copy source filesystem" />
+                  <TextBox Grid.Row="0" Grid.Column="1" PlaceholderText="来源路径" Text="{Binding CopySourcePath}" AutomationProperties.Name="Copy source path" />
+                  <TextBox Grid.Row="1" Grid.Column="0" PlaceholderText="目标文件系统，例如 backup:" Text="{Binding CopyDestinationFs}" AutomationProperties.Name="Copy destination filesystem" />
+                  <TextBox Grid.Row="1" Grid.Column="1" PlaceholderText="目标路径" Text="{Binding CopyDestinationPath}" AutomationProperties.Name="Copy destination path" />
+                </Grid>
+                <TextBlock Text="{Binding CopyStatus}" AutomationProperties.LiveSetting="Polite" />
+              </StackPanel>
+              <TextBlock Text="{Binding RemoteSummary}" />
+              <TextBlock Text="{Binding LastAction}" Opacity="0.7" />
               <StackPanel Orientation="Horizontal" Spacing="10">
                 <Button Classes="primary" Content="{Binding JourneyPrimaryAction}" Click="JourneyPrimaryClicked" />
                 <Button Content="高级选项" />

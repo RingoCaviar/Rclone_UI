@@ -31,4 +31,34 @@ public sealed class DesktopShellStateTests
         Assert.Equal("Transfer Tasks", shell.PageTitle);
         Assert.Contains("preview", shell.JourneyDescription, StringComparison.OrdinalIgnoreCase);
     }
+
+    [Fact]
+    public async Task TransferPrimaryActionUsesSnapshotCapabilityAndTypedFields()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var client = new RecordingClient(); var shell = new DesktopShellState(); var controller = new DesktopHostController(client, shell);
+        await controller.ReconnectAsync(cancellationToken);
+        shell.Navigate("Transfers"); shell.CopySourceFs = "source:"; shell.CopySourcePath = "from"; shell.CopyDestinationFs = "target:"; shell.CopyDestinationPath = "to";
+        await controller.ActivatePrimaryAsync(cancellationToken);
+        Assert.Equal("start-copy", client.CommandType);
+        Assert.Equal("source:", client.Arguments.GetProperty("sourceFs").GetString());
+        Assert.Equal("caps", client.Arguments.GetProperty("capabilityBinding").GetString());
+    }
+
+    private sealed class RecordingClient : IDesktopHostClient
+    {
+        public string? CommandType { get; private set; }
+        public JsonElement Arguments { get; private set; }
+        public ValueTask<HostSnapshot> GetSnapshotAsync(CancellationToken cancellationToken)
+        {
+            using var document = JsonDocument.Parse("""{"session":"operational","remotes":[],"copyRuns":[],"rclone":{"status":"ready","capabilityBinding":"caps"}}""");
+            return ValueTask.FromResult(new HostSnapshot(new(new("epoch"), 1), DateTimeOffset.UtcNow, document.RootElement.Clone()));
+        }
+        public ValueTask<JsonElement> SendCommandAsync(string commandType, JsonElement arguments, CancellationToken cancellationToken)
+        {
+            CommandType = commandType; Arguments = arguments.Clone();
+            using var document = JsonDocument.Parse("""{"resultType":"copy-not-started","result":{"code":"test"}}""");
+            return ValueTask.FromResult(document.RootElement.Clone());
+        }
+    }
 }

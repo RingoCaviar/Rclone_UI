@@ -66,7 +66,7 @@ internal sealed class HostStateAuthority : IDisposable
             HostCommandResult result;
             if (commandType == "get-snapshot")
             {
-                lock (sync) result = CreateResult("snapshot", new { session = "operational", activationCount, remotes = Array.Empty<object>(), copyRuns = copyRuns.Values.OrderBy(x => x.CreatedUtc).ToArray(), rclone = rclone is null ? "unavailable" : "ready" }, new(epoch, revision));
+                lock (sync) result = CreateResult("snapshot", new { session = "operational", activationCount, remotes = Array.Empty<object>(), copyRuns = copyRuns.Values.OrderBy(x => x.CreatedUtc).ToArray(), rclone = new { status = rclone is null ? "unavailable" : "ready", capabilityBinding = rclone?.Capabilities.Binding } }, new(epoch, revision));
             }
             else if (commandType == "activate-ui")
             {

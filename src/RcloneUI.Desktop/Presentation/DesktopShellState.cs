@@ -32,13 +32,59 @@ public sealed class DesktopShellState : INotifyPropertyChanged
     private string downloadDestinationPath = string.Empty;
 
     public event PropertyChangedEventHandler? PropertyChanged;
+    public string EditionLabel => T("便携版 · Portable", "Portable edition");
+    public string NavHome => T("⌂  主页", "⌂  Home");
+    public string NavRemotes => T("☁  远程存储", "☁  Remotes");
+    public string NavTransfers => T("⇄  传输任务", "⇄  Transfers");
+    public string NavBrowser => T("▤  文件浏览器", "▤  File Browser");
+    public string NavMounts => T("▣  挂载磁盘", "▣  Mounts");
+    public string NavSchedules => T("◷  计划任务", "◷  Schedules");
+    public string NavActivity => T("≡  活动与日志", "≡  Activity & Logs");
+    public string NavSettings => T("⚙  设置", "⚙  Settings");
+    public string HostHeading => T("后台服务", "Background Host");
+    public string VaultHeading => T("数据保险库", "Vault");
+    public string VaultStatusLabel => connection switch
+    {
+        DesktopConnectionState.ConnectedOperational => T("已解锁", "Unlocked"),
+        DesktopConnectionState.ConnectedLocked => T("已锁定", "Locked"),
+        DesktopConnectionState.ReadOnlyRecovery => T("只读恢复", "Read-only recovery"),
+        _ => T("状态未知", "Status unknown")
+    };
+    public IBrush VaultStatusBrush => connection == DesktopConnectionState.ConnectedOperational ? Brushes.MediumSeaGreen : connection == DesktopConnectionState.ConnectedLocked ? Brushes.DarkOrange : Brushes.Gray;
+    public string ExitLabel => T("退出界面", "Exit Desktop");
+    public string NotificationsLabel => T("通知", "Notifications");
+    public string HomeHeading => T("一切尽在掌握", "Everything under control");
+    public string HomeDescription => T("查看云端状态并继续最近的任务。", "Review cloud status and continue recent tasks.");
+    public string NewTaskLabel => T("＋ 新建任务", "+ New task");
+    public string ShortcutTransfer => T("⇄ 复制或同步", "⇄ Copy or sync");
+    public string ShortcutBrowse => T("▤ 浏览文件", "▤ Browse files");
+    public string ShortcutMount => T("▣ 挂载磁盘", "▣ Mount storage");
+    public string ShortcutRemote => T("☁ 添加远程存储", "☁ Add Remote");
+    public string TransferCardHeading => T("传输任务", "Transfer tasks");
+    public string EmptyTaskText => T("暂无运行中的任务。创建任务前会先展示变更预览和删除风险。", "No tasks are running. Changes and deletion risks are shown before a task starts.");
+    public string RemoteHealthHeading => T("远程存储健康", "Remote health");
+    public string NoRemoteText => T("尚未添加远程存储", "No Remotes added");
+    public string OpenRemoteWizardLabel => T("打开三步设置向导", "Open three-step setup");
+    public string QuickAddHeading => T("快速添加（高级）", "Quick add (advanced)");
+    public string RemoteDisplayNameHint => T("显示名称", "Display name");
+    public string RemoteTokenHint => T("rclone OAuth 令牌", "rclone OAuth token");
+    public string RemoteHelpText => T("支持 Google Drive、OneDrive 和 Dropbox。Host 会先测试连接，成功后才加密保存。", "Supports Google Drive, OneDrive, and Dropbox. The Host tests the connection before encrypted storage.");
+    public string TransferFormHeading => T("下载与复制", "Download and copy");
+    public string SourceRemoteHint => T("选择来源 Remote", "Select source Remote");
+    public string SourcePathHint => T("远程文件或文件夹路径（根目录可留空）", "Remote file or folder path (leave empty for root)");
+    public string DownloadFolderHint => T("选择电脑上的下载目录", "Select a download folder on this computer");
+    public string PickFolderLabel => T("选择文件夹…", "Choose folder…");
+    public string DestinationRemoteHint => T("选择目标 Remote", "Select destination Remote");
+    public string DestinationPathHint => T("目标路径", "Destination path");
+    public string AdvancedOptionsLabel => T("高级选项", "Advanced options");
+    public string MasterPasswordHint => T("主密码", "Master password");
     public string PageTitle => route switch { "Home" => T("主页", "Home"), "Remotes" => T("远程存储", "Remotes"), "Transfers" => T("传输任务", "Transfer Tasks"), "Browser" => T("文件浏览器", "File Browser"), "Mounts" => T("挂载磁盘", "Mounts"), "Schedules" => T("计划任务", "Schedules"), "Activity" => T("活动与日志", "Activity & Logs"), _ => T("设置", "Settings") };
     public bool IsHome => route == "Home";
     public bool IsJourney => !IsHome;
     public bool IsTransferJourney => route == "Transfers";
     public bool IsRemoteJourney => route == "Remotes";
     public string CurrentRoute => route;
-    public string ConnectionLabel => connection switch { DesktopConnectionState.Connecting => T("正在连接…", "Connecting…"), DesktopConnectionState.ConnectedLocked => T("已锁定", "Locked"), DesktopConnectionState.ConnectedOperational => T("运行正常", "Operational"), DesktopConnectionState.ReadOnlyRecovery => T("只读恢复", "Read-only recovery"), _ => T("连接已中断", "Disconnected") };
+    public string ConnectionLabel => connection switch { DesktopConnectionState.Connecting => T("正在连接…", "Connecting…"), DesktopConnectionState.ConnectedLocked or DesktopConnectionState.ConnectedOperational => T("已自动连接", "Auto-connected"), DesktopConnectionState.ReadOnlyRecovery => T("已连接（恢复模式）", "Connected (recovery)"), _ => T("连接已中断", "Disconnected") };
     public string SessionLabel => connection switch { DesktopConnectionState.ConnectedOperational => T("数据保险库已解锁", "Vault unlocked"), DesktopConnectionState.ConnectedLocked => T("需要解锁数据保险库", "Vault unlock required"), DesktopConnectionState.ReadOnlyRecovery => T("写入已停用，数据保持原状", "Writes disabled; data preserved"), _ => T("后台任务状态可能不是最新", "Background state may be stale") };
     public IBrush StatusBrush => connection == DesktopConnectionState.ConnectedOperational ? Brushes.MediumSeaGreen : connection == DesktopConnectionState.Disconnected ? Brushes.IndianRed : Brushes.DarkOrange;
     public bool NeedsAttention => connection != DesktopConnectionState.ConnectedOperational;

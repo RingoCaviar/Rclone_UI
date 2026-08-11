@@ -17,7 +17,8 @@ public sealed class DesktopShellStateTests
         var shell = new DesktopShellState();
         shell.ApplySnapshot(new(new(new(Guid.NewGuid().ToString("N")), 1), DateTimeOffset.UtcNow, document.RootElement.Clone()));
         Assert.Equal(needsAttention, shell.NeedsAttention);
-        Assert.Equal(expected == DesktopConnectionState.ConnectedOperational ? "运行正常" : expected == DesktopConnectionState.ConnectedLocked ? "已锁定" : "只读恢复", shell.ConnectionLabel);
+        Assert.Equal(expected is DesktopConnectionState.ConnectedOperational or DesktopConnectionState.ConnectedLocked ? "已自动连接" : "已连接（恢复模式）", shell.ConnectionLabel);
+        Assert.Equal(expected == DesktopConnectionState.ConnectedOperational ? "已解锁" : expected == DesktopConnectionState.ConnectedLocked ? "已锁定" : "只读恢复", shell.VaultStatusLabel);
     }
 
     [Fact]
@@ -30,6 +31,24 @@ public sealed class DesktopShellStateTests
         shell.ToggleLanguage();
         Assert.Equal("Transfer Tasks", shell.PageTitle);
         Assert.Contains("preview", shell.JourneyDescription, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void LanguageSwitchUpdatesNavigationHomeAndCommonActions()
+    {
+        var shell = new DesktopShellState();
+        Assert.Equal("⌂  主页", shell.NavHome);
+        Assert.Equal("退出界面", shell.ExitLabel);
+        Assert.Equal("高级选项", shell.AdvancedOptionsLabel);
+        Assert.Equal("一切尽在掌握", shell.HomeHeading);
+
+        shell.ToggleLanguage();
+
+        Assert.Equal("⌂  Home", shell.NavHome);
+        Assert.Equal("☁  Remotes", shell.NavRemotes);
+        Assert.Equal("Exit Desktop", shell.ExitLabel);
+        Assert.Equal("Advanced options", shell.AdvancedOptionsLabel);
+        Assert.Equal("Everything under control", shell.HomeHeading);
     }
 
     [Fact]

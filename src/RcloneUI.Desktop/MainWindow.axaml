@@ -10,26 +10,32 @@
       <Grid RowDefinitions="Auto,24,*,Auto">
         <StackPanel>
           <TextBlock Text="Rclone UI" FontSize="22" FontWeight="SemiBold" />
-          <TextBlock Text="便携版 · Portable" Opacity="0.65" FontSize="12" />
+          <TextBlock Text="{Binding EditionLabel}" Opacity="0.65" FontSize="12" />
         </StackPanel>
         <ListBox Grid.Row="2" SelectedIndex="0" SelectionChanged="NavigationChanged" Background="Transparent" BorderThickness="0">
-          <ListBoxItem Tag="Home">⌂  主页 / Home</ListBoxItem>
-          <ListBoxItem Tag="Remotes">☁  远程存储</ListBoxItem>
-          <ListBoxItem Tag="Transfers">⇄  传输任务</ListBoxItem>
-          <ListBoxItem Tag="Browser">▤  文件浏览器</ListBoxItem>
-          <ListBoxItem Tag="Mounts">▣  挂载磁盘</ListBoxItem>
-          <ListBoxItem Tag="Schedules">◷  计划任务</ListBoxItem>
-          <ListBoxItem Tag="Activity">≡  活动与日志</ListBoxItem>
-          <ListBoxItem Tag="Settings">⚙  设置</ListBoxItem>
+          <ListBoxItem Tag="Home" Content="{Binding NavHome}" />
+          <ListBoxItem Tag="Remotes" Content="{Binding NavRemotes}" />
+          <ListBoxItem Tag="Transfers" Content="{Binding NavTransfers}" />
+          <ListBoxItem Tag="Browser" Content="{Binding NavBrowser}" />
+          <ListBoxItem Tag="Mounts" Content="{Binding NavMounts}" />
+          <ListBoxItem Tag="Schedules" Content="{Binding NavSchedules}" />
+          <ListBoxItem Tag="Activity" Content="{Binding NavActivity}" />
+          <ListBoxItem Tag="Settings" Content="{Binding NavSettings}" />
         </ListBox>
         <StackPanel Grid.Row="3" Spacing="8">
           <Border Classes="status" Background="{DynamicResource CardBrush}">
             <StackPanel>
-              <TextBlock Text="后台服务" FontWeight="SemiBold" />
+              <TextBlock Text="{Binding HostHeading}" FontWeight="SemiBold" />
               <TextBlock Text="{Binding ConnectionLabel}" Foreground="{Binding StatusBrush}" />
             </StackPanel>
           </Border>
-          <Button Content="退出程序" HorizontalAlignment="Stretch" Click="ExitClicked" />
+          <Border Classes="status" Background="{DynamicResource CardBrush}">
+            <StackPanel>
+              <TextBlock Text="{Binding VaultHeading}" FontWeight="SemiBold" />
+              <TextBlock Text="{Binding VaultStatusLabel}" Foreground="{Binding VaultStatusBrush}" />
+            </StackPanel>
+          </Border>
+          <Button Content="{Binding ExitLabel}" HorizontalAlignment="Stretch" Click="ExitClicked" />
         </StackPanel>
       </Grid>
     </Border>
@@ -40,7 +46,7 @@
           <TextBlock Text="{Binding PageTitle}" FontSize="21" FontWeight="SemiBold" />
           <TextBlock Text="{Binding SessionLabel}" Opacity="0.65" FontSize="12" />
         </StackPanel>
-        <Button Grid.Column="1" Content="通知" Margin="8,0" />
+        <Button Grid.Column="1" Content="{Binding NotificationsLabel}" Margin="8,0" />
         <Button Grid.Column="2" Content="中 / EN" Click="LanguageClicked" />
       </Grid>
     </Border>
@@ -52,7 +58,7 @@
             <StackPanel>
               <TextBlock Text="{Binding AttentionTitle}" FontWeight="SemiBold" FontSize="16" />
               <TextBlock Text="{Binding AttentionDetail}" TextWrapping="Wrap" Margin="0,5,0,0" />
-              <TextBox IsVisible="{Binding IsVaultLocked}" Text="{Binding MasterPassword}" PasswordChar="●" PlaceholderText="Master Password" MaxLength="1024" Margin="0,10,16,0" AutomationProperties.Name="Master Password" />
+              <TextBox IsVisible="{Binding IsVaultLocked}" Text="{Binding MasterPassword}" PasswordChar="●" PlaceholderText="{Binding MasterPasswordHint}" MaxLength="1024" Margin="0,10,16,0" AutomationProperties.Name="Master Password" />
             </StackPanel>
             <Button Grid.Column="1" Content="{Binding AttentionAction}" Click="AttentionClicked" />
           </Grid>
@@ -61,29 +67,29 @@
         <StackPanel IsVisible="{Binding IsHome}" Spacing="20">
           <Grid ColumnDefinitions="*,Auto">
             <StackPanel>
-              <TextBlock Text="一切尽在掌握" FontSize="30" FontWeight="SemiBold" />
-              <TextBlock Text="查看云端状态并继续最近的任务。" Opacity="0.68" />
+              <TextBlock Text="{Binding HomeHeading}" FontSize="30" FontWeight="SemiBold" />
+              <TextBlock Text="{Binding HomeDescription}" Opacity="0.68" />
             </StackPanel>
-            <Button Grid.Column="1" Classes="primary" Content="＋ 新建任务" Click="NewTaskClicked" />
+            <Button Grid.Column="1" Classes="primary" Content="{Binding NewTaskLabel}" Click="NewTaskClicked" />
           </Grid>
           <UniformGrid Columns="4" Rows="1">
-            <Button Classes="shortcut" Content="⇄ 复制或同步" Tag="Transfers" Click="ShortcutClicked" />
-            <Button Classes="shortcut" Content="▤ 浏览文件" Tag="Browser" Click="ShortcutClicked" />
-            <Button Classes="shortcut" Content="▣ 挂载磁盘" Tag="Mounts" Click="ShortcutClicked" />
-            <Button Classes="shortcut" Content="☁ 添加远程存储" Tag="Remotes" Click="ShortcutClicked" />
+            <Button Classes="shortcut" Content="{Binding ShortcutTransfer}" Tag="Transfers" Click="ShortcutClicked" />
+            <Button Classes="shortcut" Content="{Binding ShortcutBrowse}" Tag="Browser" Click="ShortcutClicked" />
+            <Button Classes="shortcut" Content="{Binding ShortcutMount}" Tag="Mounts" Click="ShortcutClicked" />
+            <Button Classes="shortcut" Content="{Binding ShortcutRemote}" Tag="Remotes" Click="ShortcutClicked" />
           </UniformGrid>
           <Grid ColumnDefinitions="2*,*" ColumnSpacing="18">
             <Border Classes="card">
               <StackPanel Spacing="12">
-                <Grid ColumnDefinitions="*,Auto"><TextBlock Text="传输任务" FontSize="18" FontWeight="SemiBold" /><TextBlock Grid.Column="1" Text="{Binding RunningTasksLabel}" /></Grid>
-                <Border Classes="empty"><TextBlock Text="暂无运行中的任务。创建任务前会先展示变更预览和删除风险。" TextWrapping="Wrap" /></Border>
+                <Grid ColumnDefinitions="*,Auto"><TextBlock Text="{Binding TransferCardHeading}" FontSize="18" FontWeight="SemiBold" /><TextBlock Grid.Column="1" Text="{Binding RunningTasksLabel}" /></Grid>
+                <Border Classes="empty"><TextBlock Text="{Binding EmptyTaskText}" TextWrapping="Wrap" /></Border>
               </StackPanel>
             </Border>
             <Border Grid.Column="1" Classes="card">
               <StackPanel Spacing="12">
-                <TextBlock Text="远程存储健康" FontSize="18" FontWeight="SemiBold" />
-                <TextBlock Text="尚未添加远程存储" />
-                <Button Content="打开三步设置向导" Tag="Remotes" Click="ShortcutClicked" />
+                <TextBlock Text="{Binding RemoteHealthHeading}" FontSize="18" FontWeight="SemiBold" />
+                <TextBlock Text="{Binding NoRemoteText}" />
+                <Button Content="{Binding OpenRemoteWizardLabel}" Tag="Remotes" Click="ShortcutClicked" />
               </StackPanel>
             </Border>
           </Grid>
@@ -97,26 +103,26 @@
               <TextBlock Text="{Binding JourneyStatus}" FontWeight="SemiBold" FontSize="17" />
               <TextBlock Text="{Binding JourneyActionHint}" TextWrapping="Wrap" />
               <StackPanel IsVisible="{Binding IsRemoteJourney}" Spacing="10">
-                <TextBlock Text="快速添加（高级）" FontWeight="SemiBold" />
-                <TextBox PlaceholderText="显示名称" Text="{Binding RemoteDisplayName}" AutomationProperties.Name="Remote display name" />
+                <TextBlock Text="{Binding QuickAddHeading}" FontWeight="SemiBold" />
+                <TextBox PlaceholderText="{Binding RemoteDisplayNameHint}" Text="{Binding RemoteDisplayName}" AutomationProperties.Name="Remote display name" />
                 <ComboBox ItemsSource="{Binding TokenProviderTypes}" SelectedItem="{Binding RemoteProviderType}" AutomationProperties.Name="Remote provider" />
-                <TextBox PlaceholderText="rclone OAuth token" Text="{Binding RemoteToken}" PasswordChar="●" MaxLength="16384" AutomationProperties.Name="Remote token" />
-                <TextBlock Text="支持 Google Drive、OneDrive 和 Dropbox。Host 会先测试连接，成功后才加密保存。" TextWrapping="Wrap" Opacity="0.7" />
+                <TextBox PlaceholderText="{Binding RemoteTokenHint}" Text="{Binding RemoteToken}" PasswordChar="●" MaxLength="16384" AutomationProperties.Name="Remote token" />
+                <TextBlock Text="{Binding RemoteHelpText}" TextWrapping="Wrap" Opacity="0.7" />
               </StackPanel>
               <StackPanel IsVisible="{Binding IsTransferJourney}" Spacing="10">
-                <TextBlock Text="下载与复制" FontWeight="SemiBold" />
+                <TextBlock Text="{Binding TransferFormHeading}" FontWeight="SemiBold" />
                 <ComboBox ItemsSource="{Binding TransferModes}" SelectedItem="{Binding TransferMode}" AutomationProperties.Name="Transfer mode" />
                 <Grid ColumnDefinitions="*,*" ColumnSpacing="10">
-                  <ComboBox Grid.Column="0" ItemsSource="{Binding RemoteOptions}" SelectedItem="{Binding CopySourceRemote}" DisplayMemberBinding="{Binding DisplayName}" PlaceholderText="选择来源 Remote" AutomationProperties.Name="Copy source Remote" />
-                  <TextBox Grid.Column="1" PlaceholderText="远程文件或文件夹路径（根目录可留空）" Text="{Binding CopySourcePath}" AutomationProperties.Name="Copy source path" />
+                  <ComboBox Grid.Column="0" ItemsSource="{Binding RemoteOptions}" SelectedItem="{Binding CopySourceRemote}" DisplayMemberBinding="{Binding DisplayName}" PlaceholderText="{Binding SourceRemoteHint}" AutomationProperties.Name="Copy source Remote" />
+                  <TextBox Grid.Column="1" PlaceholderText="{Binding SourcePathHint}" Text="{Binding CopySourcePath}" AutomationProperties.Name="Copy source path" />
                 </Grid>
                 <Grid IsVisible="{Binding IsDownloadMode}" ColumnDefinitions="*,Auto" ColumnSpacing="10">
-                  <TextBox Text="{Binding DownloadDestinationPath}" IsReadOnly="True" PlaceholderText="选择电脑上的下载目录" AutomationProperties.Name="Download destination folder" />
-                  <Button Grid.Column="1" Content="选择文件夹…" Click="PickDownloadFolderClicked" />
+                  <TextBox Text="{Binding DownloadDestinationPath}" IsReadOnly="True" PlaceholderText="{Binding DownloadFolderHint}" AutomationProperties.Name="Download destination folder" />
+                  <Button Grid.Column="1" Content="{Binding PickFolderLabel}" Click="PickDownloadFolderClicked" />
                 </Grid>
                 <Grid IsVisible="{Binding IsRemoteCopyMode}" ColumnDefinitions="*,*" ColumnSpacing="10">
-                  <ComboBox Grid.Column="0" ItemsSource="{Binding RemoteOptions}" SelectedItem="{Binding CopyDestinationRemote}" DisplayMemberBinding="{Binding DisplayName}" PlaceholderText="选择目标 Remote" AutomationProperties.Name="Copy destination Remote" />
-                  <TextBox Grid.Column="1" PlaceholderText="目标路径" Text="{Binding CopyDestinationPath}" AutomationProperties.Name="Copy destination path" />
+                  <ComboBox Grid.Column="0" ItemsSource="{Binding RemoteOptions}" SelectedItem="{Binding CopyDestinationRemote}" DisplayMemberBinding="{Binding DisplayName}" PlaceholderText="{Binding DestinationRemoteHint}" AutomationProperties.Name="Copy destination Remote" />
+                  <TextBox Grid.Column="1" PlaceholderText="{Binding DestinationPathHint}" Text="{Binding CopyDestinationPath}" AutomationProperties.Name="Copy destination path" />
                 </Grid>
                 <TextBlock Text="{Binding CopyStatus}" AutomationProperties.LiveSetting="Polite" />
               </StackPanel>
@@ -124,7 +130,7 @@
               <TextBlock Text="{Binding LastAction}" Opacity="0.7" />
               <StackPanel Orientation="Horizontal" Spacing="10">
                 <Button Classes="primary" Content="{Binding JourneyPrimaryAction}" Click="JourneyPrimaryClicked" />
-                <Button Content="高级选项" />
+                <Button Content="{Binding AdvancedOptionsLabel}" />
               </StackPanel>
             </StackPanel>
           </Border>

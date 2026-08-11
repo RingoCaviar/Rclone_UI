@@ -23,3 +23,11 @@ _Avoid_: Installer edition, installed app
 **Managed Component**:
 An external runtime dependency whose presence and version Rclone UI detects and can obtain or update for the user, such as rclone or WinFsp.
 _Avoid_: Bundled tool, plugin
+
+**Data Root**:
+The user-chosen portable directory containing all mutable state owned by Rclone UI. It defaults to `data/` beside the Portable App and is never silently redirected elsewhere.
+_Avoid_: Profile, AppData, workspace
+
+**Master Password**:
+The user-held secret that unlocks an encrypted rclone configuration. Remembering it for one Windows user on one computer is an optional convenience and is not part of the portable data.
+_Avoid_: PIN, account password, encryption key

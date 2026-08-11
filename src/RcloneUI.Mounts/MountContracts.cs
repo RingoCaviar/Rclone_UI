@@ -43,10 +43,16 @@ public sealed record MountEvidence(
     bool RcRequestAccepted = true,
     bool NamespaceOwnedByInstance = true,
     bool ExpectedTokenVisible = true,
-    bool RootProbeWithinDeadline = true)
+    bool RootProbeWithinDeadline = true,
+    bool QueueObservable = true,
+    int? UploadingFiles = 0,
+    int? FailedUploads = 0,
+    bool? OutOfSpace = false,
+    bool RemoteHealthy = true,
+    bool QuietIntervalObserved = true)
 {
     public bool ProvesReadyFor(MountProfile profile) => RcRequestAccepted && ProcessAlive && EndpointRegistered && NamespacePresented && NamespaceOwnedByInstance && ExpectedTokenVisible && RootProbeSucceeded && RootProbeWithinDeadline && CacheObservable is not false;
-    public bool ProvesClean => CacheObservable == true && PendingFiles == 0 && PendingBytes == 0 && OpenFiles == 0;
+    public bool ProvesCleanDrain => CacheObservable == true && QueueObservable && PendingFiles == 0 && PendingBytes == 0 && UploadingFiles == 0 && FailedUploads == 0 && OpenFiles == 0 && OutOfSpace == false && RemoteHealthy && QuietIntervalObserved;
 }
 
 public sealed record MountSnapshot(
@@ -58,7 +64,8 @@ public sealed record MountSnapshot(
     DateTimeOffset UpdatedUtc,
     string? RecoveryCachePath = null,
     string? DiagnosticCode = null,
-    MountCleanupEvidence? StartupCleanup = null);
+    MountCleanupEvidence? StartupCleanup = null,
+    MountStopEvidence? StopEvidence = null);
 
 public sealed record MountValidation(bool IsValid, string? DiagnosticCode);
 

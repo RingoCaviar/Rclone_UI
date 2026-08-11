@@ -64,20 +64,21 @@ public sealed class MountManager(IMountExecutionAdapter adapter, IMountJournal j
             var draining = current with { State = MountState.SafeUnmount, UpdatedUtc = DateTimeOffset.UtcNow };
             await journal.SaveAsync(draining, cancellationToken).ConfigureAwait(false);
             var evidence = await adapter.ObserveAsync(instanceId, current.Profile, cancellationToken).ConfigureAwait(false);
-            if (mode == MountStopMode.Safe && !evidence.ProvesClean)
+            if (mode == MountStopMode.Safe && !evidence.ProvesCleanDrain)
             {
                 var refused = draining with { Risk = RiskFor(evidence), Evidence = evidence, DiagnosticCode = "cannot-prove-clean", UpdatedUtc = DateTimeOffset.UtcNow };
                 await journal.SaveAsync(refused, cancellationToken).ConfigureAwait(false);
                 return refused;
             }
-            await adapter.StopAsync(instanceId, mode == MountStopMode.Force, cancellationToken).ConfigureAwait(false);
-            if (evidence.ProvesClean)
+            var stopEvidence = await adapter.StopAsync(instanceId, mode == MountStopMode.Force, cancellationToken).ConfigureAwait(false);
+            if (evidence.ProvesCleanDrain && stopEvidence.ProvesStopped)
             {
-                var stopped = draining with { State = MountState.Stopped, Risk = MountRisk.None, Evidence = evidence, DiagnosticCode = null, UpdatedUtc = DateTimeOffset.UtcNow };
+                var stopped = draining with { State = MountState.Stopped, Risk = MountRisk.None, Evidence = evidence, StopEvidence = stopEvidence, DiagnosticCode = null, UpdatedUtc = DateTimeOffset.UtcNow };
                 await journal.SaveAsync(stopped, cancellationToken).ConfigureAwait(false);
                 return stopped;
             }
-            var risky = draining with { State = MountState.RecoveryRequired, Risk = RiskFor(evidence), Evidence = evidence, DiagnosticCode = "forced-unmount-recovery-required", UpdatedUtc = DateTimeOffset.UtcNow };
+            var diagnosticCode = !stopEvidence.ProvesStopped ? "unmount-cleanup-not-proved" : "forced-unmount-recovery-required";
+            var risky = draining with { State = MountState.RecoveryRequired, Risk = RiskFor(evidence), Evidence = evidence, StopEvidence = stopEvidence, DiagnosticCode = diagnosticCode, UpdatedUtc = DateTimeOffset.UtcNow };
             var path = await recoveryCaches.PreserveAsync(risky, risky.Risk, cancellationToken).ConfigureAwait(false);
             risky = risky with { RecoveryCachePath = path };
             await journal.SaveAsync(risky, cancellationToken).ConfigureAwait(false);
@@ -105,7 +106,7 @@ public sealed class MountManager(IMountExecutionAdapter adapter, IMountJournal j
         return results;
     }
 
-    private static MountRisk RiskFor(MountEvidence evidence) => evidence.PendingFiles > 0 || evidence.PendingBytes > 0 ? MountRisk.PendingWrites : MountRisk.CannotProveClean;
+    private static MountRisk RiskFor(MountEvidence evidence) => evidence.PendingFiles > 0 || evidence.PendingBytes > 0 || evidence.UploadingFiles > 0 || evidence.FailedUploads > 0 ? MountRisk.PendingWrites : MountRisk.CannotProveClean;
     private static string ReadinessFailure(MountEvidence evidence)
     {
         if (!evidence.RcRequestAccepted) return "mount-rc-not-accepted";

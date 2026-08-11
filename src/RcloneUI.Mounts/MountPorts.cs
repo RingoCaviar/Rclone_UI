@@ -24,13 +24,23 @@ public sealed record MountCleanupEvidence(
     public bool ProvesCleanup => UnmountRequested && NamespaceRemoved && CompletedWithinDeadline;
 }
 
+public sealed record MountStopEvidence(
+    bool RcUnmountAccepted,
+    bool NamespaceRemoved,
+    bool CompletedWithinDeadline,
+    bool OwnedProcessTerminated = false,
+    string? DiagnosticCode = null)
+{
+    public bool ProvesStopped => RcUnmountAccepted && NamespaceRemoved && CompletedWithinDeadline;
+}
+
 public interface IMountExecutionAdapter
 {
     ValueTask<MountEnvironmentEvidence> InspectAsync(MountProfile profile, CancellationToken cancellationToken);
     ValueTask StartAsync(MountInstanceId instanceId, MountProfile profile, CancellationToken cancellationToken);
     ValueTask<MountEvidence> ObserveAsync(MountInstanceId instanceId, MountProfile profile, CancellationToken cancellationToken);
     ValueTask<MountCleanupEvidence> CleanupFailedStartAsync(MountInstanceId instanceId, MountProfile profile, CancellationToken cancellationToken);
-    ValueTask StopAsync(MountInstanceId instanceId, bool force, CancellationToken cancellationToken);
+    ValueTask<MountStopEvidence> StopAsync(MountInstanceId instanceId, bool force, CancellationToken cancellationToken);
 }
 
 public interface IMountJournal

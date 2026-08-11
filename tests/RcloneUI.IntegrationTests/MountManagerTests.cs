@@ -74,6 +74,35 @@ public sealed class MountManagerTests
         var result = await fixture.Manager.StopAsync(started.InstanceId, MountStopMode.Safe, cancellationToken: cancellationToken);
         Assert.Equal(MountState.Stopped, result.State);
         Assert.Equal(MountRisk.None, result.Risk);
+        Assert.True(result.StopEvidence?.ProvesStopped);
+    }
+
+    [Theory]
+    [MemberData(nameof(UncleanDrainEvidence))]
+    public async Task SafeUnmountRefusesIncompleteOrUnstableDrainEvidence(MountEvidence evidence)
+    {
+        var fixture = new Fixture(evidence);
+        var started = await fixture.Manager.StartAsync(Profile(), TestContext.Current.CancellationToken);
+
+        var result = await fixture.Manager.StopAsync(started.InstanceId, MountStopMode.Safe, cancellationToken: TestContext.Current.CancellationToken);
+
+        Assert.Equal(MountState.SafeUnmount, result.State);
+        Assert.Equal("cannot-prove-clean", result.DiagnosticCode);
+        Assert.Equal(0, fixture.Adapter.StopCalls);
+    }
+
+    [Fact]
+    public async Task RcUnmountWithoutNamespaceRemovalRequiresRecovery()
+    {
+        var fixture = new Fixture(ReadyEvidence());
+        fixture.Adapter.StopEvidence = new(true, false, false, DiagnosticCode: "namespace-still-visible");
+        var started = await fixture.Manager.StartAsync(Profile(), TestContext.Current.CancellationToken);
+
+        var result = await fixture.Manager.StopAsync(started.InstanceId, MountStopMode.Safe, cancellationToken: TestContext.Current.CancellationToken);
+
+        Assert.Equal(MountState.RecoveryRequired, result.State);
+        Assert.Equal("unmount-cleanup-not-proved", result.DiagnosticCode);
+        Assert.Equal("recovery/cache", result.RecoveryCachePath);
     }
 
     [Fact]
@@ -122,6 +151,16 @@ public sealed class MountManagerTests
         { ReadyEvidence() with { CacheObservable = false }, "mount-cache-observation-failed" }
     };
 
+    public static TheoryData<MountEvidence> UncleanDrainEvidence => new()
+    {
+        ReadyEvidence() with { QueueObservable = false },
+        ReadyEvidence() with { UploadingFiles = 1 },
+        ReadyEvidence() with { FailedUploads = 1 },
+        ReadyEvidence() with { OutOfSpace = true },
+        ReadyEvidence() with { RemoteHealthy = false },
+        ReadyEvidence() with { QuietIntervalObserved = false }
+    };
+
     [Theory]
     [InlineData(MountPresentationMode.NetworkDrive)]
     [InlineData(MountPresentationMode.FixedDrive)]
@@ -156,11 +195,12 @@ public sealed class MountManagerTests
         public int StartCalls { get; private set; }
         public int StopCalls { get; private set; }
         public MountCleanupEvidence CleanupEvidence { get; set; } = new(true, true, true);
+        public MountStopEvidence StopEvidence { get; set; } = new(true, true, true);
         public ValueTask<MountEnvironmentEvidence> InspectAsync(MountProfile profile, CancellationToken cancellationToken) => ValueTask.FromResult(Environment);
         public ValueTask StartAsync(MountInstanceId instanceId, MountProfile profile, CancellationToken cancellationToken) { StartCalls++; return ValueTask.CompletedTask; }
         public ValueTask<MountEvidence> ObserveAsync(MountInstanceId instanceId, MountProfile profile, CancellationToken cancellationToken) => ValueTask.FromResult(evidence);
         public ValueTask<MountCleanupEvidence> CleanupFailedStartAsync(MountInstanceId instanceId, MountProfile profile, CancellationToken cancellationToken) => ValueTask.FromResult(CleanupEvidence);
-        public ValueTask StopAsync(MountInstanceId instanceId, bool force, CancellationToken cancellationToken) { StopCalls++; return ValueTask.CompletedTask; }
+        public ValueTask<MountStopEvidence> StopAsync(MountInstanceId instanceId, bool force, CancellationToken cancellationToken) { StopCalls++; return ValueTask.FromResult(StopEvidence); }
     }
     private sealed class MemoryJournal : IMountJournal
     {

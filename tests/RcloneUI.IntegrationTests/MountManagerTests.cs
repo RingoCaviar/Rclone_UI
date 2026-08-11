@@ -153,6 +153,8 @@ public sealed class MountManagerTests
 
     public static TheoryData<MountEvidence> UncleanDrainEvidence => new()
     {
+        ReadyEvidence() with { PendingFiles = 1, PendingBytes = 42 },
+        ReadyEvidence() with { OpenFiles = 1 },
         ReadyEvidence() with { QueueObservable = false },
         ReadyEvidence() with { UploadingFiles = 1 },
         ReadyEvidence() with { FailedUploads = 1 },

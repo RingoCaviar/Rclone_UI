@@ -23,6 +23,8 @@ This restores locked dependencies, verifies formatting, builds with warnings as 
 ./scripts/publish-portable.ps1
 ```
 
-The command creates self-contained `win-x64` Desktop, Host, and Updater directories under `artifacts/portable/`. Managed rclone and WinFsp acquisition are implemented by later tickets; this baseline does not search `PATH` or install system components.
+The command creates a self-contained `win-x64` layout, deterministic ZIP, release manifest, third-party notices and SHA-256 checksum under `artifacts/release/`. Pass `-SigningThumbprint` only in the protected release environment to activate the Authenticode signing hook.
+
+Automated artifacts are release candidates only. Windows 10/11, accessibility, WinFsp and destructive recovery qualification remains human-owned; see [release qualification](docs/release/qualification.md).
 
 See [module boundaries](docs/architecture/module-boundaries.md) for dependency and state ownership rules.

@@ -11,6 +11,7 @@
   <ItemGroup>
     <ProjectReference Include="../../src/RcloneUI.DataRoot/RcloneUI.DataRoot.csproj" />
     <ProjectReference Include="../../src/RcloneUI.Desktop/RcloneUI.Desktop.csproj" />
+    <ProjectReference Include="../../src/RcloneUI.Diagnostics/RcloneUI.Diagnostics.csproj" />
     <ProjectReference Include="../../src/RcloneUI.Host/RcloneUI.Host.csproj" />
     <ProjectReference Include="../../src/RcloneUI.Mounts/RcloneUI.Mounts.csproj" />
     <ProjectReference Include="../../src/RcloneUI.Rclone/RcloneUI.Rclone.csproj" />

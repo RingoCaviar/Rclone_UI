@@ -1,0 +1,34 @@
+name: CI
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+          cache: true
+          cache-dependency-path: '**/packages.lock.json'
+      - shell: pwsh
+        run: ./scripts/verify.ps1
+      - shell: pwsh
+        run: dotnet list RcloneUI.slnx package --vulnerable --include-transitive
+      - shell: pwsh
+        run: ./scripts/publish-portable.ps1 -Version 0.0.0-ci
+      - uses: actions/upload-artifact@v4
+        with:
+          name: rclone-ui-win-x64-candidate
+          path: artifacts/release/*
+          if-no-files-found: error
+  human-release-gates:
+    runs-on: windows-2022
+    steps:
+      - shell: pwsh
+        run: |
+          Write-Host 'NOT_RUN_HUMAN_GATE: Windows 10/11, accessibility, WinFsp, lifecycle and destructive recovery matrices require named human evidence.'

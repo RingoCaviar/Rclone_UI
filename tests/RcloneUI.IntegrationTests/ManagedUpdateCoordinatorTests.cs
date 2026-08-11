@@ -1,7 +1,7 @@
-using RcloneUI.Updates;
-using RcloneUI.Updater;
 using System.Security.Cryptography;
 using System.Text.Json;
+using RcloneUI.Updater;
+using RcloneUI.Updates;
 
 namespace RcloneUI.IntegrationTests;
 

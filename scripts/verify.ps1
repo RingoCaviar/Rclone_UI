@@ -17,6 +17,8 @@ try {
     if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
     dotnet test $solution --configuration $Configuration --no-build
     if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+    dotnet list $solution package --vulnerable --include-transitive
+    if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 }
 finally {
     Pop-Location

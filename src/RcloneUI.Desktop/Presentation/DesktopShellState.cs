@@ -7,6 +7,7 @@ using RcloneUI.Contracts.HostProtocol.V1;
 namespace RcloneUI.Desktop.Presentation;
 
 public enum DesktopConnectionState { Connecting, ConnectedLocked, ConnectedOperational, ReadOnlyRecovery, Disconnected }
+public enum DesktopTransferMode { Download, RemoteCopy }
 public sealed record DesktopRemoteOption(Guid Id, string DisplayName);
 
 public interface IDesktopHostClient
@@ -27,6 +28,8 @@ public sealed class DesktopShellState : INotifyPropertyChanged
     private string copyStatus = string.Empty;
     private string? capabilityBinding;
     private string masterPassword = string.Empty;
+    private DesktopTransferMode transferMode;
+    private string downloadDestinationPath = string.Empty;
 
     public event PropertyChangedEventHandler? PropertyChanged;
     public string PageTitle => route switch { "Home" => T("主页", "Home"), "Remotes" => T("远程存储", "Remotes"), "Transfers" => T("传输任务", "Transfer Tasks"), "Browser" => T("文件浏览器", "File Browser"), "Mounts" => T("挂载磁盘", "Mounts"), "Schedules" => T("计划任务", "Schedules"), "Activity" => T("活动与日志", "Activity & Logs"), _ => T("设置", "Settings") };
@@ -55,6 +58,11 @@ public sealed class DesktopShellState : INotifyPropertyChanged
     public IReadOnlyList<DesktopRemoteOption> RemoteOptions => remoteOptions;
     public DesktopRemoteOption? CopySourceRemote { get; set; }
     public DesktopRemoteOption? CopyDestinationRemote { get; set; }
+    public IReadOnlyList<DesktopTransferMode> TransferModes { get; } = [DesktopTransferMode.Download, DesktopTransferMode.RemoteCopy];
+    public DesktopTransferMode TransferMode { get => transferMode; set { if (transferMode == value) return; transferMode = value; ChangedAll(); } }
+    public bool IsDownloadMode => transferMode == DesktopTransferMode.Download;
+    public bool IsRemoteCopyMode => transferMode == DesktopTransferMode.RemoteCopy;
+    public string DownloadDestinationPath { get => downloadDestinationPath; set { if (downloadDestinationPath == value) return; downloadDestinationPath = value; ChangedAll(); } }
     public string CopyStatus => copyStatus;
     public string CopySourcePath { get; set; } = string.Empty;
     public string CopyDestinationPath { get; set; } = string.Empty;

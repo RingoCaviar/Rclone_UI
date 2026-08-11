@@ -104,12 +104,19 @@
                 <TextBlock Text="支持 Google Drive、OneDrive 和 Dropbox。Host 会先测试连接，成功后才加密保存。" TextWrapping="Wrap" Opacity="0.7" />
               </StackPanel>
               <StackPanel IsVisible="{Binding IsTransferJourney}" Spacing="10">
-                <TextBlock Text="Copy 来源与目标" FontWeight="SemiBold" />
-                <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto" ColumnSpacing="10" RowSpacing="8">
-                  <ComboBox Grid.Row="0" Grid.Column="0" ItemsSource="{Binding RemoteOptions}" SelectedItem="{Binding CopySourceRemote}" DisplayMemberBinding="{Binding DisplayName}" PlaceholderText="选择来源 Remote" AutomationProperties.Name="Copy source Remote" />
-                  <TextBox Grid.Row="0" Grid.Column="1" PlaceholderText="来源路径" Text="{Binding CopySourcePath}" AutomationProperties.Name="Copy source path" />
-                  <ComboBox Grid.Row="1" Grid.Column="0" ItemsSource="{Binding RemoteOptions}" SelectedItem="{Binding CopyDestinationRemote}" DisplayMemberBinding="{Binding DisplayName}" PlaceholderText="选择目标 Remote" AutomationProperties.Name="Copy destination Remote" />
-                  <TextBox Grid.Row="1" Grid.Column="1" PlaceholderText="目标路径" Text="{Binding CopyDestinationPath}" AutomationProperties.Name="Copy destination path" />
+                <TextBlock Text="下载与复制" FontWeight="SemiBold" />
+                <ComboBox ItemsSource="{Binding TransferModes}" SelectedItem="{Binding TransferMode}" AutomationProperties.Name="Transfer mode" />
+                <Grid ColumnDefinitions="*,*" ColumnSpacing="10">
+                  <ComboBox Grid.Column="0" ItemsSource="{Binding RemoteOptions}" SelectedItem="{Binding CopySourceRemote}" DisplayMemberBinding="{Binding DisplayName}" PlaceholderText="选择来源 Remote" AutomationProperties.Name="Copy source Remote" />
+                  <TextBox Grid.Column="1" PlaceholderText="远程文件或文件夹路径（根目录可留空）" Text="{Binding CopySourcePath}" AutomationProperties.Name="Copy source path" />
+                </Grid>
+                <Grid IsVisible="{Binding IsDownloadMode}" ColumnDefinitions="*,Auto" ColumnSpacing="10">
+                  <TextBox Text="{Binding DownloadDestinationPath}" IsReadOnly="True" PlaceholderText="选择电脑上的下载目录" AutomationProperties.Name="Download destination folder" />
+                  <Button Grid.Column="1" Content="选择文件夹…" Click="PickDownloadFolderClicked" />
+                </Grid>
+                <Grid IsVisible="{Binding IsRemoteCopyMode}" ColumnDefinitions="*,*" ColumnSpacing="10">
+                  <ComboBox Grid.Column="0" ItemsSource="{Binding RemoteOptions}" SelectedItem="{Binding CopyDestinationRemote}" DisplayMemberBinding="{Binding DisplayName}" PlaceholderText="选择目标 Remote" AutomationProperties.Name="Copy destination Remote" />
+                  <TextBox Grid.Column="1" PlaceholderText="目标路径" Text="{Binding CopyDestinationPath}" AutomationProperties.Name="Copy destination path" />
                 </Grid>
                 <TextBlock Text="{Binding CopyStatus}" AutomationProperties.LiveSetting="Polite" />
               </StackPanel>

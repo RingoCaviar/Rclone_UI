@@ -38,12 +38,27 @@ public sealed class DesktopShellStateTests
         var cancellationToken = TestContext.Current.CancellationToken;
         var client = new RecordingClient(); var shell = new DesktopShellState(); var controller = new DesktopHostController(client, shell);
         await controller.ReconnectAsync(cancellationToken);
-        shell.Navigate("Transfers"); shell.CopySourcePath = "from"; shell.CopyDestinationPath = "to";
+        shell.Navigate("Transfers"); shell.TransferMode = DesktopTransferMode.RemoteCopy; shell.CopySourcePath = "from"; shell.CopyDestinationPath = "to";
         await controller.ActivatePrimaryAsync(cancellationToken);
         Assert.Equal("start-copy", client.CommandType);
         Assert.Equal(RecordingClient.SourceId, client.Arguments.GetProperty("sourceRemoteId").GetGuid());
         Assert.Equal(RecordingClient.DestinationId, client.Arguments.GetProperty("destinationRemoteId").GetGuid());
         Assert.Equal("caps", client.Arguments.GetProperty("capabilityBinding").GetString());
+    }
+
+    [Fact]
+    public async Task DownloadPrimaryActionUsesSelectedLocalFolderWithoutDestinationRemote()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var client = new RecordingClient(); var shell = new DesktopShellState(); var controller = new DesktopHostController(client, shell);
+        await controller.ReconnectAsync(cancellationToken);
+        shell.Navigate("Transfers"); shell.CopySourcePath = "photos"; shell.DownloadDestinationPath = "C:\\Downloads";
+
+        await controller.ActivatePrimaryAsync(cancellationToken);
+
+        Assert.Equal("start-copy", client.CommandType);
+        Assert.Equal("C:\\Downloads", client.Arguments.GetProperty("destinationLocalPath").GetString());
+        Assert.Equal(JsonValueKind.Null, client.Arguments.GetProperty("destinationRemoteId").ValueKind);
     }
 
     [Fact]

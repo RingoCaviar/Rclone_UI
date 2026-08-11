@@ -1,5 +1,6 @@
 using Avalonia.Controls;
 using Avalonia.Interactivity;
+using Avalonia.Platform.Storage;
 using RcloneUI.Desktop.Presentation;
 
 namespace RcloneUI.Desktop;
@@ -23,5 +24,10 @@ public sealed partial class MainWindow : Window
     private void LanguageClicked(object? sender, RoutedEventArgs args) => shell.ToggleLanguage();
     private async void AttentionClicked(object? sender, RoutedEventArgs args) { if (controller is not null) { if (shell.IsVaultLocked) await controller.UnlockAsync(); else await controller.ReconnectAsync(); } }
     private async void JourneyPrimaryClicked(object? sender, RoutedEventArgs args) { if (controller is not null) await controller.ActivatePrimaryAsync(); }
+    private async void PickDownloadFolderClicked(object? sender, RoutedEventArgs args)
+    {
+        var folders = await StorageProvider.OpenFolderPickerAsync(new() { Title = "Select download folder", AllowMultiple = false });
+        if (folders.Count == 1 && folders[0].TryGetLocalPath() is { } path) shell.DownloadDestinationPath = path;
+    }
     private void ExitClicked(object? sender, RoutedEventArgs args) => Close();
 }

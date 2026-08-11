@@ -88,6 +88,40 @@ public sealed class DesktopHostClientTests
     }
 
     [Fact]
+    public async Task DownloadCommandMapsSelectedAbsoluteFolderToLocalRcloneFileSystem()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var root = Path.Combine(Path.GetTempPath(), "RcloneUI.Desktop.Download.Tests", Guid.NewGuid().ToString("N")); Directory.CreateDirectory(root);
+        var destination = Path.Combine(root, "downloads"); Directory.CreateDirectory(destination);
+        var binary = new RcloneBinaryIdentity("test", new string('A', 64), 1);
+        var capabilities = new RcloneCapabilitySnapshot(binary, new string('B', 64), new string('C', 64), ImmutableSortedSet.Create("sync/copy"), ImmutableSortedSet<string>.Empty, DateTimeOffset.UtcNow);
+        var runtime = new ScriptedRcloneRuntime(capabilities, [new(RclonePrimitive.Copy, new(1, 1, 1, 0, 1, TimeSpan.Zero, true), ScriptedRcloneRuntime.Success())]);
+        var store = new TestRemoteStore();
+        try
+        {
+            await using (var host = BackgroundHostShell.TryCreate(root, Guid.NewGuid(), runtime, new VaultHostRemoteProjection(store, new(root))))
+            {
+                Assert.NotNull(host); host.Start(); var client = new NamedPipeDesktopHostClient(root);
+                using var arguments = JsonDocument.Parse(JsonSerializer.Serialize(new { sourceRemoteId = store.Id, sourcePath = "photos", destinationLocalPath = destination, capabilityBinding = capabilities.Binding }));
+
+                var accepted = await client.SendCommandAsync("start-copy", arguments.RootElement, cancellationToken);
+
+                Assert.Equal("copy-accepted", accepted.GetProperty("resultType").GetString());
+                var request = Assert.Single(runtime.Requests);
+                Assert.Equal(destination.Replace('\\', '/').TrimEnd('/') + "/", request.Destination?.FileSystem);
+                Assert.Equal(string.Empty, request.Destination?.Path);
+                JsonElement run;
+                do
+                {
+                    await Task.Delay(10, cancellationToken);
+                    run = (await client.GetSnapshotAsync(cancellationToken)).Body.GetProperty("copyRuns").EnumerateArray().Single().Clone();
+                } while (run.GetProperty("state").GetString() == "running");
+            }
+        }
+        finally { Directory.Delete(root, recursive: true); }
+    }
+
+    [Fact]
     public async Task UnlockCommandOpensVaultWithoutPersistingPasswordMaterial()
     {
         var cancellationToken = TestContext.Current.CancellationToken;

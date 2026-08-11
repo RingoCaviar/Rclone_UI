@@ -102,6 +102,63 @@ public sealed class TransferOrchestrationTests
     }
 
     [Fact]
+    public async Task DurableManifestIsNotTruncatedToRcloneTransferredWindow()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var adapter = new LargeManifestAdapter(250);
+        var orchestrator = new TransferOrchestrator(adapter, new MemoryJournal());
+        var preview = Assert.IsType<TransferPreview>((await orchestrator.PreviewAsync(CreateTask(TransferOperation.Move), cancellationToken)).Preview);
+
+        var result = await orchestrator.ExecuteAsync(new(preview.Id, "target", preview.Task.CapabilityBinding), cancellationToken);
+
+        Assert.Equal(250, result.Evidence.Count(item => item.Outcome == TransferPathOutcome.Copied));
+        Assert.Equal(250, result.Evidence.Count(item => item.Outcome == TransferPathOutcome.Verified));
+        Assert.Equal(250, Assert.IsType<DeletionAdmission>(adapter.LastDeletionAdmission).RelativePaths.Length);
+    }
+
+    [Fact]
+    public async Task RestartMarksEveryIncompleteRunInterruptedWithoutDiscardingManifest()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var journal = new MemoryJournal();
+        var runId = TransferRunId.New();
+        var evidence = Enumerable.Range(0, 250).Select(index => new TransferExecutionEvidence($"path-{index:D3}", TransferPathOutcome.Copied, null)).ToImmutableArray();
+        await journal.SaveAsync(new(runId, AcceptedPreviewId.New(), TransferPhase.Copying, null, evidence, 0, DateTimeOffset.UtcNow), cancellationToken);
+        var orchestrator = new TransferOrchestrator(new ScriptedAdapter(), journal);
+
+        var recovered = Assert.Single(await orchestrator.RecoverInterruptedAsync(cancellationToken));
+
+        Assert.Equal(TransferTerminalResult.InterruptedBySystemOrCrash, recovered.TerminalResult);
+        Assert.Equal(250, recovered.Evidence.Count(item => item.Outcome == TransferPathOutcome.Copied));
+        Assert.Contains(recovered.Evidence, item => item.Detail == "interrupted-by-system-or-crash");
+        Assert.Empty(await orchestrator.RecoverInterruptedAsync(cancellationToken));
+    }
+
+    [Theory]
+    [InlineData(TransferOperation.MirrorSync, "safety")]
+    [InlineData(TransferOperation.Move, "copy")]
+    [InlineData(TransferOperation.Move, "verify")]
+    [InlineData(TransferOperation.Move, "delete-source")]
+    [InlineData(TransferOperation.MirrorSync, "delete-target")]
+    public async Task CancellationAtEveryPhaseIsTruthfulAndRequestsCooperativeStop(TransferOperation operation, string phase)
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var adapter = new PhaseBlockingAdapter(phase);
+        var orchestrator = new TransferOrchestrator(adapter, new MemoryJournal());
+        var preview = Assert.IsType<TransferPreview>((await orchestrator.PreviewAsync(CreateTask(operation), cancellationToken)).Preview);
+        using var stop = new CancellationTokenSource();
+        var execution = orchestrator.ExecuteAsync(new(preview.Id, "target", preview.Task.CapabilityBinding), stop.Token).AsTask();
+        await adapter.Started.Task.WaitAsync(cancellationToken);
+
+        stop.Cancel();
+        var result = await execution;
+
+        Assert.Equal(TransferTerminalResult.CancelledWithPartialResults, result.TerminalResult);
+        Assert.Contains(result.Evidence, item => item.Outcome == TransferPathOutcome.PossiblyAffected && item.Detail == "cancelled");
+        Assert.True(adapter.CancelRequests > 0);
+    }
+
+    [Fact]
     public async Task WorkCoordinatorSerializesOverlappingWriteTargets()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
@@ -163,12 +220,12 @@ public sealed class TransferOrchestrationTests
                 : [new("a", TransferPathOutcome.Copied, 1)];
             return ValueTask.FromResult(new AdapterPreviewResult(new(1, 0, task.Operation == TransferOperation.MirrorSync ? 1 : 0, 0, 0, 0, 1), paths, TransferFailureClass.None, null, RclonePreviewEvidencePolicy.Evaluate(task.Operation, new(true, true, true))));
         }
-        public ValueTask<AdapterPhaseResult> PrepareSafetyCopiesAsync(TransferPreview preview, CancellationToken cancellationToken) => Result("safety", TransferPathOutcome.Skipped);
+        public virtual ValueTask<AdapterPhaseResult> PrepareSafetyCopiesAsync(TransferPreview preview, CancellationToken cancellationToken) => Result("safety", TransferPathOutcome.Skipped);
         public virtual ValueTask<AdapterPhaseResult> CopyAsync(TransferPreview preview, CancellationToken cancellationToken) => Result("copy", TransferPathOutcome.Copied);
         public virtual ValueTask<AdapterPhaseResult> VerifyAsync(TransferPreview preview, CancellationToken cancellationToken) { Calls.Add("verify"); return ValueTask.FromResult(new AdapterPhaseResult(true, TransferFailureClass.None, preview.Paths.Select(path => new TransferExecutionEvidence(path.RelativePath, TransferPathOutcome.Verified, null)).ToImmutableArray())); }
-        public ValueTask<AdapterPhaseResult> DeleteVerifiedSourcesAsync(DeletionAdmission admission, CancellationToken cancellationToken) { LastDeletionAdmission = admission; return Result("delete-source", TransferPathOutcome.SourceDeleted); }
-        public ValueTask<AdapterPhaseResult> DeleteApprovedTargetsAsync(DeletionAdmission admission, CancellationToken cancellationToken) { LastDeletionAdmission = admission; return Result("delete-target", TransferPathOutcome.TargetDeleted); }
-        public ValueTask CancelAsync(TransferRunId runId, CancellationToken cancellationToken) => ValueTask.CompletedTask;
+        public virtual ValueTask<AdapterPhaseResult> DeleteVerifiedSourcesAsync(DeletionAdmission admission, CancellationToken cancellationToken) { LastDeletionAdmission = admission; return Result("delete-source", TransferPathOutcome.SourceDeleted); }
+        public virtual ValueTask<AdapterPhaseResult> DeleteApprovedTargetsAsync(DeletionAdmission admission, CancellationToken cancellationToken) { LastDeletionAdmission = admission; return Result("delete-target", TransferPathOutcome.TargetDeleted); }
+        public virtual ValueTask CancelAsync(TransferRunId runId, CancellationToken cancellationToken) => ValueTask.CompletedTask;
         protected ValueTask<AdapterPhaseResult> Result(string call, TransferPathOutcome outcome) { Calls.Add(call); return ValueTask.FromResult(new AdapterPhaseResult(true, TransferFailureClass.None, [new("a", outcome, null)])); }
     }
 
@@ -226,6 +283,7 @@ public sealed class TransferOrchestrationTests
         private readonly Dictionary<TransferRunId, TransferRunSnapshot> snapshots = [];
         public ValueTask SaveAsync(TransferRunSnapshot snapshot, CancellationToken cancellationToken) { snapshots[snapshot.RunId] = snapshot; return ValueTask.CompletedTask; }
         public ValueTask<TransferRunSnapshot?> ReadAsync(TransferRunId runId, CancellationToken cancellationToken) => ValueTask.FromResult(snapshots.GetValueOrDefault(runId));
+        public ValueTask<ImmutableArray<TransferRunSnapshot>> ReadIncompleteAsync(CancellationToken cancellationToken) => ValueTask.FromResult(snapshots.Values.Where(snapshot => snapshot.TerminalResult is null).ToImmutableArray());
     }
 
     private sealed class DelayedOrchestrator : ITransferOrchestrator
@@ -242,5 +300,48 @@ public sealed class TransferOrchestrationTests
         }
         public ValueTask<TransferRunSnapshot?> ObserveAsync(TransferRunId runId, CancellationToken cancellationToken = default) => ValueTask.FromResult<TransferRunSnapshot?>(null);
         public ValueTask CancelAsync(TransferRunId runId, CancellationToken cancellationToken = default) => ValueTask.CompletedTask;
+        public ValueTask<ImmutableArray<TransferRunSnapshot>> RecoverInterruptedAsync(CancellationToken cancellationToken = default) => ValueTask.FromResult(ImmutableArray<TransferRunSnapshot>.Empty);
+    }
+
+    private sealed class LargeManifestAdapter(int count) : ScriptedAdapter
+    {
+        public override ValueTask<AdapterPreviewResult> PreviewAsync(TransferTaskRevision task, CancellationToken cancellationToken)
+        {
+            Calls.Add("preview");
+            var paths = Enumerable.Range(0, count).Select(index => new PreviewPath($"path-{index:D3}", TransferPathOutcome.Copied, 1)).ToImmutableArray();
+            return ValueTask.FromResult(new AdapterPreviewResult(new(count, 0, 0, 0, 0, 0, count), paths, TransferFailureClass.None, null, RclonePreviewEvidencePolicy.Evaluate(task.Operation, new(true, true, true))));
+        }
+
+        public override ValueTask<AdapterPhaseResult> CopyAsync(TransferPreview preview, CancellationToken cancellationToken)
+        {
+            Calls.Add("copy");
+            return ValueTask.FromResult(new AdapterPhaseResult(true, TransferFailureClass.None, preview.Paths.Select(path => new TransferExecutionEvidence(path.RelativePath, TransferPathOutcome.Copied, null)).ToImmutableArray()));
+        }
+    }
+
+    private sealed class PhaseBlockingAdapter(string blockedPhase) : ScriptedAdapter
+    {
+        internal TaskCompletionSource Started { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        internal int CancelRequests { get; private set; }
+
+        public override ValueTask<AdapterPhaseResult> PrepareSafetyCopiesAsync(TransferPreview preview, CancellationToken cancellationToken) =>
+            blockedPhase == "safety" ? BlockAsync("safety", cancellationToken) : base.PrepareSafetyCopiesAsync(preview, cancellationToken);
+        public override ValueTask<AdapterPhaseResult> CopyAsync(TransferPreview preview, CancellationToken cancellationToken) =>
+            blockedPhase == "copy" ? BlockAsync("copy", cancellationToken) : base.CopyAsync(preview, cancellationToken);
+        public override ValueTask<AdapterPhaseResult> VerifyAsync(TransferPreview preview, CancellationToken cancellationToken) =>
+            blockedPhase == "verify" ? BlockAsync("verify", cancellationToken) : base.VerifyAsync(preview, cancellationToken);
+        public override ValueTask<AdapterPhaseResult> DeleteVerifiedSourcesAsync(DeletionAdmission admission, CancellationToken cancellationToken) =>
+            blockedPhase == "delete-source" ? BlockAsync("delete-source", cancellationToken) : base.DeleteVerifiedSourcesAsync(admission, cancellationToken);
+        public override ValueTask<AdapterPhaseResult> DeleteApprovedTargetsAsync(DeletionAdmission admission, CancellationToken cancellationToken) =>
+            blockedPhase == "delete-target" ? BlockAsync("delete-target", cancellationToken) : base.DeleteApprovedTargetsAsync(admission, cancellationToken);
+        public override ValueTask CancelAsync(TransferRunId runId, CancellationToken cancellationToken) { CancelRequests++; return ValueTask.CompletedTask; }
+
+        private async ValueTask<AdapterPhaseResult> BlockAsync(string call, CancellationToken cancellationToken)
+        {
+            Calls.Add(call);
+            Started.TrySetResult();
+            await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
+            throw new InvalidOperationException("Cancellation did not interrupt the adapter.");
+        }
     }
 }

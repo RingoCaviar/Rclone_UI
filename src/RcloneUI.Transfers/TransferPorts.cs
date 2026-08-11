@@ -20,4 +20,5 @@ public interface ITransferRunJournal
 {
     ValueTask SaveAsync(TransferRunSnapshot snapshot, CancellationToken cancellationToken);
     ValueTask<TransferRunSnapshot?> ReadAsync(TransferRunId runId, CancellationToken cancellationToken);
+    ValueTask<ImmutableArray<TransferRunSnapshot>> ReadIncompleteAsync(CancellationToken cancellationToken);
 }

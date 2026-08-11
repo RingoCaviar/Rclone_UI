@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using System.Text.Json;
 using RcloneUI.DataRoot;
 
@@ -34,6 +35,19 @@ public sealed class VaultTransferRunJournal(IDataRootSession dataRoot) : ITransf
     {
         await gate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try { return (await ReadAllAsync(cancellationToken).ConfigureAwait(false)).GetValueOrDefault(runId); }
+        finally { gate.Release(); }
+    }
+
+    public async ValueTask<ImmutableArray<TransferRunSnapshot>> ReadIncompleteAsync(CancellationToken cancellationToken)
+    {
+        await gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            return (await ReadAllAsync(cancellationToken).ConfigureAwait(false)).Values
+                .Where(snapshot => snapshot.TerminalResult is null)
+                .OrderBy(snapshot => snapshot.UpdatedUtc)
+                .ToImmutableArray();
+        }
         finally { gate.Release(); }
     }
 

@@ -63,6 +63,20 @@ public sealed class TransferOrchestrator(ITransferExecutionAdapter adapter, ITra
         await adapter.CancelAsync(runId, cancellationToken).ConfigureAwait(false);
     }
 
+    public async ValueTask<ImmutableArray<TransferRunSnapshot>> RecoverInterruptedAsync(CancellationToken cancellationToken = default)
+    {
+        var incomplete = await journal.ReadIncompleteAsync(cancellationToken).ConfigureAwait(false);
+        var recovered = ImmutableArray.CreateBuilder<TransferRunSnapshot>(incomplete.Length);
+        foreach (var snapshot in incomplete)
+        {
+            var evidence = snapshot.Evidence.Add(new(string.Empty, TransferPathOutcome.PossiblyAffected, "interrupted-by-system-or-crash"));
+            var terminal = snapshot with { Phase = TransferPhase.Completed, TerminalResult = TransferTerminalResult.InterruptedBySystemOrCrash, Evidence = evidence, UpdatedUtc = DateTimeOffset.UtcNow };
+            await journal.SaveAsync(terminal, CancellationToken.None).ConfigureAwait(false);
+            recovered.Add(terminal);
+        }
+        return recovered.ToImmutable();
+    }
+
     private async Task<TransferRunSnapshot> ExecuteRunAsync(ActiveRun run)
     {
         var evidence = ImmutableArray.CreateBuilder<TransferExecutionEvidence>();

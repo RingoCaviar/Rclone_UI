@@ -72,4 +72,5 @@ public interface ITransferOrchestrator
     ValueTask<TransferRunSnapshot> ExecuteAsync(ExecuteAcceptedPreviewRequest request, CancellationToken cancellationToken = default);
     ValueTask<TransferRunSnapshot?> ObserveAsync(TransferRunId runId, CancellationToken cancellationToken = default);
     ValueTask CancelAsync(TransferRunId runId, CancellationToken cancellationToken = default);
+    ValueTask<ImmutableArray<TransferRunSnapshot>> RecoverInterruptedAsync(CancellationToken cancellationToken = default);
 }

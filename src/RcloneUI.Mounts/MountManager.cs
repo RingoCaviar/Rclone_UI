@@ -96,7 +96,21 @@ public sealed class MountManager(IMountExecutionAdapter adapter, IMountJournal j
         foreach (var snapshot in active)
         {
             var evidence = await adapter.ObserveAsync(snapshot.InstanceId, snapshot.Profile, cancellationToken).ConfigureAwait(false);
-            if (evidence.ProvesReadyFor(snapshot.Profile)) { var live = snapshot with { State = MountState.Ready, Evidence = evidence, UpdatedUtc = DateTimeOffset.UtcNow }; await journal.SaveAsync(live, cancellationToken); results.Add(live); continue; }
+            if (evidence.ProvesReadyFor(snapshot.Profile))
+            {
+                var recoveryStillRequiresReview = snapshot.State == MountState.RecoveryRequired || !string.IsNullOrWhiteSpace(snapshot.RecoveryCachePath);
+                var live = snapshot with
+                {
+                    State = recoveryStillRequiresReview ? MountState.RecoveryRequired : MountState.Ready,
+                    Risk = recoveryStillRequiresReview ? snapshot.Risk : MountRisk.None,
+                    Evidence = evidence,
+                    DiagnosticCode = recoveryStillRequiresReview ? "recovery-review-required" : null,
+                    UpdatedUtc = DateTimeOffset.UtcNow
+                };
+                await journal.SaveAsync(live, cancellationToken);
+                results.Add(live);
+                continue;
+            }
             var risk = ReconciliationRisk(evidence);
             var interrupted = snapshot with { State = MountState.RecoveryRequired, Risk = risk, Evidence = evidence, DiagnosticCode = ReconciliationDiagnostic(evidence), UpdatedUtc = DateTimeOffset.UtcNow };
             if (string.IsNullOrWhiteSpace(interrupted.RecoveryCachePath))

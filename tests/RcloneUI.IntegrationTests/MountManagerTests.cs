@@ -178,6 +178,37 @@ public sealed class MountManagerTests
         Assert.Equal(0, fixture.Adapter.StartCalls);
     }
 
+    [Fact]
+    public async Task ResumedOwnedMappingKeepsOriginalInstanceWithoutDuplicateStart()
+    {
+        var fixture = new Fixture(ReadyEvidence());
+        var profile = Profile();
+        var id = MountInstanceId.New();
+        await fixture.Journal.SaveAsync(new(id, profile, MountState.Ready, MountRisk.None, ReadyEvidence(), DateTimeOffset.UtcNow), TestContext.Current.CancellationToken);
+
+        var result = Assert.Single(await fixture.Manager.ReconcileInterruptedAsync(TestContext.Current.CancellationToken));
+
+        Assert.Equal(MountState.Ready, result.State);
+        Assert.Equal(id, result.InstanceId);
+        Assert.Equal(profile.PreferredDriveLetter, result.Profile.PreferredDriveLetter);
+        Assert.Equal(0, fixture.Adapter.StartCalls);
+    }
+
+    [Fact]
+    public async Task ReappearingMappingNeverClearsExistingRecoveryStateAutomatically()
+    {
+        var fixture = new Fixture(ReadyEvidence());
+        var id = MountInstanceId.New();
+        await fixture.Journal.SaveAsync(new(id, Profile(), MountState.RecoveryRequired, MountRisk.Interrupted, ReadyEvidence(), DateTimeOffset.UtcNow, "recovery/original"), TestContext.Current.CancellationToken);
+
+        var result = Assert.Single(await fixture.Manager.ReconcileInterruptedAsync(TestContext.Current.CancellationToken));
+
+        Assert.Equal(MountState.RecoveryRequired, result.State);
+        Assert.Equal("recovery-review-required", result.DiagnosticCode);
+        Assert.Equal("recovery/original", result.RecoveryCachePath);
+        Assert.Equal(0, fixture.Recovery.PreserveCalls);
+    }
+
     [Theory]
     [MemberData(nameof(ReadinessFailures))]
     public async Task ReadyRequiresEveryIndependentWindowsProbe(MountEvidence evidence, string expectedCode)

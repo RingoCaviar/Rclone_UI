@@ -21,8 +21,10 @@ jobs:
           if ((git -C artifacts/argon2-source rev-parse HEAD) -ne $env:ARGON2_REVISION) { throw 'Argon2 source revision mismatch.' }
       - shell: pwsh
         run: |
-          msbuild artifacts/argon2-source/vs2015/Argon2OptDll/Argon2OptDll.vcxproj /m /p:Configuration=ReleaseStatic /p:Platform=x64 /p:WindowsTargetPlatformVersion=10.0
-          msbuild artifacts/argon2-source/vs2015/Argon2OptTestCI/Argon2OptTestCI.vcxproj /m /p:Configuration=ReleaseStatic /p:Platform=x64 /p:WindowsTargetPlatformVersion=10.0
+          msbuild artifacts/argon2-source/Argon2.sln /m /t:Argon2OptDll /p:Configuration=ReleaseStatic /p:Platform=x64 /p:WindowsTargetPlatformVersion=10.0
+          if ($LASTEXITCODE -ne 0) { throw 'Argon2 DLL build failed.' }
+          msbuild artifacts/argon2-source/Argon2.sln /m /t:Argon2OptTestCI /p:Configuration=ReleaseStatic /p:Platform=x64 /p:WindowsTargetPlatformVersion=10.0
+          if ($LASTEXITCODE -ne 0) { throw 'Argon2 KAT build failed.' }
           & artifacts/argon2-source/vs2015/build/Argon2OptTestCI.exe
           if ($LASTEXITCODE -ne 0) { throw 'Official Argon2 KAT failed.' }
           $dll = Resolve-Path artifacts/argon2-source/vs2015/build/Argon2OptDll.dll

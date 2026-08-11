@@ -55,3 +55,10 @@
 - Never log passwords, tokens, authorization codes, decrypted configuration, DPAPI material, or sensitive request headers.
 - Offer path masking for logs and diagnostic bundles.
 - Treat failure to redact a known secret field as a security defect.
+
+## Mount cache boundary
+
+- Treat rclone VFS cache content as potentially plaintext user file data even when the Vault and rclone configuration are encrypted.
+- Restrict cache access to the current user on NTFS where possible.
+- Show a persistent warning for writable caches on FAT/exFAT, shared folders, or other locations without an equivalent access boundary.
+- Do not claim transparent VFS-cache encryption in v1. Recommend a BitLocker-protected cache volume or an rclone crypt Remote when cached file content requires encryption at rest.

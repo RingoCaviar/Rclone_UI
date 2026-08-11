@@ -11,6 +11,7 @@ jobs:
       matrix:
         version: ["1.74.4", "1.75.0"]
         operation: ["copy", "sync"]
+        backend: ["local", "crypt"]
     steps:
       - uses: actions/checkout@v4
       - shell: pwsh
@@ -24,9 +25,9 @@ jobs:
           if (-not $expected -or $actual -ne $expected) { throw 'Official rclone archive digest mismatch.' }
           Expand-Archive "artifacts/$name" -DestinationPath artifacts/rclone
           $exe = Get-ChildItem artifacts/rclone -Recurse -Filter rclone.exe | Select-Object -First 1
-          ./scripts/validate-rclone-preview.ps1 -RcloneExecutable $exe.FullName -Operation "${{ matrix.operation }}" -OutputPath "artifacts/rclone-preview-${{ matrix.version }}-${{ matrix.operation }}.json"
+          ./scripts/validate-rclone-preview.ps1 -RcloneExecutable $exe.FullName -Operation "${{ matrix.operation }}" -Backend "${{ matrix.backend }}" -OutputPath "artifacts/rclone-preview-${{ matrix.version }}-${{ matrix.operation }}-${{ matrix.backend }}.json"
       - uses: actions/upload-artifact@v4
         with:
-          name: rclone-preview-${{ matrix.version }}-${{ matrix.operation }}
-          path: artifacts/rclone-preview-${{ matrix.version }}-${{ matrix.operation }}.json
+          name: rclone-preview-${{ matrix.version }}-${{ matrix.operation }}-${{ matrix.backend }}
+          path: artifacts/rclone-preview-${{ matrix.version }}-${{ matrix.operation }}-${{ matrix.backend }}.json
           if-no-files-found: error

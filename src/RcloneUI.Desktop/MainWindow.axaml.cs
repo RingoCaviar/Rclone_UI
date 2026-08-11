@@ -11,7 +11,9 @@ public sealed partial class MainWindow : Window
     public MainWindow() : this(null) { }
     public MainWindow(IDesktopHostClient? client)
     {
-        InitializeComponent(); shell = new(); DataContext = shell;
+        shell = new();
+        DataContext = shell;
+        InitializeComponent();
         if (client is not null) controller = new(client, shell);
         Opened += async (_, _) => { if (controller is not null) await controller.ReconnectAsync(); else shell.ApplyConnection(DesktopConnectionState.Disconnected); };
     }

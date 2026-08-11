@@ -1,6 +1,8 @@
 {
     "fixtureFormat":  1,
     "rcloneVersion":  "v1.74.4",
+    "winFspSideBySideDirectory":  "C:\\Program Files (x86)\\WinFsp\\SxS\\sxs.20260810T104747Z\\",
+    "winFspLauncherRunning":  true,
     "rcList":  {
                    "commands":  [
                                     {
@@ -1805,12 +1807,12 @@
                                        "files":  0,
                                        "hashType":  1,
                                        "outOfSpace":  false,
-                                       "path":  "\\\\?\\C:\\Users\\vivi\\AppData\\Local\\rclone\\vfs\\local\\ï¼\\Cï¼\\Users\\vivi\\AppData\\Local\\Temp\\rclone-ui-mount-schema-2160a9f6563f401dbb177915218621be\\source",
-                                       "pathMeta":  "\\\\?\\C:\\Users\\vivi\\AppData\\Local\\rclone\\vfsMeta\\local\\ï¼\\Cï¼\\Users\\vivi\\AppData\\Local\\Temp\\rclone-ui-mount-schema-2160a9f6563f401dbb177915218621be\\source",
+                                       "path":  "\\\\?\\C:\\Users\\vivi\\AppData\\Local\\rclone\\vfs\\local\\ï¼\\Cï¼\\Users\\vivi\\AppData\\Local\\Temp\\rclone-ui-mount-schema-81308479ed72419b9844d98fc5277ef1\\source",
+                                       "pathMeta":  "\\\\?\\C:\\Users\\vivi\\AppData\\Local\\rclone\\vfsMeta\\local\\ï¼\\Cï¼\\Users\\vivi\\AppData\\Local\\Temp\\rclone-ui-mount-schema-81308479ed72419b9844d98fc5277ef1\\source",
                                        "uploadsInProgress":  0,
                                        "uploadsQueued":  0
                                    },
-                     "fs":  "//?/C:/Users/vivi/AppData/Local/Temp/rclone-ui-mount-schema-2160a9f6563f401dbb177915218621be/source",
+                     "fs":  "//?/C:/Users/vivi/AppData/Local/Temp/rclone-ui-mount-schema-81308479ed72419b9844d98fc5277ef1/source",
                      "inUse":  1,
                      "metadataCache":  {
                                            "dirs":  1,

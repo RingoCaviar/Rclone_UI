@@ -21,4 +21,7 @@
     <ProjectReference Include="../../src/RcloneUI.Updater/RcloneUI.Updater.csproj" />
     <ProjectReference Include="../../src/RcloneUI.Work/RcloneUI.Work.csproj" />
   </ItemGroup>
+  <ItemGroup>
+    <None Update="Fixtures/MountCompatibility/*.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
 </Project>

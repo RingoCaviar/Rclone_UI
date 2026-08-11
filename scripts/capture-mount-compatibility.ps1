@@ -39,9 +39,12 @@ try {
     if ([string]::IsNullOrWhiteSpace($vfsName)) { throw "Mounted VFS was not discoverable." }
     $stats = Invoke-Rc "vfs/stats" @{ fs = $vfsName }
     $queue = Invoke-Rc "vfs/queue" @{ fs = $vfsName }
+    $winFsp = Get-ItemProperty "HKLM:\SOFTWARE\WOW6432Node\WinFsp" -ErrorAction SilentlyContinue
     $document = [ordered]@{
         fixtureFormat = 1
         rcloneVersion = $version.version
+        winFspSideBySideDirectory = $winFsp.SxsDir
+        winFspLauncherRunning = ((Get-Service WinFsp.Launcher -ErrorAction SilentlyContinue).Status -eq "Running")
         rcList = $rcList
         mountTypes = $mountTypes
         optionsInfo = $options

@@ -39,6 +39,9 @@ public sealed class DesktopShellState : INotifyPropertyChanged
     private DesktopChoice[] driveSelectionOptions = [];
     private DesktopChoice mountPresentation = null!;
     private DesktopChoice mountDriveSelection = null!;
+    private string winFspStatus = "unknown";
+    private string? winFspVersion;
+    private bool rcloneMountAvailable;
 
     public DesktopShellState() => RefreshMountChoices();
 
@@ -161,6 +164,19 @@ public sealed class DesktopShellState : INotifyPropertyChanged
     public string MountFixedDirectoryHint => T("选择一个现有的空文件夹", "Choose an existing empty folder");
     public string PickMountDirectoryLabel => T("选择目录…", "Choose directory…");
     public string MountReadOnlyNotice => T("当前安全预设为只读浏览，不会向云端写入文件。", "The current safe preset is read-only browsing and cannot write to the cloud.");
+    public bool MountPrerequisitesReady => winFspStatus == "ready" && rcloneMountAvailable;
+    public bool IsJourneyPrimaryEnabled => connection == DesktopConnectionState.ConnectedOperational && (route != "Mounts" || HasActiveMount || MountPrerequisitesReady);
+    public string MountPrerequisiteHeading => T("挂载运行环境", "Mount prerequisites");
+    public string MountPrerequisiteStatus => winFspStatus switch
+    {
+        "ready" when rcloneMountAvailable => T($"WinFsp {winFspVersion} 可用", $"WinFsp {winFspVersion} ready"),
+        "missing" => T("未安装 WinFsp", "WinFsp is not installed"),
+        "incomplete" => T("WinFsp 安装不完整", "WinFsp installation is incomplete"),
+        "ready" => T("rclone 挂载能力不可用", "rclone Mount capability unavailable"),
+        _ => T("无法检测 WinFsp", "Unable to detect WinFsp")
+    };
+    public IBrush MountPrerequisiteBrush => MountPrerequisitesReady ? Brushes.MediumSeaGreen : Brushes.IndianRed;
+    public string RedetectLabel => T("重新检测", "Detect again");
     public string JourneyHeading => PageTitle;
     public string JourneyDescription => route switch { "Remotes" => T("通过三步向导添加云端账号；凭据只发送给后台服务并写入加密保险库。", "Add cloud accounts in three guided steps. Credentials go only to the Host and encrypted Vault."), "Transfers" => T("复制、移动或单向镜像。执行前必须接受预览，涉及删除时需要明确确认。", "Copy, move, or one-way mirror. Accept a preview before execution; deletion requires explicit confirmation."), "Mounts" => T("创建稳定盘符的挂载配置。Ready 与安全卸载均需要完整证据。", "Create stable drive profiles. Ready and safe unmount require complete evidence."), "Activity" => T("查看真实结果、部分完成、未知状态和可脱敏导出的诊断信息。", "Review truthful outcomes, partial results, unknown states, and redacted diagnostics."), _ => T("此功能通过后台服务快照和命令工作；界面不直接操作 rclone 或保险库。", "This journey uses Host snapshots and commands; the UI never operates rclone or the Vault directly.") };
     public string JourneyStatus => connection == DesktopConnectionState.ConnectedOperational ? T("可以开始", "Ready") : T("当前不可执行", "Action unavailable");
@@ -186,6 +202,13 @@ public sealed class DesktopShellState : INotifyPropertyChanged
         }
         else { remoteNames = []; remoteOptions = []; CopySourceRemote = null; CopyDestinationRemote = null; MountRemote = null; remoteSummary = T("远程存储状态未知", "Remote state unknown"); }
         capabilityBinding = snapshot.Body.TryGetProperty("rclone", out var rclone) && rclone.TryGetProperty("status", out var status) && status.GetString() == "ready" && rclone.TryGetProperty("capabilityBinding", out var binding) ? binding.GetString() : null;
+        rcloneMountAvailable = snapshot.Body.TryGetProperty("rclone", out rclone) && rclone.TryGetProperty("mountAvailable", out var mountAvailable) && mountAvailable.GetBoolean();
+        if (snapshot.Body.TryGetProperty("winFsp", out var winFsp))
+        {
+            winFspStatus = winFsp.TryGetProperty("status", out var detectedStatus) ? detectedStatus.GetString() ?? "unknown" : "unknown";
+            winFspVersion = winFsp.TryGetProperty("version", out var version) && version.ValueKind == JsonValueKind.String ? version.GetString() : null;
+        }
+        else { winFspStatus = "unknown"; winFspVersion = null; }
         if (snapshot.Body.TryGetProperty("copyRuns", out var runs) && runs.ValueKind == JsonValueKind.Array && runs.GetArrayLength() > 0)
         {
             var run = runs.EnumerateArray().Last();

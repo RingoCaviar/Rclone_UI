@@ -19,18 +19,20 @@ internal sealed class HostStateAuthority : IDisposable
     private readonly IHostRemoteProjection? remotes;
     private readonly LibArgon2Binding? argon2;
     private readonly HostMountCoordinator? mounts;
+    private readonly IWinFspDetector winFsp;
     private readonly SemaphoreSlim dispatchGate = new(1, 1);
     private readonly Dictionary<Guid, CopyRunState> copyRuns = [];
     private readonly StateEpoch epoch = new(Guid.NewGuid().ToString("N"));
     private ulong revision;
     private int activationCount;
 
-    internal HostStateAuthority(string dataRootPath, IRcloneRuntime? rclone = null, IHostRemoteProjection? remotes = null, LibArgon2Binding? argon2 = null)
+    internal HostStateAuthority(string dataRootPath, IRcloneRuntime? rclone = null, IHostRemoteProjection? remotes = null, LibArgon2Binding? argon2 = null, IWinFspDetector? winFsp = null)
     {
         this.rclone = rclone;
         this.remotes = remotes;
         this.argon2 = argon2;
-        if (rclone is not null && remotes is IHostRemoteResolver resolver) mounts = new(rclone, resolver);
+        this.winFsp = winFsp ?? new WindowsWinFspDetector();
+        if (rclone is not null && remotes is IHostRemoteResolver resolver) mounts = new(rclone, resolver, winFspDetector: this.winFsp);
         idempotency = new(Path.Combine(dataRootPath, "runtime", "idempotency.json"));
         foreach (var record in idempotency.Records)
         {
@@ -80,7 +82,9 @@ internal sealed class HostStateAuthority : IDisposable
                     try { summaries = await remotes.ListAsync(cancellationToken).ConfigureAwait(false); }
                     catch (Exception exception) when (exception is not OperationCanceledException) { return CreateResult("snapshot-unavailable", new { code = "remote-projection-unavailable" }, Cursor); }
                 }
-                lock (sync) result = CreateResult("snapshot", new { session = remotes?.SessionState ?? "locked", activationCount, remotes = summaries, copyRuns = copyRuns.Values.OrderBy(x => x.CreatedUtc).ToArray(), mounts = mounts?.Snapshots ?? [], rclone = new { status = rclone is null ? "unavailable" : "ready", capabilityBinding = rclone?.Capabilities.Binding }, vault = new { kdfStatus = argon2 is null ? "unavailable" : "ready" } }, new(epoch, revision));
+                var winFspStatus = winFsp.Inspect();
+                var rcloneMountAvailable = rclone is not null && rclone.Capabilities.Endpoints.Contains("mount/mount") && rclone.Capabilities.Endpoints.Contains("mount/unmount") && (rclone.Capabilities.MountTypes.Contains("mount") || rclone.Capabilities.MountTypes.Contains("cmount"));
+                lock (sync) result = CreateResult("snapshot", new { session = remotes?.SessionState ?? "locked", activationCount, remotes = summaries, copyRuns = copyRuns.Values.OrderBy(x => x.CreatedUtc).ToArray(), mounts = mounts?.Snapshots ?? [], rclone = new { status = rclone is null ? "unavailable" : "ready", capabilityBinding = rclone?.Capabilities.Binding, mountAvailable = rcloneMountAvailable }, winFsp = winFspStatus, vault = new { kdfStatus = argon2 is null ? "unavailable" : "ready" } }, new(epoch, revision));
             }
             else if (commandType == "activate-ui")
             {

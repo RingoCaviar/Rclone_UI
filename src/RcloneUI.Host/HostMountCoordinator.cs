@@ -40,9 +40,10 @@ internal sealed class WindowsMountNamespace : IWindowsMountNamespace
     private static string Root(string mountPoint) => mountPoint.TrimEnd('\\', '/') + Path.DirectorySeparatorChar;
 }
 
-internal sealed class HostMountCoordinator(IRcloneRuntime rclone, IHostRemoteResolver remotes, IWindowsMountNamespace? windowsNamespace = null)
+internal sealed class HostMountCoordinator(IRcloneRuntime rclone, IHostRemoteResolver remotes, IWindowsMountNamespace? windowsNamespace = null, IWinFspDetector? winFspDetector = null)
 {
     private readonly IWindowsMountNamespace windowsNamespace = windowsNamespace ?? new WindowsMountNamespace();
+    private readonly IWinFspDetector winFspDetector = winFspDetector ?? new WindowsWinFspDetector();
     private readonly ConcurrentDictionary<Guid, HostMountSnapshot> mounts = [];
 
     internal IReadOnlyList<HostMountSnapshot> Snapshots => [.. mounts.Values.OrderBy(value => value.UpdatedUtc)];
@@ -55,6 +56,8 @@ internal sealed class HostMountCoordinator(IRcloneRuntime rclone, IHostRemoteRes
         if (presentationMode == MountPresentationMode.FixedDirectory && !ValidEmptyDirectory(mountPoint)) return ("mount-invalid", Failed(remoteId, subpath, mountPoint, volumeName, presentationMode, "fixed-directory-invalid-or-not-empty"));
         if (string.IsNullOrWhiteSpace(volumeName) || volumeName.Length > 64 || volumeName.IndexOfAny(['\r', '\n', '\0']) >= 0) return ("mount-invalid", Failed(remoteId, subpath, mountPoint, volumeName, presentationMode, "volume-name-invalid"));
         if (!StringComparer.Ordinal.Equals(capabilityBinding, rclone.Capabilities.Binding)) return ("mount-invalid", Failed(remoteId, subpath, mountPoint, volumeName, presentationMode, "capability-binding-changed"));
+        var winFsp = winFspDetector.Inspect();
+        if (winFsp.Status != "ready") return ("mount-unavailable", Failed(remoteId, subpath, mountPoint, volumeName, presentationMode, winFsp.DiagnosticCode));
         if (!rclone.Capabilities.Endpoints.Contains("mount/mount") || !rclone.Capabilities.Endpoints.Contains("mount/unmount")) return ("mount-unavailable", Failed(remoteId, subpath, mountPoint, volumeName, presentationMode, "mount-rc-unavailable"));
         var mountType = rclone.Capabilities.MountTypes.Contains("mount") ? "mount" : rclone.Capabilities.MountTypes.Contains("cmount") ? "cmount" : null;
         if (mountType is null) return ("mount-unavailable", Failed(remoteId, subpath, mountPoint, volumeName, presentationMode, "winfsp-incompatible"));

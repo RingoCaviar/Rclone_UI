@@ -18,7 +18,7 @@ public sealed class HostMountCoordinatorTests
             new(RclonePrimitive.Unmount, Stats(), ScriptedRcloneRuntime.Success()),
         ]);
         var namespaceProbe = new FakeNamespace();
-        var coordinator = new HostMountCoordinator(runtime, new FakeResolver(), namespaceProbe);
+        var coordinator = new HostMountCoordinator(runtime, new FakeResolver(), namespaceProbe, new FakeWinFsp());
 
         var (startType, mounted) = await coordinator.StartReadOnlyAsync(Guid.NewGuid(), "photos", MountPresentationMode.NetworkDrive, DriveLetterSelection.Preferred, 'R', null, "Cloud", capabilities.Binding, TestContext.Current.CancellationToken);
 
@@ -43,7 +43,7 @@ public sealed class HostMountCoordinatorTests
     {
         var capabilities = Capabilities();
         var runtime = new ScriptedRcloneRuntime(capabilities, []);
-        var coordinator = new HostMountCoordinator(runtime, new FakeResolver(), new FakeNamespace { Presented = true });
+        var coordinator = new HostMountCoordinator(runtime, new FakeResolver(), new FakeNamespace { Presented = true }, new FakeWinFsp());
 
         var (resultType, snapshot) = await coordinator.StartReadOnlyAsync(Guid.NewGuid(), string.Empty, MountPresentationMode.NetworkDrive, DriveLetterSelection.Preferred, 'R', null, "Cloud", capabilities.Binding, TestContext.Current.CancellationToken);
 
@@ -59,7 +59,7 @@ public sealed class HostMountCoordinatorTests
     {
         var capabilities = Capabilities();
         var runtime = new ScriptedRcloneRuntime(capabilities, [new(RclonePrimitive.Mount, Stats(), ScriptedRcloneRuntime.Success())]);
-        var coordinator = new HostMountCoordinator(runtime, new FakeResolver(), new FakeNamespace());
+        var coordinator = new HostMountCoordinator(runtime, new FakeResolver(), new FakeNamespace(), new FakeWinFsp());
 
         var (resultType, _) = await coordinator.StartReadOnlyAsync(Guid.NewGuid(), string.Empty, presentationMode, DriveLetterSelection.Preferred, 'S', null, "Cloud", capabilities.Binding, TestContext.Current.CancellationToken);
 
@@ -74,7 +74,7 @@ public sealed class HostMountCoordinatorTests
         using var body = JsonDocument.Parse("""{"output":{"mountPoint":"T:"}}""");
         var result = new RcloneExecutionResult(true, false, null, body.RootElement.Clone());
         var runtime = new ScriptedRcloneRuntime(capabilities, [new(RclonePrimitive.Mount, Stats(), result)]);
-        var coordinator = new HostMountCoordinator(runtime, new FakeResolver(), new FakeNamespace());
+        var coordinator = new HostMountCoordinator(runtime, new FakeResolver(), new FakeNamespace(), new FakeWinFsp());
 
         var (resultType, mounted) = await coordinator.StartReadOnlyAsync(Guid.NewGuid(), string.Empty, MountPresentationMode.NetworkDrive, DriveLetterSelection.Automatic, 'R', null, "Cloud", capabilities.Binding, TestContext.Current.CancellationToken);
 
@@ -92,7 +92,7 @@ public sealed class HostMountCoordinatorTests
         {
             var capabilities = Capabilities();
             var runtime = new ScriptedRcloneRuntime(capabilities, [new(RclonePrimitive.Mount, Stats(), ScriptedRcloneRuntime.Success())]);
-            var coordinator = new HostMountCoordinator(runtime, new FakeResolver(), new FakeNamespace());
+            var coordinator = new HostMountCoordinator(runtime, new FakeResolver(), new FakeNamespace(), new FakeWinFsp());
 
             var (resultType, mounted) = await coordinator.StartReadOnlyAsync(Guid.NewGuid(), string.Empty, MountPresentationMode.FixedDirectory, DriveLetterSelection.Preferred, 'R', root, "Cloud", capabilities.Binding, TestContext.Current.CancellationToken);
 
@@ -122,5 +122,10 @@ public sealed class HostMountCoordinatorTests
             Presented = presented;
             return ValueTask.FromResult(true);
         }
+    }
+
+    private sealed class FakeWinFsp : IWinFspDetector
+    {
+        public WinFspSnapshot Inspect() => new("ready", "2.1-test", "winfsp-ready");
     }
 }

@@ -131,6 +131,15 @@
                 <TextBlock Text="{Binding CopyStatus}" AutomationProperties.LiveSetting="Polite" />
               </StackPanel>
               <StackPanel IsVisible="{Binding IsMountJourney}" Spacing="10">
+                <Border Classes="status" Background="{DynamicResource CardBrush}">
+                  <Grid ColumnDefinitions="*,Auto">
+                    <StackPanel>
+                      <TextBlock Text="{Binding MountPrerequisiteHeading}" FontWeight="SemiBold" />
+                      <TextBlock Text="{Binding MountPrerequisiteStatus}" Foreground="{Binding MountPrerequisiteBrush}" />
+                    </StackPanel>
+                    <Button Grid.Column="1" Content="{Binding RedetectLabel}" Click="RedetectClicked" />
+                  </Grid>
+                </Border>
                 <ComboBox ItemsSource="{Binding RemoteOptions}" SelectedItem="{Binding MountRemote}" DisplayMemberBinding="{Binding DisplayName}" PlaceholderText="{Binding MountRemoteHint}" AutomationProperties.Name="Mount Remote" />
                 <TextBox Text="{Binding MountSubpath}" PlaceholderText="{Binding MountSubpathHint}" AutomationProperties.Name="Mount subpath" />
                 <Grid ColumnDefinitions="*,*" ColumnSpacing="10">
@@ -151,7 +160,7 @@
               <TextBlock Text="{Binding RemoteSummary}" />
               <TextBlock Text="{Binding LastAction}" Opacity="0.7" />
               <StackPanel Orientation="Horizontal" Spacing="10">
-                <Button Classes="primary" Content="{Binding JourneyPrimaryAction}" Click="JourneyPrimaryClicked" />
+                <Button Classes="primary" IsEnabled="{Binding IsJourneyPrimaryEnabled}" Content="{Binding JourneyPrimaryAction}" Click="JourneyPrimaryClicked" />
                 <Button IsVisible="{Binding IsAdvancedOptionsAvailable}" Content="{Binding AdvancedOptionsLabel}" Click="AdvancedOptionsClicked" />
               </StackPanel>
             </StackPanel>

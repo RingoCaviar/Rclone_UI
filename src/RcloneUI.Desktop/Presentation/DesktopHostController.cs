@@ -67,6 +67,7 @@ public sealed class DesktopHostController(IDesktopHostClient client, DesktopShel
     private async ValueTask ToggleMountAsync(CancellationToken cancellationToken)
     {
         if (shell.CapabilityBinding is null) { shell.ApplyAction("rclone-unavailable"); return; }
+        if (!shell.HasActiveMount && !shell.MountPrerequisitesReady) { shell.ApplyAction("mount-prerequisites-unavailable"); return; }
         object payload;
         string command;
         if (shell.ActiveMountId is { } instanceId)

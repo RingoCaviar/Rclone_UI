@@ -1,4 +1,12 @@
 <Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Data.Sqlite.Core" />
+    <PackageReference Include="SQLitePCLRaw.bundle_e_sqlite3" />
+    <PackageReference Include="System.Formats.Cbor" />
+  </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="../RcloneUI.Contracts/RcloneUI.Contracts.csproj" />
   </ItemGroup>

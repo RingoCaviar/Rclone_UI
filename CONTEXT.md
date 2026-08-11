@@ -35,3 +35,7 @@ _Avoid_: PIN, account password, encryption key
 **Vault**:
 The encrypted portion of the Data Root containing Remote metadata, Transfer Task definitions, schedules, and activity history. It is unlocked with the Master Password but remains distinct from rclone's encrypted configuration.
 _Avoid_: Database, secure storage, rclone config
+
+**Background Host**:
+The per-user, logged-in-session process that owns scheduling, running Transfer Tasks, Mounts, and the managed rclone process independently of the visible UI. It is part of the Portable App and is not a Windows service.
+_Avoid_: Service, daemon, tray app

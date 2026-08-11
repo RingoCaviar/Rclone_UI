@@ -70,6 +70,38 @@ public sealed class TransferOrchestrationTests
     }
 
     [Fact]
+    public async Task DeletionAdmissionContainsOnlyVerifiedEligibleCleanPaths()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var adapter = new MixedEvidenceAdapter();
+        var orchestrator = new TransferOrchestrator(adapter, new MemoryJournal());
+        var preview = Assert.IsType<TransferPreview>((await orchestrator.PreviewAsync(CreateTask(TransferOperation.Move), cancellationToken)).Preview);
+
+        var result = await orchestrator.ExecuteAsync(new(preview.Id, "target", preview.Task.CapabilityBinding), cancellationToken);
+
+        Assert.Equal(TransferTerminalResult.Succeeded, result.TerminalResult);
+        Assert.Equal(["clean"], Assert.IsType<DeletionAdmission>(adapter.LastDeletionAdmission).RelativePaths);
+    }
+
+    [Theory]
+    [InlineData(TransferOperation.Move, TransferFailureClass.Quota)]
+    [InlineData(TransferOperation.Move, TransferFailureClass.Verification)]
+    [InlineData(TransferOperation.MirrorSync, TransferFailureClass.Quota)]
+    [InlineData(TransferOperation.MirrorSync, TransferFailureClass.Verification)]
+    public async Task CopyOrVerificationFailureNeverReachesDeletion(TransferOperation operation, TransferFailureClass failure)
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var adapter = new FailingAdapter(failure);
+        var orchestrator = new TransferOrchestrator(adapter, new MemoryJournal());
+        var preview = Assert.IsType<TransferPreview>((await orchestrator.PreviewAsync(CreateTask(operation), cancellationToken)).Preview);
+
+        var result = await orchestrator.ExecuteAsync(new(preview.Id, "target", preview.Task.CapabilityBinding), cancellationToken);
+
+        Assert.Equal(TransferTerminalResult.Failed, result.TerminalResult);
+        Assert.Null(adapter.LastDeletionAdmission);
+    }
+
+    [Fact]
     public async Task WorkCoordinatorSerializesOverlappingWriteTargets()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
@@ -122,14 +154,59 @@ public sealed class TransferOrchestrationTests
     private class ScriptedAdapter : ITransferExecutionAdapter
     {
         internal List<string> Calls { get; } = [];
-        public ValueTask<AdapterPreviewResult> PreviewAsync(TransferTaskRevision task, CancellationToken cancellationToken) { Calls.Add("preview"); return ValueTask.FromResult(new AdapterPreviewResult(new(1, 0, task.Operation == TransferOperation.MirrorSync ? 1 : 0, 0, 0, 0, 1), [new("a", TransferPathOutcome.Copied, 1)], TransferFailureClass.None, null, RclonePreviewEvidencePolicy.Evaluate(task.Operation, new(true, true, true)))); }
+        internal DeletionAdmission? LastDeletionAdmission { get; private set; }
+        public virtual ValueTask<AdapterPreviewResult> PreviewAsync(TransferTaskRevision task, CancellationToken cancellationToken)
+        {
+            Calls.Add("preview");
+            ImmutableArray<PreviewPath> paths = task.Operation == TransferOperation.MirrorSync
+                ? [new("a", TransferPathOutcome.Copied, 1), new("obsolete", TransferPathOutcome.TargetDeleted, 1)]
+                : [new("a", TransferPathOutcome.Copied, 1)];
+            return ValueTask.FromResult(new AdapterPreviewResult(new(1, 0, task.Operation == TransferOperation.MirrorSync ? 1 : 0, 0, 0, 0, 1), paths, TransferFailureClass.None, null, RclonePreviewEvidencePolicy.Evaluate(task.Operation, new(true, true, true))));
+        }
         public ValueTask<AdapterPhaseResult> PrepareSafetyCopiesAsync(TransferPreview preview, CancellationToken cancellationToken) => Result("safety", TransferPathOutcome.Skipped);
         public virtual ValueTask<AdapterPhaseResult> CopyAsync(TransferPreview preview, CancellationToken cancellationToken) => Result("copy", TransferPathOutcome.Copied);
-        public ValueTask<AdapterPhaseResult> VerifyAsync(TransferPreview preview, CancellationToken cancellationToken) => Result("verify", TransferPathOutcome.Verified);
-        public ValueTask<AdapterPhaseResult> DeleteVerifiedSourcesAsync(TransferPreview preview, CancellationToken cancellationToken) => Result("delete-source", TransferPathOutcome.SourceDeleted);
-        public ValueTask<AdapterPhaseResult> DeleteApprovedTargetsAsync(TransferPreview preview, CancellationToken cancellationToken) => Result("delete-target", TransferPathOutcome.TargetDeleted);
+        public virtual ValueTask<AdapterPhaseResult> VerifyAsync(TransferPreview preview, CancellationToken cancellationToken) { Calls.Add("verify"); return ValueTask.FromResult(new AdapterPhaseResult(true, TransferFailureClass.None, preview.Paths.Select(path => new TransferExecutionEvidence(path.RelativePath, TransferPathOutcome.Verified, null)).ToImmutableArray())); }
+        public ValueTask<AdapterPhaseResult> DeleteVerifiedSourcesAsync(DeletionAdmission admission, CancellationToken cancellationToken) { LastDeletionAdmission = admission; return Result("delete-source", TransferPathOutcome.SourceDeleted); }
+        public ValueTask<AdapterPhaseResult> DeleteApprovedTargetsAsync(DeletionAdmission admission, CancellationToken cancellationToken) { LastDeletionAdmission = admission; return Result("delete-target", TransferPathOutcome.TargetDeleted); }
         public ValueTask CancelAsync(TransferRunId runId, CancellationToken cancellationToken) => ValueTask.CompletedTask;
         protected ValueTask<AdapterPhaseResult> Result(string call, TransferPathOutcome outcome) { Calls.Add(call); return ValueTask.FromResult(new AdapterPhaseResult(true, TransferFailureClass.None, [new("a", outcome, null)])); }
+    }
+
+    private sealed class MixedEvidenceAdapter : ScriptedAdapter
+    {
+        public override ValueTask<AdapterPreviewResult> PreviewAsync(TransferTaskRevision task, CancellationToken cancellationToken)
+        {
+            Calls.Add("preview");
+            ImmutableArray<PreviewPath> paths = [new("clean", TransferPathOutcome.Copied, 1), new("changed", TransferPathOutcome.Copied, 1), new("skipped", TransferPathOutcome.Copied, 1), new("unverified", TransferPathOutcome.Copied, 1)];
+            return ValueTask.FromResult(new AdapterPreviewResult(new(4, 0, 0, 0, 0, 0, 4), paths, TransferFailureClass.None, null, RclonePreviewEvidencePolicy.Evaluate(task.Operation, new(true, true, true))));
+        }
+
+        public override ValueTask<AdapterPhaseResult> VerifyAsync(TransferPreview preview, CancellationToken cancellationToken)
+        {
+            Calls.Add("verify");
+            ImmutableArray<TransferExecutionEvidence> evidence =
+            [
+                new("clean", TransferPathOutcome.Verified, null),
+                new("changed", TransferPathOutcome.Verified, null),
+                new("changed", TransferPathOutcome.PossiblyAffected, "source-changed"),
+                new("skipped", TransferPathOutcome.Verified, null),
+                new("skipped", TransferPathOutcome.Skipped, "filtered")
+            ];
+            return ValueTask.FromResult(new AdapterPhaseResult(true, TransferFailureClass.None, evidence));
+        }
+    }
+
+    private sealed class FailingAdapter(TransferFailureClass failure) : ScriptedAdapter
+    {
+        public override ValueTask<AdapterPhaseResult> CopyAsync(TransferPreview preview, CancellationToken cancellationToken) =>
+            failure == TransferFailureClass.Quota
+                ? ValueTask.FromResult(new AdapterPhaseResult(false, failure, [new("a", TransferPathOutcome.Failed, "quota")]))
+                : base.CopyAsync(preview, cancellationToken);
+
+        public override ValueTask<AdapterPhaseResult> VerifyAsync(TransferPreview preview, CancellationToken cancellationToken) =>
+            failure == TransferFailureClass.Verification
+                ? ValueTask.FromResult(new AdapterPhaseResult(false, failure, [new("a", TransferPathOutcome.Failed, "verification")]))
+                : base.VerifyAsync(preview, cancellationToken);
     }
 
     private sealed class BlockingAdapter : ScriptedAdapter

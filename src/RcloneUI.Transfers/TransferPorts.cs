@@ -11,8 +11,8 @@ public interface ITransferExecutionAdapter
     ValueTask<AdapterPhaseResult> PrepareSafetyCopiesAsync(TransferPreview preview, CancellationToken cancellationToken);
     ValueTask<AdapterPhaseResult> CopyAsync(TransferPreview preview, CancellationToken cancellationToken);
     ValueTask<AdapterPhaseResult> VerifyAsync(TransferPreview preview, CancellationToken cancellationToken);
-    ValueTask<AdapterPhaseResult> DeleteVerifiedSourcesAsync(TransferPreview preview, CancellationToken cancellationToken);
-    ValueTask<AdapterPhaseResult> DeleteApprovedTargetsAsync(TransferPreview preview, CancellationToken cancellationToken);
+    ValueTask<AdapterPhaseResult> DeleteVerifiedSourcesAsync(DeletionAdmission admission, CancellationToken cancellationToken);
+    ValueTask<AdapterPhaseResult> DeleteApprovedTargetsAsync(DeletionAdmission admission, CancellationToken cancellationToken);
     ValueTask CancelAsync(TransferRunId runId, CancellationToken cancellationToken);
 }
 

@@ -27,6 +27,7 @@ public sealed class DesktopHostController(IDesktopHostClient client, DesktopShel
 
     public async ValueTask ActivatePrimaryAsync(CancellationToken cancellationToken = default)
     {
+        if (shell.CurrentRoute == "Remotes") { await AddRemoteAsync(cancellationToken); return; }
         if (shell.CurrentRoute != "Transfers") { await ReconnectAsync(cancellationToken); return; }
         if (shell.CapabilityBinding is null) { shell.ApplyAction("rclone-unavailable"); return; }
         if (shell.CopySourceRemote is null || shell.CopyDestinationRemote is null) { shell.ApplyAction("remote-selection-required"); return; }
@@ -36,6 +37,21 @@ public sealed class DesktopHostController(IDesktopHostClient client, DesktopShel
         shell.ApplyAction(resultType);
         await ReconnectAsync(cancellationToken);
         if (resultType == "copy-accepted") _ = ObserveCopyAsync(cancellationToken);
+    }
+
+    private async ValueTask AddRemoteAsync(CancellationToken cancellationToken)
+    {
+        var token = Encoding.UTF8.GetBytes(shell.RemoteToken);
+        try
+        {
+            using var arguments = JsonDocument.Parse(JsonSerializer.Serialize(new { displayName = shell.RemoteDisplayName, providerType = shell.RemoteProviderType, tokenUtf8 = Convert.ToBase64String(token) }));
+            var result = await client.SendCommandAsync("add-token-remote", arguments.RootElement, cancellationToken);
+            var resultType = result.GetProperty("resultType").GetString() ?? "unknown-result";
+            shell.ApplyAction(resultType);
+            if (resultType == "remote-added") shell.RemoteDisplayName = string.Empty;
+        }
+        finally { CryptographicOperations.ZeroMemory(token); shell.RemoteToken = string.Empty; }
+        await ReconnectAsync(cancellationToken);
     }
 
     public async ValueTask UnlockAsync(CancellationToken cancellationToken = default)

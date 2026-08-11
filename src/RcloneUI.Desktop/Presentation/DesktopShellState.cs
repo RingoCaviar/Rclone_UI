@@ -33,6 +33,7 @@ public sealed class DesktopShellState : INotifyPropertyChanged
     public bool IsHome => route == "Home";
     public bool IsJourney => !IsHome;
     public bool IsTransferJourney => route == "Transfers";
+    public bool IsRemoteJourney => route == "Remotes";
     public string CurrentRoute => route;
     public string ConnectionLabel => connection switch { DesktopConnectionState.Connecting => T("正在连接…", "Connecting…"), DesktopConnectionState.ConnectedLocked => T("已锁定", "Locked"), DesktopConnectionState.ConnectedOperational => T("运行正常", "Operational"), DesktopConnectionState.ReadOnlyRecovery => T("只读恢复", "Read-only recovery"), _ => T("连接已中断", "Disconnected") };
     public string SessionLabel => connection switch { DesktopConnectionState.ConnectedOperational => T("数据保险库已解锁", "Vault unlocked"), DesktopConnectionState.ConnectedLocked => T("需要解锁数据保险库", "Vault unlock required"), DesktopConnectionState.ReadOnlyRecovery => T("写入已停用，数据保持原状", "Writes disabled; data preserved"), _ => T("后台任务状态可能不是最新", "Background state may be stale") };
@@ -58,6 +59,10 @@ public sealed class DesktopShellState : INotifyPropertyChanged
     public string CopySourcePath { get; set; } = string.Empty;
     public string CopyDestinationPath { get; set; } = string.Empty;
     public string? CapabilityBinding => capabilityBinding;
+    public IReadOnlyList<string> TokenProviderTypes { get; } = ["drive", "onedrive", "dropbox"];
+    public string RemoteDisplayName { get; set; } = string.Empty;
+    public string RemoteProviderType { get; set; } = "drive";
+    public string RemoteToken { get; set; } = string.Empty;
     public string JourneyHeading => PageTitle;
     public string JourneyDescription => route switch { "Remotes" => T("通过三步向导添加云端账号；凭据只发送给后台服务并写入加密保险库。", "Add cloud accounts in three guided steps. Credentials go only to the Host and encrypted Vault."), "Transfers" => T("复制、移动或单向镜像。执行前必须接受预览，涉及删除时需要明确确认。", "Copy, move, or one-way mirror. Accept a preview before execution; deletion requires explicit confirmation."), "Mounts" => T("创建稳定盘符的挂载配置。Ready 与安全卸载均需要完整证据。", "Create stable drive profiles. Ready and safe unmount require complete evidence."), "Activity" => T("查看真实结果、部分完成、未知状态和可脱敏导出的诊断信息。", "Review truthful outcomes, partial results, unknown states, and redacted diagnostics."), _ => T("此功能通过后台服务快照和命令工作；界面不直接操作 rclone 或保险库。", "This journey uses Host snapshots and commands; the UI never operates rclone or the Vault directly.") };
     public string JourneyStatus => connection == DesktopConnectionState.ConnectedOperational ? T("可以开始", "Ready") : T("当前不可执行", "Action unavailable");

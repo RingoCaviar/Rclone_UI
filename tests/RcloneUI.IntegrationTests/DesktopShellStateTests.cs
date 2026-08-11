@@ -46,6 +46,20 @@ public sealed class DesktopShellStateTests
         Assert.Equal("caps", client.Arguments.GetProperty("capabilityBinding").GetString());
     }
 
+    [Fact]
+    public async Task RemotePrimaryActionSubmitsBoundedTokenSetupAndClearsSecretInput()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var client = new RecordingClient(); var shell = new DesktopShellState(); var controller = new DesktopHostController(client, shell);
+        await controller.ReconnectAsync(cancellationToken);
+        shell.Navigate("Remotes"); shell.RemoteDisplayName = "Personal"; shell.RemoteProviderType = "drive"; shell.RemoteToken = "secret";
+        await controller.ActivatePrimaryAsync(cancellationToken);
+        Assert.Equal("add-token-remote", client.CommandType);
+        Assert.Equal("Personal", client.Arguments.GetProperty("displayName").GetString());
+        Assert.Equal("secret", System.Text.Encoding.UTF8.GetString(Convert.FromBase64String(client.Arguments.GetProperty("tokenUtf8").GetString()!)));
+        Assert.Empty(shell.RemoteToken);
+    }
+
     private sealed class RecordingClient : IDesktopHostClient
     {
         internal static readonly Guid SourceId = Guid.Parse("11111111-1111-1111-1111-111111111111");
@@ -60,7 +74,7 @@ public sealed class DesktopShellStateTests
         public ValueTask<JsonElement> SendCommandAsync(string commandType, JsonElement arguments, CancellationToken cancellationToken)
         {
             CommandType = commandType; Arguments = arguments.Clone();
-            using var document = JsonDocument.Parse("""{"resultType":"copy-not-started","result":{"code":"test"}}""");
+            using var document = JsonDocument.Parse(commandType == "add-token-remote" ? """{"resultType":"remote-added","result":{}}""" : """{"resultType":"copy-not-started","result":{"code":"test"}}""");
             return ValueTask.FromResult(document.RootElement.Clone());
         }
     }

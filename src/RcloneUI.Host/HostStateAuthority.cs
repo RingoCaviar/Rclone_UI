@@ -91,12 +91,16 @@ internal sealed class HostStateAuthority : IDisposable
             {
                 result = await StartCopyAsync(envelope.Body, cancellationToken).ConfigureAwait(false);
             }
+            else if (commandType == "add-token-remote")
+            {
+                result = await AddTokenRemoteAsync(envelope.Body, cancellationToken).ConfigureAwait(false);
+            }
             else
             {
                 lock (sync) result = CreateResult("unknown-command", new { }, new(epoch, revision));
             }
 
-            if (commandType is not ("get-snapshot" or "unlock-vault"))
+            if (commandType is not ("get-snapshot" or "unlock-vault" or "add-token-remote"))
                 lock (sync) idempotency.Record(new(envelope.Request.IdempotencyKey.Value, semanticHash, result.ResultType, result.Body.GetRawText(), result.State.Revision));
             return result;
         }
@@ -165,6 +169,29 @@ internal sealed class HostStateAuthority : IDisposable
         finally { CryptographicOperations.ZeroMemory(password); }
     }
 
+    private async ValueTask<HostCommandResult> AddTokenRemoteAsync(JsonElement body, CancellationToken cancellationToken)
+    {
+        if (remotes is not IHostRemoteManager manager || rclone is null) return CreateResult("remote-engine-unavailable", new { }, Cursor);
+        if (!body.TryGetProperty("arguments", out var arguments)
+            || ReadArgument(arguments, "displayName") is not { } displayName
+            || ReadArgument(arguments, "providerType") is not { } providerType
+            || ReadArgument(arguments, "tokenUtf8", 24 * 1024) is not { } encoded)
+            return CreateResult("remote-input-invalid", new { }, Cursor);
+        byte[] tokenBytes;
+        try { tokenBytes = Convert.FromBase64String(encoded); }
+        catch (FormatException) { return CreateResult("remote-input-invalid", new { }, Cursor); }
+        try
+        {
+            var resultType = await manager.AddTokenRemoteAsync(displayName, providerType, Encoding.UTF8.GetString(tokenBytes), rclone, cancellationToken).ConfigureAwait(false);
+            lock (sync)
+            {
+                if (resultType == "remote-added") revision = checked(revision + 1);
+                return CreateResult(resultType, new { }, new(epoch, revision), resultType == "remote-added");
+            }
+        }
+        finally { CryptographicOperations.ZeroMemory(tokenBytes); }
+    }
+
     private async Task ObserveCopyAsync(RcloneExecutionHandle handle)
     {
         try
@@ -188,7 +215,12 @@ internal sealed class HostStateAuthority : IDisposable
         }
     }
 
-    private static string? ReadArgument(JsonElement arguments, string name) => arguments.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.String && value.GetString() is { Length: > 0 and <= 2048 } text ? text : null;
+    private static string? ReadArgument(JsonElement arguments, string name, int maximumLength = 2048)
+    {
+        if (!arguments.TryGetProperty(name, out var value) || value.ValueKind != JsonValueKind.String) return null;
+        var text = value.GetString();
+        return text is not null && text.Length > 0 && text.Length <= maximumLength ? text : null;
+    }
     private static Guid? ReadGuidArgument(JsonElement arguments, string name) => arguments.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.String && Guid.TryParse(value.GetString(), out var parsed) && parsed != Guid.Empty ? parsed : null;
 
     private static string ReadCommandType(JsonElement body)

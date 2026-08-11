@@ -25,6 +25,19 @@ internal sealed class HostRcloneConfigWriter(string dataRootPath) : IDisposable
         finally { gate.Release(); }
     }
 
+    internal async ValueTask UnbindAsync(Guid remoteId, CancellationToken cancellationToken)
+    {
+        await gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            if (!bound.Remove(remoteId)) return;
+            var temporary = path + ".new";
+            await File.WriteAllTextAsync(temporary, Serialize(), new UTF8Encoding(false), cancellationToken).ConfigureAwait(false);
+            File.Move(temporary, path, overwrite: true);
+        }
+        finally { gate.Release(); }
+    }
+
     private string Serialize()
     {
         var text = new StringBuilder();

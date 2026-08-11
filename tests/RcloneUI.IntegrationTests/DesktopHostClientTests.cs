@@ -130,6 +130,32 @@ public sealed class DesktopHostClientTests
         finally { Directory.Delete(root, recursive: true); }
     }
 
+    [Fact]
+    public async Task AddRemoteCommandTestsBeforePublishingSummaryAndDoesNotJournalToken()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var root = Path.Combine(Path.GetTempPath(), "RcloneUI.Desktop.AddRemote.Tests", Guid.NewGuid().ToString("N")); Directory.CreateDirectory(root);
+        var binary = new RcloneBinaryIdentity("test", new string('A', 64), 1);
+        var capabilities = new RcloneCapabilitySnapshot(binary, new string('B', 64), new string('C', 64), ImmutableSortedSet.Create("operations/list"), ImmutableSortedSet<string>.Empty, DateTimeOffset.UtcNow);
+        var runtime = new ScriptedRcloneRuntime(capabilities, [new(RclonePrimitive.List, new(0, 0, 0, 0, 0, TimeSpan.Zero, true), ScriptedRcloneRuntime.Success())]);
+        var manager = new TestRemoteManager();
+        try
+        {
+            await using (var host = BackgroundHostShell.TryCreate(root, Guid.NewGuid(), runtime, manager))
+            {
+                Assert.NotNull(host); host.Start(); var client = new NamedPipeDesktopHostClient(root);
+                using var arguments = JsonDocument.Parse(JsonSerializer.Serialize(new { displayName = "Personal Drive", providerType = "drive", tokenUtf8 = Convert.ToBase64String("top-secret"u8) }));
+                var result = await client.SendCommandAsync("add-token-remote", arguments.RootElement, cancellationToken);
+                Assert.Equal("remote-added", result.GetProperty("resultType").GetString());
+                var snapshot = await client.GetSnapshotAsync(cancellationToken);
+                Assert.Equal("Personal Drive", Assert.Single(snapshot.Body.GetProperty("remotes").EnumerateArray()).GetProperty("displayName").GetString());
+                Assert.DoesNotContain("top-secret", snapshot.Body.GetRawText(), StringComparison.Ordinal);
+                Assert.False(File.Exists(Path.Combine(root, "runtime", "idempotency.json")));
+            }
+        }
+        finally { Directory.Delete(root, recursive: true); }
+    }
+
     private sealed class TestRemoteStore : IRemoteStore
     {
         private readonly StoredRemote remote = new(new RcloneUI.Remotes.RemoteId(Guid.NewGuid()), "Personal Drive", "drive", 1, new Dictionary<string, string> { ["token"] = "super-secret" }, new(RemoteHealthKind.Healthy, DateTimeOffset.UtcNow, "caps", null));
@@ -149,5 +175,19 @@ public sealed class DesktopHostClientTests
         public ValueTask<bool> UnlockAsync(ReadOnlyMemory<byte> masterPasswordUtf8, CancellationToken cancellationToken = default) => ValueTask.FromResult(true);
         public ValueTask CloseAsync(string reason, CancellationToken cancellationToken = default) => ValueTask.CompletedTask;
         public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+    }
+
+    private sealed class TestRemoteManager : IHostRemoteManager
+    {
+        private HostRemoteSummary? remote;
+        public string SessionState => "operational";
+        public ValueTask<IReadOnlyList<HostRemoteSummary>> ListAsync(CancellationToken cancellationToken) => ValueTask.FromResult<IReadOnlyList<HostRemoteSummary>>(remote is null ? [] : [remote]);
+        public async ValueTask<string> AddTokenRemoteAsync(string displayName, string providerType, string token, IRcloneRuntime rclone, CancellationToken cancellationToken)
+        {
+            var handle = await rclone.StartAsync(new(Guid.NewGuid(), rclone.Capabilities.Binding, RclonePrimitive.List, new("test:", string.Empty), null, "remote-test"), cancellationToken);
+            if (!(await rclone.WaitAsync(handle, cancellationToken)).Success) return "remote-test-failed";
+            remote = new(Guid.NewGuid(), displayName, providerType, 1, "Healthy", null);
+            return "remote-added";
+        }
     }
 }

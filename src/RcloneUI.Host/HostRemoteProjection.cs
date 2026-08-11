@@ -1,3 +1,4 @@
+using RcloneUI.Rclone;
 using RcloneUI.Remotes;
 
 namespace RcloneUI.Host;
@@ -18,6 +19,11 @@ internal interface IHostVaultSession : IHostRemoteProjection
 internal interface IHostRemoteResolver : IHostRemoteProjection
 {
     ValueTask<string?> ResolveFileSystemAsync(Guid remoteId, CancellationToken cancellationToken);
+}
+
+internal interface IHostRemoteManager : IHostRemoteProjection
+{
+    ValueTask<string> AddTokenRemoteAsync(string displayName, string providerType, string token, IRcloneRuntime rclone, CancellationToken cancellationToken);
 }
 
 internal sealed class VaultHostRemoteProjection(IRemoteStore store, HostRcloneConfigWriter? writer = null) : IHostRemoteProjection, IHostRemoteResolver

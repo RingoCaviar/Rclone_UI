@@ -1,11 +1,12 @@
 using RcloneUI.DataRoot;
+using RcloneUI.Rclone;
 using RcloneUI.Remotes;
 
 namespace RcloneUI.Host;
 
 internal delegate ValueTask<DataRootOpenResult> DataRootOpener(DataRootOpenRequest request, CancellationToken cancellationToken);
 
-internal sealed class HostVaultSession : IHostVaultSession, IHostRemoteResolver, IAsyncDisposable
+internal sealed class HostVaultSession : IHostVaultSession, IHostRemoteResolver, IHostRemoteManager, IAsyncDisposable
 {
     private readonly string dataRootPath;
     private readonly LibArgon2Binding? argon2;
@@ -82,6 +83,35 @@ internal sealed class HostVaultSession : IHostVaultSession, IHostRemoteResolver,
             if (sessionState != "operational" || store is null) return null;
             var remote = await store.ReadAsync(new(remoteId), cancellationToken).ConfigureAwait(false);
             return remote is null ? null : await configWriter.BindAsync(remote, cancellationToken).ConfigureAwait(false);
+        }
+        finally { gate.Release(); }
+    }
+
+    public async ValueTask<string> AddTokenRemoteAsync(string displayName, string providerType, string token, IRcloneRuntime rclone, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(displayName) || displayName.Length > 80 || displayName.IndexOfAny(['\r', '\n', '\0']) >= 0) return "remote-display-name-invalid";
+        if (providerType is not ("drive" or "onedrive" or "dropbox")) return "remote-provider-unsupported";
+        if (string.IsNullOrWhiteSpace(token) || token.Length > 16 * 1024 || token.IndexOfAny(['\r', '\n', '\0']) >= 0) return "remote-token-invalid";
+        await gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            if (sessionState != "operational" || store is null) return "vault-locked";
+            if ((await store.ListAsync(cancellationToken).ConfigureAwait(false)).Any(remote => StringComparer.OrdinalIgnoreCase.Equals(remote.DisplayName, displayName))) return "remote-name-conflict";
+            var candidate = new StoredRemote(RemoteId.New(), displayName.Trim(), providerType, 0, new Dictionary<string, string>(StringComparer.Ordinal) { ["token"] = token }, new(RemoteHealthKind.Unknown, DateTimeOffset.UtcNow, null, null));
+            var fileSystem = await configWriter.BindAsync(candidate, cancellationToken).ConfigureAwait(false);
+            var committed = false;
+            try
+            {
+                var handle = await rclone.StartAsync(new(Guid.NewGuid(), rclone.Capabilities.Binding, RclonePrimitive.List, new(fileSystem, string.Empty), null, $"remote-test/{candidate.Id.Value:N}"), cancellationToken).ConfigureAwait(false);
+                var tested = await rclone.WaitAsync(handle, cancellationToken).ConfigureAwait(false);
+                if (!tested.Success) return "remote-test-failed";
+                var healthy = candidate with { Health = new(RemoteHealthKind.Healthy, DateTimeOffset.UtcNow, rclone.Capabilities.Binding, null) };
+                await store.UpsertAsync(healthy, 0, cancellationToken).ConfigureAwait(false);
+                committed = true;
+                return "remote-added";
+            }
+            catch (Exception exception) when (exception is not OperationCanceledException) { return "remote-test-failed"; }
+            finally { if (!committed) await configWriter.UnbindAsync(candidate.Id.Value, CancellationToken.None).ConfigureAwait(false); }
         }
         finally { gate.Release(); }
     }

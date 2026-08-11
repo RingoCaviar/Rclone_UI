@@ -105,6 +105,21 @@ public sealed class DesktopShellStateTests
     }
 
     [Fact]
+    public async Task MountPrimaryActionSendsSelectedReadOnlyProfileToHost()
+    {
+        var client = new RecordingClient(); var shell = new DesktopShellState(); var controller = new DesktopHostController(client, shell);
+        await controller.ReconnectAsync(TestContext.Current.CancellationToken);
+        shell.Navigate("Mounts"); shell.MountSubpath = "photos"; shell.MountDriveLetter = "R"; shell.MountVolumeName = "My Cloud";
+
+        await controller.ActivatePrimaryAsync(TestContext.Current.CancellationToken);
+
+        Assert.Equal("start-read-only-mount", client.CommandType);
+        Assert.Equal(RecordingClient.SourceId, client.Arguments.GetProperty("remoteId").GetGuid());
+        Assert.Equal("R", client.Arguments.GetProperty("driveLetter").GetString());
+        Assert.Equal("photos", client.Arguments.GetProperty("subpath").GetString());
+    }
+
+    [Fact]
     public async Task RemotePrimaryActionSubmitsBoundedTokenSetupAndClearsSecretInput()
     {
         var cancellationToken = TestContext.Current.CancellationToken;

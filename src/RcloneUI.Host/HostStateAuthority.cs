@@ -17,6 +17,7 @@ internal sealed class HostStateAuthority : IDisposable
     private readonly IRcloneRuntime? rclone;
     private readonly IHostRemoteProjection? remotes;
     private readonly LibArgon2Binding? argon2;
+    private readonly HostMountCoordinator? mounts;
     private readonly SemaphoreSlim dispatchGate = new(1, 1);
     private readonly Dictionary<Guid, CopyRunState> copyRuns = [];
     private readonly StateEpoch epoch = new(Guid.NewGuid().ToString("N"));
@@ -28,6 +29,7 @@ internal sealed class HostStateAuthority : IDisposable
         this.rclone = rclone;
         this.remotes = remotes;
         this.argon2 = argon2;
+        if (rclone is not null && remotes is IHostRemoteResolver resolver) mounts = new(rclone, resolver);
         idempotency = new(Path.Combine(dataRootPath, "runtime", "idempotency.json"));
         foreach (var record in idempotency.Records)
         {
@@ -77,7 +79,7 @@ internal sealed class HostStateAuthority : IDisposable
                     try { summaries = await remotes.ListAsync(cancellationToken).ConfigureAwait(false); }
                     catch (Exception exception) when (exception is not OperationCanceledException) { return CreateResult("snapshot-unavailable", new { code = "remote-projection-unavailable" }, Cursor); }
                 }
-                lock (sync) result = CreateResult("snapshot", new { session = remotes?.SessionState ?? "locked", activationCount, remotes = summaries, copyRuns = copyRuns.Values.OrderBy(x => x.CreatedUtc).ToArray(), rclone = new { status = rclone is null ? "unavailable" : "ready", capabilityBinding = rclone?.Capabilities.Binding }, vault = new { kdfStatus = argon2 is null ? "unavailable" : "ready" } }, new(epoch, revision));
+                lock (sync) result = CreateResult("snapshot", new { session = remotes?.SessionState ?? "locked", activationCount, remotes = summaries, copyRuns = copyRuns.Values.OrderBy(x => x.CreatedUtc).ToArray(), mounts = mounts?.Snapshots ?? [], rclone = new { status = rclone is null ? "unavailable" : "ready", capabilityBinding = rclone?.Capabilities.Binding }, vault = new { kdfStatus = argon2 is null ? "unavailable" : "ready" } }, new(epoch, revision));
             }
             else if (commandType == "activate-ui")
             {
@@ -94,6 +96,14 @@ internal sealed class HostStateAuthority : IDisposable
             else if (commandType == "start-copy")
             {
                 result = await StartCopyAsync(envelope.Body, cancellationToken).ConfigureAwait(false);
+            }
+            else if (commandType == "start-read-only-mount")
+            {
+                result = await StartMountAsync(envelope.Body, cancellationToken).ConfigureAwait(false);
+            }
+            else if (commandType == "stop-mount")
+            {
+                result = await StopMountAsync(envelope.Body, cancellationToken).ConfigureAwait(false);
             }
             else if (commandType == "add-token-remote")
             {
@@ -158,6 +168,40 @@ internal sealed class HostStateAuthority : IDisposable
         }
         _ = ObserveCopyAsync(handle);
         return CreateResult("copy-accepted", new { runId = id }, Cursor, stateChanged: true);
+    }
+
+    private async ValueTask<HostCommandResult> StartMountAsync(JsonElement body, CancellationToken cancellationToken)
+    {
+        if (remotes?.SessionState != "operational") return CreateResult("vault-locked", new { }, Cursor);
+        if (mounts is null) return CreateResult("mount-unavailable", new { code = "mount-engine-unavailable" }, Cursor);
+        if (!body.TryGetProperty("arguments", out var arguments)
+            || ReadGuidArgument(arguments, "remoteId") is not { } remoteId
+            || ReadArgument(arguments, "subpath") is not { } subpath
+            || ReadArgument(arguments, "driveLetter", 1) is not { Length: 1 } driveLetter
+            || ReadArgument(arguments, "volumeName", 64) is not { } volumeName
+            || ReadArgument(arguments, "capabilityBinding") is not { } binding)
+            return CreateResult("mount-invalid", new { code = "arguments-invalid" }, Cursor);
+        var (resultType, snapshot) = await mounts.StartReadOnlyAsync(remoteId, subpath, driveLetter[0], volumeName, binding, cancellationToken).ConfigureAwait(false);
+        lock (sync)
+        {
+            if (resultType == "mount-ready") revision = checked(revision + 1);
+            return CreateResult(resultType, (object?)snapshot ?? new { }, new(epoch, revision), resultType == "mount-ready");
+        }
+    }
+
+    private async ValueTask<HostCommandResult> StopMountAsync(JsonElement body, CancellationToken cancellationToken)
+    {
+        if (mounts is null) return CreateResult("mount-unavailable", new { code = "mount-engine-unavailable" }, Cursor);
+        if (!body.TryGetProperty("arguments", out var arguments)
+            || ReadGuidArgument(arguments, "instanceId") is not { } instanceId
+            || ReadArgument(arguments, "capabilityBinding") is not { } binding)
+            return CreateResult("mount-invalid", new { code = "arguments-invalid" }, Cursor);
+        var (resultType, snapshot) = await mounts.StopAsync(instanceId, binding, cancellationToken).ConfigureAwait(false);
+        lock (sync)
+        {
+            if (resultType == "mount-stopped") revision = checked(revision + 1);
+            return CreateResult(resultType, (object?)snapshot ?? new { }, new(epoch, revision), resultType == "mount-stopped");
+        }
     }
 
     private async ValueTask<HostCommandResult> UnlockVaultAsync(JsonElement body, CancellationToken cancellationToken)

@@ -178,8 +178,12 @@ internal static class RcloneRequestMapper
     private static string MapMount(Dictionary<string, object?> body, RcloneExecutionRequest request)
     {
         var destination = request.Destination ?? throw new ArgumentException("Mount requires a mount point.", nameof(request));
+        var options = request.MountOptions ?? throw new ArgumentException("Mount requires explicit options.", nameof(request));
         body["fs"] = request.Source.FileSystem + request.Source.Path;
         body["mountPoint"] = destination.Path;
+        body["mountType"] = options.MountType;
+        body["vfsOpt"] = new { ReadOnly = options.ReadOnly, CacheMode = 0 };
+        body["mountOpt"] = new { VolumeName = options.VolumeName, NetworkMode = true };
         return "mount/mount";
     }
 

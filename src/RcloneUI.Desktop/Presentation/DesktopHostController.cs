@@ -42,6 +42,7 @@ public sealed class DesktopHostController(IDesktopHostClient client, DesktopShel
     public async ValueTask ActivatePrimaryAsync(CancellationToken cancellationToken = default)
     {
         if (shell.CurrentRoute == "Remotes") { await AddRemoteAsync(cancellationToken); return; }
+        if (shell.CurrentRoute == "Mounts") { await ToggleMountAsync(cancellationToken); return; }
         if (shell.CurrentRoute != "Transfers") { await ReconnectAsync(cancellationToken); return; }
         if (shell.CapabilityBinding is null) { shell.ApplyAction("rclone-unavailable"); return; }
         if (shell.CopySourceRemote is null) { shell.ApplyAction("source-remote-required"); return; }
@@ -61,6 +62,28 @@ public sealed class DesktopHostController(IDesktopHostClient client, DesktopShel
         shell.ApplyAction(resultType);
         await ReconnectAsync(cancellationToken);
         if (resultType == "copy-accepted") _ = ObserveCopyAsync(cancellationToken);
+    }
+
+    private async ValueTask ToggleMountAsync(CancellationToken cancellationToken)
+    {
+        if (shell.CapabilityBinding is null) { shell.ApplyAction("rclone-unavailable"); return; }
+        object payload;
+        string command;
+        if (shell.ActiveMountId is { } instanceId)
+        {
+            command = "stop-mount";
+            payload = new { instanceId, capabilityBinding = shell.CapabilityBinding };
+        }
+        else
+        {
+            if (shell.MountRemote is null) { shell.ApplyAction("mount-remote-required"); return; }
+            command = "start-read-only-mount";
+            payload = new { remoteId = shell.MountRemote.Id, subpath = shell.MountSubpath, driveLetter = shell.MountDriveLetter, volumeName = shell.MountVolumeName, capabilityBinding = shell.CapabilityBinding };
+        }
+        using var arguments = JsonDocument.Parse(JsonSerializer.Serialize(payload));
+        var result = await client.SendCommandAsync(command, arguments.RootElement, cancellationToken);
+        shell.ApplyAction(result.GetProperty("resultType").GetString() ?? "unknown-result");
+        await ReconnectAsync(cancellationToken);
     }
 
     private async ValueTask AddRemoteAsync(CancellationToken cancellationToken)

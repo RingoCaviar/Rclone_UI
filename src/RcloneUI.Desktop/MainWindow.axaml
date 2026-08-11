@@ -130,6 +130,16 @@
                 </Grid>
                 <TextBlock Text="{Binding CopyStatus}" AutomationProperties.LiveSetting="Polite" />
               </StackPanel>
+              <StackPanel IsVisible="{Binding IsMountJourney}" Spacing="10">
+                <ComboBox ItemsSource="{Binding RemoteOptions}" SelectedItem="{Binding MountRemote}" DisplayMemberBinding="{Binding DisplayName}" PlaceholderText="{Binding MountRemoteHint}" AutomationProperties.Name="Mount Remote" />
+                <TextBox Text="{Binding MountSubpath}" PlaceholderText="{Binding MountSubpathHint}" AutomationProperties.Name="Mount subpath" />
+                <Grid ColumnDefinitions="*,*" ColumnSpacing="10">
+                  <TextBox Text="{Binding MountVolumeName}" PlaceholderText="{Binding MountVolumeNameHint}" AutomationProperties.Name="Mount volume name" />
+                  <ComboBox Grid.Column="1" ItemsSource="{Binding MountDriveLetters}" SelectedItem="{Binding MountDriveLetter}" PlaceholderText="{Binding MountDriveLetterHeading}" AutomationProperties.Name="Mount drive letter" />
+                </Grid>
+                <TextBlock Text="{Binding MountReadOnlyNotice}" TextWrapping="Wrap" Opacity="0.72" />
+                <TextBlock Text="{Binding MountStatus}" AutomationProperties.LiveSetting="Polite" />
+              </StackPanel>
               <TextBlock Text="{Binding RemoteSummary}" />
               <TextBlock Text="{Binding LastAction}" Opacity="0.7" />
               <StackPanel Orientation="Horizontal" Spacing="10">

@@ -39,6 +39,8 @@ public enum RclonePrimitive
 
 public sealed record RcloneEndpoint(string FileSystem, string Path);
 
+public sealed record RcloneMountOptions(string MountType, bool ReadOnly, string VolumeName);
+
 public sealed record RcloneExecutionRequest(
     Guid ExecutionId,
     string ExpectedCapabilityBinding,
@@ -48,7 +50,8 @@ public sealed record RcloneExecutionRequest(
     string Group,
     int HighLevelRetries = 1,
     long? MaximumTransferBytes = null,
-    TimeSpan? MaximumDuration = null);
+    TimeSpan? MaximumDuration = null,
+    RcloneMountOptions? MountOptions = null);
 
 public sealed record RcloneExecutionHandle(Guid ExecutionId, long JobId, string Group);
 

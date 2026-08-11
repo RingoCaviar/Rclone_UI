@@ -31,6 +31,8 @@ public sealed class DesktopShellState : INotifyPropertyChanged
     private bool advancedOptionsExpanded;
     private DesktopTransferMode transferMode;
     private string downloadDestinationPath = string.Empty;
+    private Guid? activeMountId;
+    private string mountStatus = string.Empty;
 
     public event PropertyChangedEventHandler? PropertyChanged;
     public string EditionLabel => T("便携版 · Portable", "Portable edition");
@@ -91,6 +93,7 @@ public sealed class DesktopShellState : INotifyPropertyChanged
     public bool IsJourney => !IsHome;
     public bool IsTransferJourney => route == "Transfers";
     public bool IsRemoteJourney => route == "Remotes";
+    public bool IsMountJourney => route == "Mounts";
     public string CurrentRoute => route;
     public string ConnectionLabel => connection switch { DesktopConnectionState.Connecting => T("正在连接…", "Connecting…"), DesktopConnectionState.ConnectedLocked or DesktopConnectionState.ConnectedOperational => T("已自动连接", "Auto-connected"), DesktopConnectionState.ReadOnlyRecovery => T("已连接（恢复模式）", "Connected (recovery)"), _ => T("连接已中断", "Disconnected") };
     public string SessionLabel => connection switch { DesktopConnectionState.ConnectedOperational => T("数据保险库已解锁", "Vault unlocked"), DesktopConnectionState.ConnectedLocked => T("需要解锁数据保险库", "Vault unlock required"), DesktopConnectionState.ReadOnlyRecovery => T("写入已停用，数据保持原状", "Writes disabled; data preserved"), _ => T("后台任务状态可能不是最新", "Background state may be stale") };
@@ -112,6 +115,7 @@ public sealed class DesktopShellState : INotifyPropertyChanged
     public IReadOnlyList<DesktopRemoteOption> RemoteOptions => remoteOptions;
     public DesktopRemoteOption? CopySourceRemote { get; set; }
     public DesktopRemoteOption? CopyDestinationRemote { get; set; }
+    public DesktopRemoteOption? MountRemote { get; set; }
     public IReadOnlyList<DesktopTransferMode> TransferModes { get; } = [DesktopTransferMode.Download, DesktopTransferMode.RemoteCopy];
     public DesktopTransferMode TransferMode { get => transferMode; set { if (transferMode == value) return; transferMode = value; ChangedAll(); } }
     public bool IsDownloadMode => transferMode == DesktopTransferMode.Download;
@@ -125,11 +129,23 @@ public sealed class DesktopShellState : INotifyPropertyChanged
     public string RemoteDisplayName { get; set; } = string.Empty;
     public string RemoteProviderType { get; set; } = "drive";
     public string RemoteToken { get; set; } = string.Empty;
+    public IReadOnlyList<string> MountDriveLetters { get; } = Enumerable.Range('D', 'Z' - 'D' + 1).Select(value => ((char)value).ToString()).ToArray();
+    public string MountDriveLetter { get; set; } = "R";
+    public string MountSubpath { get; set; } = string.Empty;
+    public string MountVolumeName { get; set; } = "Rclone Cloud";
+    public Guid? ActiveMountId => activeMountId;
+    public bool HasActiveMount => activeMountId is not null;
+    public string MountStatus => mountStatus;
+    public string MountRemoteHint => T("选择要挂载的 Remote", "Select a Remote to mount");
+    public string MountSubpathHint => T("远程子目录（可留空）", "Remote subfolder (optional)");
+    public string MountVolumeNameHint => T("磁盘名称", "Volume name");
+    public string MountDriveLetterHeading => T("盘符", "Drive letter");
+    public string MountReadOnlyNotice => T("当前安全预设为只读浏览，不会向云端写入文件。", "The current safe preset is read-only browsing and cannot write to the cloud.");
     public string JourneyHeading => PageTitle;
     public string JourneyDescription => route switch { "Remotes" => T("通过三步向导添加云端账号；凭据只发送给后台服务并写入加密保险库。", "Add cloud accounts in three guided steps. Credentials go only to the Host and encrypted Vault."), "Transfers" => T("复制、移动或单向镜像。执行前必须接受预览，涉及删除时需要明确确认。", "Copy, move, or one-way mirror. Accept a preview before execution; deletion requires explicit confirmation."), "Mounts" => T("创建稳定盘符的挂载配置。Ready 与安全卸载均需要完整证据。", "Create stable drive profiles. Ready and safe unmount require complete evidence."), "Activity" => T("查看真实结果、部分完成、未知状态和可脱敏导出的诊断信息。", "Review truthful outcomes, partial results, unknown states, and redacted diagnostics."), _ => T("此功能通过后台服务快照和命令工作；界面不直接操作 rclone 或保险库。", "This journey uses Host snapshots and commands; the UI never operates rclone or the Vault directly.") };
     public string JourneyStatus => connection == DesktopConnectionState.ConnectedOperational ? T("可以开始", "Ready") : T("当前不可执行", "Action unavailable");
     public string JourneyActionHint => connection == DesktopConnectionState.ConnectedOperational ? T("普通用户默认值已启用，高级选项按需展开。", "Ordinary-user defaults are active; advanced options remain available on demand.") : AttentionDetail;
-    public string JourneyPrimaryAction => route switch { "Remotes" => T("添加远程存储", "Add Remote"), "Transfers" => T("创建并预览", "Create & Preview"), "Mounts" => T("创建挂载配置", "Create Mount Profile"), "Activity" => T("导出脱敏诊断", "Export Redacted Diagnostics"), _ => T("继续", "Continue") };
+    public string JourneyPrimaryAction => route switch { "Remotes" => T("添加远程存储", "Add Remote"), "Transfers" => T("创建并预览", "Create & Preview"), "Mounts" when HasActiveMount => T("安全卸载", "Safe unmount"), "Mounts" => T("只读挂载", "Mount read-only"), "Activity" => T("导出脱敏诊断", "Export Redacted Diagnostics"), _ => T("继续", "Continue") };
 
     public void Navigate(string value) { route = value; advancedOptionsExpanded = false; ChangedAll(); }
     public void ToggleLanguage() { english = !english; ChangedAll(); }
@@ -145,9 +161,10 @@ public sealed class DesktopShellState : INotifyPropertyChanged
             remoteOptions = remotes.EnumerateArray().Select(item => new DesktopRemoteOption(item.GetProperty("id").GetGuid(), item.GetProperty("displayName").GetString()!)).ToArray();
             CopySourceRemote = KeepSelection(CopySourceRemote, remoteOptions) ?? remoteOptions.FirstOrDefault();
             CopyDestinationRemote = KeepSelection(CopyDestinationRemote, remoteOptions) ?? remoteOptions.Skip(1).FirstOrDefault() ?? remoteOptions.FirstOrDefault();
+            MountRemote = KeepSelection(MountRemote, remoteOptions) ?? remoteOptions.FirstOrDefault();
             remoteSummary = remoteNames.Length == 0 ? T("尚未添加远程存储", "No Remotes added") : string.Join(" · ", remoteNames);
         }
-        else { remoteNames = []; remoteOptions = []; CopySourceRemote = null; CopyDestinationRemote = null; remoteSummary = T("远程存储状态未知", "Remote state unknown"); }
+        else { remoteNames = []; remoteOptions = []; CopySourceRemote = null; CopyDestinationRemote = null; MountRemote = null; remoteSummary = T("远程存储状态未知", "Remote state unknown"); }
         capabilityBinding = snapshot.Body.TryGetProperty("rclone", out var rclone) && rclone.TryGetProperty("status", out var status) && status.GetString() == "ready" && rclone.TryGetProperty("capabilityBinding", out var binding) ? binding.GetString() : null;
         if (snapshot.Body.TryGetProperty("copyRuns", out var runs) && runs.ValueKind == JsonValueKind.Array && runs.GetArrayLength() > 0)
         {
@@ -157,6 +174,13 @@ public sealed class DesktopShellState : INotifyPropertyChanged
             copyStatus = $"{state} · {bytes}/{total} bytes · {speed:F0} B/s";
         }
         else copyStatus = capabilityBinding is null ? T("rclone 不可用", "rclone unavailable") : T("尚未运行 Copy", "No Copy run yet");
+        if (snapshot.Body.TryGetProperty("mounts", out var mountRuns) && mountRuns.ValueKind == JsonValueKind.Array && mountRuns.GetArrayLength() > 0)
+        {
+            var mount = mountRuns.EnumerateArray().Last();
+            activeMountId = mount.GetProperty("instanceId").GetGuid();
+            mountStatus = $"{mount.GetProperty("state").GetString()} · {mount.GetProperty("mountPoint").GetString()}";
+        }
+        else { activeMountId = null; mountStatus = T("尚未挂载", "Not mounted"); }
         ChangedAll();
     }
     private string T(string zh, string en) => english ? en : zh;

@@ -22,6 +22,7 @@ public sealed partial class MainWindow : Window
     private void ShortcutClicked(object? sender, RoutedEventArgs args) { if (sender is Button { Tag: string route }) shell.Navigate(route); }
     private void NewTaskClicked(object? sender, RoutedEventArgs args) => shell.Navigate("Transfers");
     private void LanguageClicked(object? sender, RoutedEventArgs args) => shell.ToggleLanguage();
+    private void AdvancedOptionsClicked(object? sender, RoutedEventArgs args) => shell.ToggleAdvancedOptions();
     private async void AttentionClicked(object? sender, RoutedEventArgs args) { if (controller is not null) { if (shell.IsVaultLocked) await controller.UnlockAsync(); else await controller.ReconnectAsync(); } }
     private async void LockVaultClicked(object? sender, RoutedEventArgs args) { if (controller is not null) await controller.LockAsync(); }
     private async void JourneyPrimaryClicked(object? sender, RoutedEventArgs args) { if (controller is not null) await controller.ActivatePrimaryAsync(); }

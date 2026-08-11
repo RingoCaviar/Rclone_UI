@@ -52,6 +52,30 @@ public sealed class DesktopShellStateTests
     }
 
     [Fact]
+    public void AdvancedOptionsAreShownOnlyForImplementedJourneysAndResetOnNavigation()
+    {
+        var shell = new DesktopShellState();
+        Assert.False(shell.IsAdvancedOptionsAvailable);
+
+        shell.Navigate("Remotes");
+        Assert.True(shell.IsAdvancedOptionsAvailable);
+        Assert.False(shell.IsRemoteAdvancedVisible);
+        shell.ToggleAdvancedOptions();
+        Assert.True(shell.IsRemoteAdvancedVisible);
+        Assert.Equal("收起高级选项", shell.AdvancedOptionsLabel);
+
+        shell.Navigate("Mounts");
+        Assert.False(shell.IsAdvancedOptionsAvailable);
+        Assert.False(shell.IsAdvancedOptionsExpanded);
+
+        shell.Navigate("Transfers");
+        shell.ToggleAdvancedOptions();
+        Assert.True(shell.IsTransferAdvancedVisible);
+        shell.ToggleLanguage();
+        Assert.Equal("Hide advanced options", shell.AdvancedOptionsLabel);
+    }
+
+    [Fact]
     public async Task TransferPrimaryActionUsesSnapshotCapabilityAndTypedFields()
     {
         var cancellationToken = TestContext.Current.CancellationToken;

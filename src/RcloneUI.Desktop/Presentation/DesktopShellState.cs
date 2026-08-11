@@ -28,6 +28,7 @@ public sealed class DesktopShellState : INotifyPropertyChanged
     private string copyStatus = string.Empty;
     private string? capabilityBinding;
     private string masterPassword = string.Empty;
+    private bool advancedOptionsExpanded;
     private DesktopTransferMode transferMode;
     private string downloadDestinationPath = string.Empty;
 
@@ -78,7 +79,12 @@ public sealed class DesktopShellState : INotifyPropertyChanged
     public string PickFolderLabel => T("选择文件夹…", "Choose folder…");
     public string DestinationRemoteHint => T("选择目标 Remote", "Select destination Remote");
     public string DestinationPathHint => T("目标路径", "Destination path");
-    public string AdvancedOptionsLabel => T("高级选项", "Advanced options");
+    public bool IsAdvancedOptionsAvailable => route is "Remotes" or "Transfers";
+    public bool IsAdvancedOptionsExpanded => advancedOptionsExpanded;
+    public bool IsRemoteAdvancedVisible => IsRemoteJourney && advancedOptionsExpanded;
+    public bool IsTransferAdvancedVisible => IsTransferJourney && advancedOptionsExpanded;
+    public string AdvancedOptionsLabel => advancedOptionsExpanded ? T("收起高级选项", "Hide advanced options") : T("高级选项", "Advanced options");
+    public string TransferModeHeading => T("传输类型", "Transfer mode");
     public string MasterPasswordHint => T("主密码", "Master password");
     public string PageTitle => route switch { "Home" => T("主页", "Home"), "Remotes" => T("远程存储", "Remotes"), "Transfers" => T("传输任务", "Transfer Tasks"), "Browser" => T("文件浏览器", "File Browser"), "Mounts" => T("挂载磁盘", "Mounts"), "Schedules" => T("计划任务", "Schedules"), "Activity" => T("活动与日志", "Activity & Logs"), _ => T("设置", "Settings") };
     public bool IsHome => route == "Home";
@@ -125,8 +131,9 @@ public sealed class DesktopShellState : INotifyPropertyChanged
     public string JourneyActionHint => connection == DesktopConnectionState.ConnectedOperational ? T("普通用户默认值已启用，高级选项按需展开。", "Ordinary-user defaults are active; advanced options remain available on demand.") : AttentionDetail;
     public string JourneyPrimaryAction => route switch { "Remotes" => T("添加远程存储", "Add Remote"), "Transfers" => T("创建并预览", "Create & Preview"), "Mounts" => T("创建挂载配置", "Create Mount Profile"), "Activity" => T("导出脱敏诊断", "Export Redacted Diagnostics"), _ => T("继续", "Continue") };
 
-    public void Navigate(string value) { route = value; ChangedAll(); }
+    public void Navigate(string value) { route = value; advancedOptionsExpanded = false; ChangedAll(); }
     public void ToggleLanguage() { english = !english; ChangedAll(); }
+    public void ToggleAdvancedOptions() { if (!IsAdvancedOptionsAvailable) return; advancedOptionsExpanded = !advancedOptionsExpanded; ChangedAll(); }
     public void ApplyConnection(DesktopConnectionState value) { connection = value; ChangedAll(); }
     public void ApplyAction(string value) { lastAction = value; ChangedAll(); }
     public void ApplySnapshot(HostSnapshot snapshot)

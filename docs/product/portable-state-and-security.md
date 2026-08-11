@@ -18,6 +18,7 @@
 - Ask for the Master Password at each launch by default.
 - Offer an explicit "remember for this Windows user on this computer" option backed by user-scoped DPAPI. This convenience is non-portable and never places a decrypting secret in the Data Root.
 - Do not provide password recovery, escrow, cloud backup, or a bypass. A forgotten password requires another known-password backup or a reset and Remote reconnection.
+- Apply the confidentiality, metadata, rollback, deletion, and diagnostic boundaries in `docs/product/vault-threat-boundary.md`; do not describe record encryption as hiding file structure, size, count, or modification time.
 
 ## Locking and process lifetime
 

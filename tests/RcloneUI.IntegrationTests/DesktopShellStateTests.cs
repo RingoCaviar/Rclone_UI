@@ -468,6 +468,28 @@ public sealed class DesktopShellStateTests
     }
 
     [Fact]
+    public void BrowserFolderPreparesUploadAndClearsTheOldLocalSource()
+    {
+        var remote = new DesktopRemoteOption(Guid.NewGuid(), "FTPS");
+        var shell = new DesktopShellState
+        {
+            BrowserRemote = remote,
+            BrowserPath = "docs/releases/",
+            UploadSourcePath = @"C:\\old-uploads"
+        };
+
+        shell.PrepareBrowserFolderForUpload();
+
+        Assert.Equal("Transfers", shell.CurrentRoute);
+        Assert.True(shell.IsUploadMode);
+        Assert.Equal(remote, shell.CopyDestinationRemote);
+        Assert.Equal("docs/releases", shell.CopyDestinationPath);
+        Assert.Empty(shell.UploadSourcePath);
+        shell.ToggleLanguage();
+        Assert.Equal("Start upload", shell.JourneyPrimaryAction);
+    }
+
+    [Fact]
     public void BrowserFilterStaysLocalAndClearsAHiddenSelection()
     {
         var shell = new DesktopShellState();

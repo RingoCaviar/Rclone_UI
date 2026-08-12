@@ -11,7 +11,7 @@ public enum DesktopTransferMode { Download, RemoteCopy }
 public enum DesktopActionNotificationKind { Success, Error, Information }
 public sealed record DesktopRemoteOption(Guid Id, string DisplayName);
 public sealed record DesktopChoice(string Key, string DisplayName);
-public sealed record DesktopMountProfileOption(Guid Id, ulong Revision, string DisplayName, Guid RemoteId, string Subpath, string PresentationMode, string DriveSelection, string DriveLetter, string? FixedDirectoryPath, string VolumeName);
+public sealed record DesktopMountProfileOption(Guid Id, ulong Revision, string DisplayName, Guid RemoteId, string Subpath, string PresentationMode, string DriveSelection, string DriveLetter, string? FixedDirectoryPath, string VolumeName, string CachePreset);
 
 public interface IDesktopHostClient
 {
@@ -44,8 +44,10 @@ public sealed class DesktopShellState : INotifyPropertyChanged
     private string mountFixedDirectoryPath = string.Empty;
     private DesktopChoice[] mountPresentationOptions = [];
     private DesktopChoice[] driveSelectionOptions = [];
+    private DesktopChoice[] mountCachePresetOptions = [];
     private DesktopChoice mountPresentation = null!;
     private DesktopChoice mountDriveSelection = null!;
+    private DesktopChoice mountCachePreset = null!;
     private string winFspStatus = "unknown";
     private string? winFspVersion;
     private bool rcloneMountAvailable;
@@ -149,7 +151,7 @@ public sealed class DesktopShellState : INotifyPropertyChanged
     public DesktopActionNotificationKind ActionNotificationKind => lastAction switch
     {
         "remote-added" or "copy-accepted" or "mount-started" or "mount-stopped" or "mount-profile-saved" or "mount-profile-deleted" or "vault-unlocked" or "vault-lock-completed" or "shutdown-accepted" or "winfsp-install-complete" or "winfsp-install-complete:restart-required" => DesktopActionNotificationKind.Success,
-        "remote-input-invalid" or "remote-host-key-required" or "remote-test-failed" or "vault-locked" or "host-unavailable" or "rclone-unavailable" or "mount-prerequisites-unavailable" or "mount-profile-required" or "source-remote-required" or "destination-remote-required" or "download-folder-required" or "shutdown-blocked-active-mount" or "winfsp-installer-unavailable" or "winfsp-installer-not-started" or "winfsp-download-failed" or "winfsp-hash-mismatch" or "winfsp-signature-invalid" or "winfsp-install-cancelled" or "winfsp-uac-cancelled" => DesktopActionNotificationKind.Error,
+        "remote-input-invalid" or "remote-host-key-required" or "remote-test-failed" or "vault-locked" or "host-unavailable" or "rclone-unavailable" or "mount-prerequisites-unavailable" or "mount-profile-required" or "mount-drain-not-proved" or "source-remote-required" or "destination-remote-required" or "download-folder-required" or "shutdown-blocked-active-mount" or "winfsp-installer-unavailable" or "winfsp-installer-not-started" or "winfsp-download-failed" or "winfsp-hash-mismatch" or "winfsp-signature-invalid" or "winfsp-install-cancelled" or "winfsp-uac-cancelled" => DesktopActionNotificationKind.Error,
         var value when value.StartsWith("winfsp-installer-failed:", StringComparison.Ordinal) || value.StartsWith("winfsp-install-failed:", StringComparison.Ordinal) => DesktopActionNotificationKind.Error,
         _ => DesktopActionNotificationKind.Information
     };
@@ -172,6 +174,7 @@ public sealed class DesktopShellState : INotifyPropertyChanged
         "rclone-unavailable" => T("rclone 当前不可用。请在设置中检测或更新组件后重试。", "rclone is unavailable. Detect or update the component in Settings, then try again."),
         "mount-prerequisites-unavailable" => T("挂载条件未满足。请确认 WinFsp 已安装且 rclone 挂载能力可用。", "Mount prerequisites are not met. Confirm WinFsp is installed and rclone Mount capability is available."),
         "mount-profile-required" => T("请先保存或选择一个挂载配置。", "Save or select a Mount Profile first."),
+        "mount-drain-not-proved" => T("读写挂载仍有上传、错误、空间压力或未知遥测；为避免丢失本地缓存的写入，暂不卸载。", "The writable Mount still has uploads, errors, space pressure, or unknown telemetry, so it remains mounted to avoid losing cached writes."),
         "source-remote-required" => T("请选择来源远程存储。", "Select a source Remote."),
         "destination-remote-required" => T("请选择目标远程存储。", "Select a destination Remote."),
         "download-folder-required" => T("请选择本地下载文件夹。", "Select a local download folder."),
@@ -253,6 +256,8 @@ public sealed class DesktopShellState : INotifyPropertyChanged
     public IReadOnlyList<DesktopChoice> MountDriveSelectionOptions => driveSelectionOptions;
     public DesktopChoice MountPresentation { get => mountPresentation; set { if (value is null || mountPresentation.Key == value.Key) return; mountPresentation = value; ChangedAll(); } }
     public DesktopChoice MountDriveSelection { get => mountDriveSelection; set { if (value is null || mountDriveSelection.Key == value.Key) return; mountDriveSelection = value; ChangedAll(); } }
+    public IReadOnlyList<DesktopChoice> MountCachePresetOptions => mountCachePresetOptions;
+    public DesktopChoice MountCachePreset { get => mountCachePreset; set { if (value is null || mountCachePreset.Key == value.Key) return; mountCachePreset = value; ChangedAll(); } }
     public bool IsMountDrivePresentation => mountPresentation.Key is "network-drive" or "fixed-drive";
     public bool IsPreferredDriveLetter => IsMountDrivePresentation && mountDriveSelection.Key == "preferred";
     public bool IsFixedDirectoryMount => mountPresentation.Key == "fixed-directory";
@@ -269,13 +274,15 @@ public sealed class DesktopShellState : INotifyPropertyChanged
     public string MountDriveSelectionHeading => T("盘符分配", "Drive assignment");
     public string MountFixedDirectoryHint => T("选择一个现有的空文件夹", "Choose an existing empty folder");
     public string PickMountDirectoryLabel => T("选择目录…", "Choose directory…");
-    public string MountReadOnlyNotice => T("当前安全预设为只读浏览，不会向云端写入文件。", "The current safe preset is read-only browsing and cannot write to the cloud.");
+    public string MountReadOnlyNotice => mountCachePreset.Key == "standard-read-write"
+        ? T("读写模式先写入 data/cache/rclone，再由 rclone 上传。安全卸载会等待上传队列清空；本地写入不等于云端已完成。", "Read/write first writes to data/cache/rclone, then rclone uploads. Safe unmount waits for an empty upload queue; a local write is not a completed cloud write.")
+        : T("当前安全预设为只读浏览，不会向云端写入文件。", "The current safe preset is read-only browsing and cannot write to the cloud.");
     public string MountCachePresetHeading => T("缓存与写入预设", "Cache and write presets");
     public string MountReadOnlyPresetLabel => T("只读浏览（可用）", "Read-only browsing (available)");
     public string MountReadOnlyPresetDescription => T("不写入云端，不需要本地写入缓存。", "Does not write to the Remote and needs no local write cache.");
-    public string MountStandardPresetLabel => T("标准读写（暂不可用）", "Standard read/write (not yet available)");
+    public string MountStandardPresetLabel => T("标准读写（可用）", "Standard read/write (available)");
     public string MountMaximumPresetLabel => T("最大兼容性（暂不可用）", "Maximum compatibility (not yet available)");
-    public string MountWritePresetExplanation => T("读写预设将在后台服务能持续观察上传队列、完成安全排空、保留异常缓存并提供恢复证据后开放。", "Write presets will be enabled only after the Background Host can observe upload queues, prove a clean drain, preserve interrupted cache, and provide recovery evidence.");
+    public string MountWritePresetExplanation => T("10 GiB 是缓存软目标；队列、上传错误或空间不足时，安全卸载会拒绝执行并保留挂载。", "10 GiB is a soft cache target; safe unmount refuses while uploads, errors, or space pressure remain.");
     public bool MountPrerequisitesReady => winFspStatus == "ready" && rcloneMountAvailable;
     public bool IsJourneyPrimaryEnabled => connection == DesktopConnectionState.ConnectedOperational && (route != "Mounts" || !MountRecoveryRequired && (HasActiveMount || MountPrerequisitesReady && selectedMountProfile is not null));
     public string MountPrerequisiteHeading => T("挂载运行环境", "Mount prerequisites");
@@ -305,7 +312,7 @@ public sealed class DesktopShellState : INotifyPropertyChanged
     public string JourneyDescription => route switch { "Remotes" => T("通过三步向导添加云端账号；凭据只发送给后台服务并写入加密保险库。", "Add cloud accounts in three guided steps. Credentials go only to the Host and encrypted Vault."), "Transfers" => T("复制、移动或单向镜像。执行前必须接受预览，涉及删除时需要明确确认。", "Copy, move, or one-way mirror. Accept a preview before execution; deletion requires explicit confirmation."), "Mounts" => T("创建稳定盘符的挂载配置。Ready 与安全卸载均需要完整证据。", "Create stable drive profiles. Ready and safe unmount require complete evidence."), "Activity" => T("查看真实结果、部分完成、未知状态和可脱敏导出的诊断信息。", "Review truthful outcomes, partial results, unknown states, and redacted diagnostics."), _ => T("此功能通过后台服务快照和命令工作；界面不直接操作 rclone 或保险库。", "This journey uses Host snapshots and commands; the UI never operates rclone or the Vault directly.") };
     public string JourneyStatus => connection == DesktopConnectionState.ConnectedOperational ? T("可以开始", "Ready") : T("当前不可执行", "Action unavailable");
     public string JourneyActionHint => connection == DesktopConnectionState.ConnectedOperational ? T("普通用户默认值已启用，高级选项按需展开。", "Ordinary-user defaults are active; advanced options remain available on demand.") : AttentionDetail;
-    public string JourneyPrimaryAction => route switch { "Remotes" => T("添加远程存储", "Add Remote"), "Transfers" => T("创建并预览", "Create & Preview"), "Mounts" when HasActiveMount => T("安全卸载", "Safe unmount"), "Mounts" when MountNeedsRemount => T("重新挂载", "Remount"), "Mounts" when MountRecoveryRequired => T("需要人工恢复", "Manual recovery required"), "Mounts" => T("只读挂载", "Mount read-only"), "Activity" => T("导出脱敏诊断", "Export Redacted Diagnostics"), _ => T("继续", "Continue") };
+    public string JourneyPrimaryAction => route switch { "Remotes" => T("添加远程存储", "Add Remote"), "Transfers" => T("创建并预览", "Create & Preview"), "Mounts" when HasActiveMount => T("安全卸载", "Safe unmount"), "Mounts" when MountNeedsRemount => T("重新挂载", "Remount"), "Mounts" when MountRecoveryRequired => T("需要人工恢复", "Manual recovery required"), "Mounts" when mountCachePreset.Key == "standard-read-write" => T("读写挂载", "Mount read/write"), "Mounts" => T("只读挂载", "Mount read-only"), "Activity" => T("导出脱敏诊断", "Export Redacted Diagnostics"), _ => T("继续", "Continue") };
 
     public void Navigate(string value) { route = value; advancedOptionsExpanded = false; ChangedAll(); }
     public void ToggleLanguage() { english = !english; RefreshMountChoices(); ChangedAll(); }
@@ -313,7 +320,7 @@ public sealed class DesktopShellState : INotifyPropertyChanged
     public void BeginNewMountProfile()
     {
         selectedMountProfile = null; MountProfileName = string.Empty; MountRemote = remoteOptions.FirstOrDefault(); MountSubpath = string.Empty; MountVolumeName = "Rclone Cloud"; MountDriveLetter = "R"; mountFixedDirectoryPath = string.Empty;
-        mountPresentation = mountPresentationOptions.Single(option => option.Key == "network-drive"); mountDriveSelection = driveSelectionOptions.Single(option => option.Key == "preferred"); ChangedAll();
+        mountPresentation = mountPresentationOptions.Single(option => option.Key == "network-drive"); mountDriveSelection = driveSelectionOptions.Single(option => option.Key == "preferred"); mountCachePreset = mountCachePresetOptions.Single(option => option.Key == "read-only"); ChangedAll();
     }
     public void ApplyConnection(DesktopConnectionState value) { connection = value; ChangedAll(); }
     public void ApplyAction(string value) { lastAction = value; ChangedAll(); }
@@ -372,7 +379,7 @@ public sealed class DesktopShellState : INotifyPropertyChanged
             mountProfiles = profiles.EnumerateArray().Select(profile => new DesktopMountProfileOption(
                 profile.GetProperty("id").GetProperty("value").GetGuid(), profile.GetProperty("revision").GetUInt64(), profile.GetProperty("displayName").GetString()!, profile.GetProperty("remoteId").GetGuid(), profile.GetProperty("subpath").GetString() ?? string.Empty,
                 ToPresentationKey(profile.GetProperty("presentationMode")), ToDriveSelectionKey(profile.GetProperty("driveLetterSelection")), profile.GetProperty("preferredDriveLetter").GetString()!,
-                profile.TryGetProperty("fixedDirectoryPath", out var directory) && directory.ValueKind == JsonValueKind.String ? directory.GetString() : null, profile.GetProperty("volumeName").GetString()!)).ToArray();
+                profile.TryGetProperty("fixedDirectoryPath", out var directory) && directory.ValueKind == JsonValueKind.String ? directory.GetString() : null, profile.GetProperty("volumeName").GetString()!, ToCachePresetKey(profile.GetProperty("cachePreset")))).ToArray();
             selectedMountProfile = mountProfiles.FirstOrDefault(profile => profile.Id == selectedId) ?? mountProfiles.FirstOrDefault();
             if (selectedMountProfile is not null) ApplyMountProfile(selectedMountProfile);
         }
@@ -384,6 +391,7 @@ public sealed class DesktopShellState : INotifyPropertyChanged
     {
         var presentationKey = mountPresentation?.Key ?? "network-drive";
         var driveKey = mountDriveSelection?.Key ?? "preferred";
+        var cachePresetKey = mountCachePreset?.Key ?? "read-only";
         mountPresentationOptions =
         [
             new("network-drive", T("网络驱动器（推荐）", "Network drive (recommended)")),
@@ -395,8 +403,14 @@ public sealed class DesktopShellState : INotifyPropertyChanged
             new("preferred", T("指定盘符", "Preferred letter")),
             new("automatic", T("自动分配", "Automatic")),
         ];
+        mountCachePresetOptions =
+        [
+            new("read-only", T("只读浏览", "Read-only browsing")),
+            new("standard-read-write", T("标准读写（10 GiB 缓存软目标）", "Standard read/write (10 GiB soft cache target)")),
+        ];
         mountPresentation = mountPresentationOptions.Single(option => option.Key == presentationKey);
         mountDriveSelection = driveSelectionOptions.Single(option => option.Key == driveKey);
+        mountCachePreset = mountCachePresetOptions.Single(option => option.Key == cachePresetKey);
     }
     private static DesktopRemoteOption? KeepSelection(DesktopRemoteOption? selected, DesktopRemoteOption[] options) => selected is null ? null : options.FirstOrDefault(option => option.Id == selected.Id);
     private void ApplyMountProfile(DesktopMountProfileOption profile)
@@ -404,8 +418,10 @@ public sealed class DesktopShellState : INotifyPropertyChanged
         MountProfileName = profile.DisplayName; MountRemote = remoteOptions.FirstOrDefault(remote => remote.Id == profile.RemoteId); MountSubpath = profile.Subpath; MountVolumeName = profile.VolumeName; MountDriveLetter = profile.DriveLetter; mountFixedDirectoryPath = profile.FixedDirectoryPath ?? string.Empty;
         mountPresentation = mountPresentationOptions.Single(option => option.Key == profile.PresentationMode);
         mountDriveSelection = driveSelectionOptions.Single(option => option.Key == profile.DriveSelection);
+        mountCachePreset = mountCachePresetOptions.Single(option => option.Key == profile.CachePreset);
     }
     private static string ToPresentationKey(JsonElement value) => value.ValueKind == JsonValueKind.String ? value.GetString() switch { "NetworkDrive" => "network-drive", "FixedDrive" => "fixed-drive", "FixedDirectory" => "fixed-directory", _ => "network-drive" } : value.GetInt32() switch { 1 => "fixed-drive", 2 => "fixed-directory", _ => "network-drive" };
     private static string ToDriveSelectionKey(JsonElement value) => value.ValueKind == JsonValueKind.String ? value.GetString() == "Automatic" ? "automatic" : "preferred" : value.GetInt32() == 1 ? "automatic" : "preferred";
+    private static string ToCachePresetKey(JsonElement value) => value.ValueKind == JsonValueKind.String ? value.GetString() == "StandardReadWrite" ? "standard-read-write" : "read-only" : value.GetInt32() == 1 ? "standard-read-write" : "read-only";
     private void ChangedAll() { foreach (var property in GetType().GetProperties().Where(x => x.GetIndexParameters().Length == 0)) PropertyChanged?.Invoke(this, new(property.Name)); }
 }

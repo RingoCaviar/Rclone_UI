@@ -27,6 +27,7 @@ public sealed class HostMountProfileProtocolTests
                 subpath = "",
                 presentationMode = "network-drive",
                 driveSelection = "automatic",
+                cachePreset = "read-only",
                 driveLetter = "R",
                 fixedDirectoryPath = (string?)null,
                 volumeName = "FTPS drive"
@@ -36,6 +37,36 @@ public sealed class HostMountProfileProtocolTests
 
             Assert.Equal("mount-profile-saved", result.ResultType);
             Assert.Equal(string.Empty, Assert.Single(projection.Profiles).Subpath);
+        }
+        finally { Directory.Delete(root, recursive: true); }
+    }
+
+    [Fact]
+    public async Task SavingStandardReadWriteProfilePreservesItsPreset()
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"rcloneui-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(root);
+        try
+        {
+            var projection = new ProfilesProjection();
+            using var authority = new HostStateAuthority(root, remotes: projection);
+            var result = await authority.DispatchAsync(Command("save-mount-profile", new
+            {
+                profileId = Guid.NewGuid(),
+                expectedRevision = 0UL,
+                displayName = "Writable FTPS drive",
+                remoteId = Guid.NewGuid(),
+                subpath = "",
+                presentationMode = "network-drive",
+                driveSelection = "automatic",
+                cachePreset = "standard-read-write",
+                driveLetter = "R",
+                fixedDirectoryPath = (string?)null,
+                volumeName = "FTPS drive"
+            }), TestContext.Current.CancellationToken);
+
+            Assert.Equal("mount-profile-saved", result.ResultType);
+            Assert.Equal(MountCachePreset.StandardReadWrite, Assert.Single(projection.Profiles).CachePreset);
         }
         finally { Directory.Delete(root, recursive: true); }
     }

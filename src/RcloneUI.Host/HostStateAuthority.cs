@@ -249,7 +249,9 @@ internal sealed class HostStateAuthority : IDisposable
         if (!body.TryGetProperty("arguments", out var arguments) || ReadGuidArgument(arguments, "profileId") is not { } profileId || ReadArgument(arguments, "capabilityBinding") is not { } binding) return CreateResult("mount-invalid", new { code = "arguments-invalid" }, Cursor);
         var profile = await profiles.ReadMountProfileAsync(new(profileId), cancellationToken).ConfigureAwait(false);
         if (profile is null) return CreateResult("mount-profile-not-found", new { }, Cursor);
-        var (resultType, snapshot) = await mounts.StartReadOnlyAsync(profile.RemoteId, profile.Subpath, profile.PresentationMode, profile.DriveLetterSelection, profile.PreferredDriveLetter, profile.FixedDirectoryPath, profile.VolumeName, binding, cancellationToken, profile.Id.Value).ConfigureAwait(false);
+        var (resultType, snapshot) = profile.CachePreset == MountCachePreset.StandardReadWrite
+            ? await mounts.StartReadWriteAsync(profile.RemoteId, profile.Subpath, profile.PresentationMode, profile.DriveLetterSelection, profile.PreferredDriveLetter, profile.FixedDirectoryPath, profile.VolumeName, binding, cancellationToken, profile.Id.Value).ConfigureAwait(false)
+            : await mounts.StartReadOnlyAsync(profile.RemoteId, profile.Subpath, profile.PresentationMode, profile.DriveLetterSelection, profile.PreferredDriveLetter, profile.FixedDirectoryPath, profile.VolumeName, binding, cancellationToken, profile.Id.Value).ConfigureAwait(false);
         lock (sync)
         {
             if (resultType == "mount-ready") revision = checked(revision + 1);
@@ -267,14 +269,16 @@ internal sealed class HostStateAuthority : IDisposable
             || ReadPathArgument(arguments, "subpath") is not { } subpath
             || ReadArgument(arguments, "presentationMode") is not { } presentationValue
             || ReadArgument(arguments, "driveSelection") is not { } driveSelectionValue
+            || ReadArgument(arguments, "cachePreset") is not { } cachePresetValue
             || ReadArgument(arguments, "driveLetter", 1) is not { Length: 1 } driveLetter
             || ReadArgument(arguments, "volumeName", 64) is not { } volumeName
             || !arguments.TryGetProperty("expectedRevision", out var revisionValue) || !revisionValue.TryGetUInt64(out var expectedRevision))
             return CreateResult("mount-profile-invalid", new { code = "arguments-invalid" }, Cursor);
         var presentation = presentationValue switch { "network-drive" => MountPresentationMode.NetworkDrive, "fixed-drive" => MountPresentationMode.FixedDrive, "fixed-directory" => MountPresentationMode.FixedDirectory, _ => (MountPresentationMode)(-1) };
         var driveSelection = driveSelectionValue switch { "preferred" => DriveLetterSelection.Preferred, "automatic" => DriveLetterSelection.Automatic, _ => (DriveLetterSelection)(-1) };
+        var cachePreset = cachePresetValue switch { "read-only" => MountCachePreset.ReadOnlyBrowsing, "standard-read-write" => MountCachePreset.StandardReadWrite, _ => (MountCachePreset)(-1) };
         if (mounts?.Snapshots.Any(snapshot => snapshot.ProfileId == profileId) == true) return CreateResult("mount-profile-active", new { }, Cursor);
-        var profile = new SavedMountProfile(new(profileId), expectedRevision, displayName, remoteId, subpath, presentation, driveSelection, char.ToUpperInvariant(driveLetter[0]), ReadArgument(arguments, "fixedDirectoryPath", 32767), volumeName, MountCachePreset.ReadOnlyBrowsing, false);
+        var profile = new SavedMountProfile(new(profileId), expectedRevision, displayName, remoteId, subpath, presentation, driveSelection, char.ToUpperInvariant(driveLetter[0]), ReadArgument(arguments, "fixedDirectoryPath", 32767), volumeName, cachePreset, false);
         var (resultType, saved) = await profiles.UpsertMountProfileAsync(profile, expectedRevision, cancellationToken).ConfigureAwait(false);
         lock (sync)
         {

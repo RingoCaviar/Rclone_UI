@@ -187,6 +187,7 @@
                   <Button Grid.Column="1" Content="{Binding PickMountDirectoryLabel}" Click="PickMountDirectoryClicked" />
                 </Grid>
                 <TextBlock Text="{Binding MountCachePresetHeading}" FontWeight="SemiBold" />
+                <ComboBox ItemsSource="{Binding MountCachePresetOptions}" SelectedItem="{Binding MountCachePreset}" DisplayMemberBinding="{Binding DisplayName}" AutomationProperties.Name="Mount cache and write preset" />
                 <Border Classes="status" Background="{DynamicResource CardBrush}">
                   <StackPanel Spacing="2">
                     <TextBlock Text="{Binding MountReadOnlyPresetLabel}" Foreground="MediumSeaGreen" />

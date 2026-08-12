@@ -144,18 +144,20 @@ public sealed class DesktopShellStateTests
     }
 
     [Fact]
-    public void MountWritePresetsAreVisibleButTruthfullyUnavailable()
+    public void MountWritePresetsAreVisibleAndExplainTheCacheBoundary()
     {
         var shell = new DesktopShellState();
 
-        Assert.Contains("暂不可用", shell.MountStandardPresetLabel, StringComparison.Ordinal);
-        Assert.Contains("上传队列", shell.MountWritePresetExplanation, StringComparison.Ordinal);
+        Assert.Contains("可用", shell.MountStandardPresetLabel, StringComparison.Ordinal);
+        shell.MountCachePreset = shell.MountCachePresetOptions.Single(option => option.Key == "standard-read-write");
+        Assert.Contains("data/cache/rclone", shell.MountReadOnlyNotice, StringComparison.Ordinal);
 
         shell.ToggleLanguage();
 
         Assert.Equal("Read-only browsing (available)", shell.MountReadOnlyPresetLabel);
         Assert.Contains("not yet available", shell.MountMaximumPresetLabel, StringComparison.Ordinal);
-        Assert.Contains("clean drain", shell.MountWritePresetExplanation, StringComparison.Ordinal);
+        Assert.Equal("Standard read/write (available)", shell.MountStandardPresetLabel);
+        Assert.Contains("soft cache target", shell.MountWritePresetExplanation, StringComparison.Ordinal);
     }
 
     [Fact]

@@ -116,7 +116,7 @@ public sealed class DesktopHostController(IDesktopHostClient client, DesktopShel
     {
         if (shell.MountRemote is null) { shell.ApplyAction("mount-remote-required"); return; }
         var existing = shell.SelectedMountProfile;
-        using var arguments = JsonDocument.Parse(JsonSerializer.Serialize(new { profileId = existing?.Id ?? Guid.NewGuid(), expectedRevision = existing?.Revision ?? 0, displayName = shell.MountProfileName, remoteId = shell.MountRemote.Id, subpath = shell.MountSubpath, presentationMode = shell.MountPresentation.Key, driveSelection = shell.IsFixedDirectoryMount ? "preferred" : shell.MountDriveSelection.Key, driveLetter = shell.MountDriveLetter, fixedDirectoryPath = shell.IsFixedDirectoryMount ? shell.MountFixedDirectoryPath : null, volumeName = shell.MountVolumeName }));
+        using var arguments = JsonDocument.Parse(JsonSerializer.Serialize(new { profileId = existing?.Id ?? Guid.NewGuid(), expectedRevision = existing?.Revision ?? 0, displayName = shell.MountProfileName, remoteId = shell.MountRemote.Id, subpath = shell.MountSubpath, presentationMode = shell.MountPresentation.Key, driveSelection = shell.IsFixedDirectoryMount ? "preferred" : shell.MountDriveSelection.Key, cachePreset = shell.MountCachePreset.Key, driveLetter = shell.MountDriveLetter, fixedDirectoryPath = shell.IsFixedDirectoryMount ? shell.MountFixedDirectoryPath : null, volumeName = shell.MountVolumeName }));
         var result = await client.SendCommandAsync("save-mount-profile", arguments.RootElement, cancellationToken);
         shell.ApplyAction(result.GetProperty("resultType").GetString() ?? "unknown-result");
         await ReconnectAsync(cancellationToken);

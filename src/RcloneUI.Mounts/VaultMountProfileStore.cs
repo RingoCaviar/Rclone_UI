@@ -82,7 +82,7 @@ public sealed class VaultMountProfileStore(IDataRootSession dataRoot) : IMountPr
         if (profile.Id.Value == Guid.Empty || profile.RemoteId == Guid.Empty || string.IsNullOrWhiteSpace(profile.DisplayName) || profile.DisplayName.Length > 80 || profile.DisplayName.IndexOfAny(['\r', '\n', '\0']) >= 0) throw new ArgumentException("mount-profile-invalid", nameof(profile));
         if (profile.Subpath.Length > 2048 || profile.Subpath.IndexOfAny(['\r', '\n', '\0']) >= 0 || string.IsNullOrWhiteSpace(profile.VolumeName) || profile.VolumeName.Length > 64) throw new ArgumentException("mount-profile-invalid", nameof(profile));
         if (!Enum.IsDefined(profile.PresentationMode) || !Enum.IsDefined(profile.DriveLetterSelection) || !Enum.IsDefined(profile.CachePreset)) throw new ArgumentException("mount-profile-invalid", nameof(profile));
-        if (profile.CachePreset != MountCachePreset.ReadOnlyBrowsing) throw new ArgumentException("mount-profile-cache-preset-not-yet-supported", nameof(profile));
+        if (profile.CachePreset is MountCachePreset.MaximumCompatibility or MountCachePreset.Custom) throw new ArgumentException("mount-profile-cache-preset-not-yet-supported", nameof(profile));
         if (profile.PresentationMode == MountPresentationMode.FixedDirectory && (string.IsNullOrWhiteSpace(profile.FixedDirectoryPath) || !Path.IsPathFullyQualified(profile.FixedDirectoryPath))) throw new ArgumentException("mount-profile-invalid", nameof(profile));
         if (profile.PresentationMode != MountPresentationMode.FixedDirectory && profile.DriveLetterSelection == DriveLetterSelection.Preferred && profile.PreferredDriveLetter is < 'D' or > 'Z') throw new ArgumentException("mount-profile-invalid", nameof(profile));
     }

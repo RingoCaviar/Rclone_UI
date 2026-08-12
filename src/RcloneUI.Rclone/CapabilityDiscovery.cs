@@ -35,8 +35,13 @@ public static class RcloneCapabilityDiscovery
         if (!root.TryGetProperty(property, out var values) || values.ValueKind != JsonValueKind.Array)
             return ImmutableSortedSet<string>.Empty;
         return values.EnumerateArray()
-            .Where(value => value.ValueKind == JsonValueKind.String)
-            .Select(value => value.GetString()!)
+            .Select(value => value.ValueKind == JsonValueKind.String
+                ? value.GetString()
+                : value.ValueKind == JsonValueKind.Object && value.TryGetProperty("Path", out var path) && path.ValueKind == JsonValueKind.String
+                    ? path.GetString()
+                    : null)
+            .Where(value => !string.IsNullOrWhiteSpace(value))
+            .Select(value => value!)
             .ToImmutableSortedSet(StringComparer.Ordinal);
     }
 

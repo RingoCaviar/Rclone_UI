@@ -8,6 +8,7 @@ namespace RcloneUI.Desktop.Presentation;
 
 public enum DesktopConnectionState { Connecting, ConnectedLocked, ConnectedOperational, ReadOnlyRecovery, Disconnected }
 public enum DesktopTransferMode { Download, RemoteCopy }
+public enum DesktopActionNotificationKind { Success, Error, Information }
 public sealed record DesktopRemoteOption(Guid Id, string DisplayName);
 public sealed record DesktopChoice(string Key, string DisplayName);
 public sealed record DesktopMountProfileOption(Guid Id, ulong Revision, string DisplayName, Guid RemoteId, string Subpath, string PresentationMode, string DriveSelection, string DriveLetter, string? FixedDirectoryPath, string VolumeName);
@@ -139,6 +140,38 @@ public sealed class DesktopShellState : INotifyPropertyChanged
     public string AttentionAction => connection switch { DesktopConnectionState.ConnectedLocked => T("解锁", "Unlock"), DesktopConnectionState.ReadOnlyRecovery => T("检查恢复", "Review recovery"), DesktopConnectionState.Disconnected => T("重新连接", "Reconnect"), _ => T("等待", "Wait") };
     public string RunningTasksLabel => T("0 个运行中", "0 running");
     public string LastAction => lastAction;
+    public bool HasActionNotification => !string.IsNullOrWhiteSpace(lastAction);
+    public DesktopActionNotificationKind ActionNotificationKind => lastAction switch
+    {
+        "remote-added" or "copy-accepted" or "mount-started" or "mount-stopped" or "mount-profile-saved" or "mount-profile-deleted" or "vault-unlocked" or "vault-lock-completed" or "shutdown-accepted" => DesktopActionNotificationKind.Success,
+        "remote-input-invalid" or "remote-host-key-required" or "remote-test-failed" or "vault-locked" or "host-unavailable" or "rclone-unavailable" or "mount-prerequisites-unavailable" or "mount-profile-required" or "source-remote-required" or "destination-remote-required" or "download-folder-required" or "shutdown-blocked-active-mount" => DesktopActionNotificationKind.Error,
+        _ => DesktopActionNotificationKind.Information
+    };
+    public IBrush ActionNotificationBrush => ActionNotificationKind switch { DesktopActionNotificationKind.Success => Brushes.MediumSeaGreen, DesktopActionNotificationKind.Error => Brushes.IndianRed, _ => Brushes.DarkOrange };
+    public string ActionNotificationTitle => ActionNotificationKind switch
+    {
+        DesktopActionNotificationKind.Success => T("操作已完成", "Operation completed"),
+        DesktopActionNotificationKind.Error => T("操作未完成", "Action not completed"),
+        _ => T("操作状态", "Action status")
+    };
+    public string ActionNotificationMessage => lastAction switch
+    {
+        "remote-added" => T("远程存储已添加，并已验证连接。", "Remote added and its connection was verified."),
+        "vault-lock-completed" => T("保险库已锁定。", "The Vault is now locked."),
+        "remote-input-invalid" => T("请填写远程存储名称、服务器地址、有效端口、用户名和密码；SFTP 还需要主机密钥指纹。", "Enter a Remote name, server address, valid port, username, and password. SFTP also requires a host-key fingerprint."),
+        "remote-host-key-required" => T("SFTP 必须填写服务器主机密钥指纹，不能跳过此验证。", "SFTP requires the server host-key fingerprint; this verification cannot be skipped."),
+        "remote-test-failed" => T("无法连接到服务器。请检查地址、端口、协议、账号密码和证书设置。", "Could not connect to the server. Check the address, port, protocol, credentials, and certificate settings."),
+        "host-unavailable" => T("无法连接到后台服务。请等待它启动后重试。", "Cannot connect to the Background Host. Wait for it to start, then try again."),
+        "vault-locked" => T("保险库已锁定。请先输入主密码解锁。", "The Vault is locked. Enter the Master Password to unlock it first."),
+        "rclone-unavailable" => T("rclone 当前不可用。请在设置中检测或更新组件后重试。", "rclone is unavailable. Detect or update the component in Settings, then try again."),
+        "mount-prerequisites-unavailable" => T("挂载条件未满足。请确认 WinFsp 已安装且 rclone 挂载能力可用。", "Mount prerequisites are not met. Confirm WinFsp is installed and rclone Mount capability is available."),
+        "mount-profile-required" => T("请先保存或选择一个挂载配置。", "Save or select a Mount Profile first."),
+        "source-remote-required" => T("请选择来源远程存储。", "Select a source Remote."),
+        "destination-remote-required" => T("请选择目标远程存储。", "Select a destination Remote."),
+        "download-folder-required" => T("请选择本地下载文件夹。", "Select a local download folder."),
+        "shutdown-blocked-active-mount" => T("仍有正在使用的挂载，无法彻底退出。请先安全卸载。", "A Mount is still active, so the Host cannot stop. Safely unmount it first."),
+        _ => T($"后台服务返回：{lastAction}", $"Background Host result: {lastAction}")
+    };
     public string RemoteSummary => remoteSummary;
     public IReadOnlyList<string> RemoteNames => remoteNames;
     public IReadOnlyList<DesktopRemoteOption> RemoteOptions => remoteOptions;

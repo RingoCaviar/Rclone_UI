@@ -104,6 +104,12 @@
             <StackPanel Spacing="14">
               <TextBlock Text="{Binding JourneyStatus}" FontWeight="SemiBold" FontSize="17" />
               <TextBlock Text="{Binding JourneyActionHint}" TextWrapping="Wrap" />
+              <Border IsVisible="{Binding HasActionNotification}" Classes="status" Background="{DynamicResource CardBrush}" AutomationProperties.LiveSetting="Polite">
+                <StackPanel Spacing="3">
+                  <TextBlock Text="{Binding ActionNotificationTitle}" Foreground="{Binding ActionNotificationBrush}" FontWeight="SemiBold" />
+                  <TextBlock Text="{Binding ActionNotificationMessage}" TextWrapping="Wrap" />
+                </StackPanel>
+              </Border>
               <StackPanel IsVisible="{Binding IsRemoteAdvancedVisible}" Spacing="10">
                 <TextBlock Text="{Binding QuickAddHeading}" FontWeight="SemiBold" />
                 <TextBox PlaceholderText="{Binding RemoteDisplayNameHint}" Text="{Binding RemoteDisplayName}" AutomationProperties.Name="Remote display name" />
@@ -192,7 +198,6 @@
                 <TextBlock Text="{Binding MountStatus}" AutomationProperties.LiveSetting="Polite" />
               </StackPanel>
               <TextBlock Text="{Binding RemoteSummary}" />
-              <TextBlock Text="{Binding LastAction}" Opacity="0.7" />
               <StackPanel Orientation="Horizontal" Spacing="10">
                 <Button Classes="primary" IsEnabled="{Binding IsJourneyPrimaryEnabled}" Content="{Binding JourneyPrimaryAction}" Click="JourneyPrimaryClicked" />
                 <Button IsVisible="{Binding IsAdvancedOptionsAvailable}" Content="{Binding AdvancedOptionsLabel}" Click="AdvancedOptionsClicked" />

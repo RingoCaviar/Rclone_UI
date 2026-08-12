@@ -125,7 +125,7 @@ public sealed class DesktopHostController(IDesktopHostClient client, DesktopShel
 
     private async ValueTask AddRemoteAsync(CancellationToken cancellationToken)
     {
-        if (!string.IsNullOrWhiteSpace(shell.ConnectionHost)) { await AddConnectionRemoteAsync(cancellationToken); return; }
+        if (!string.IsNullOrWhiteSpace(shell.ConnectionHost) || !string.IsNullOrWhiteSpace(shell.ConnectionUser) || !string.IsNullOrWhiteSpace(shell.ConnectionPassword) || !string.IsNullOrWhiteSpace(shell.ConnectionHostKeyFingerprint)) { await AddConnectionRemoteAsync(cancellationToken); return; }
         var token = Encoding.UTF8.GetBytes(shell.RemoteToken);
         try
         {
@@ -141,7 +141,7 @@ public sealed class DesktopHostController(IDesktopHostClient client, DesktopShel
 
     private async ValueTask AddConnectionRemoteAsync(CancellationToken cancellationToken)
     {
-        if (!int.TryParse(shell.ConnectionPort, out var port) || port is < 1 or > 65535 || string.IsNullOrWhiteSpace(shell.RemoteDisplayName) || string.IsNullOrWhiteSpace(shell.ConnectionUser) || string.IsNullOrWhiteSpace(shell.ConnectionPassword)) { shell.ApplyAction("remote-input-invalid"); return; }
+        if (!int.TryParse(shell.ConnectionPort, out var port) || port is < 1 or > 65535 || string.IsNullOrWhiteSpace(shell.RemoteDisplayName) || string.IsNullOrWhiteSpace(shell.ConnectionHost) || string.IsNullOrWhiteSpace(shell.ConnectionUser) || string.IsNullOrWhiteSpace(shell.ConnectionPassword)) { shell.ApplyAction("remote-input-invalid"); return; }
         var password = Encoding.UTF8.GetBytes(shell.ConnectionPassword);
         try
         {
@@ -182,7 +182,8 @@ public sealed class DesktopHostController(IDesktopHostClient client, DesktopShel
     {
         using var arguments = JsonDocument.Parse("{}");
         var result = await client.SendCommandAsync("lock-vault", arguments.RootElement, cancellationToken);
-        shell.ApplyAction(result.GetProperty("resultType").GetString() ?? "unknown-result");
+        var resultType = result.GetProperty("resultType").GetString() ?? "unknown-result";
+        shell.ApplyAction(resultType == "vault-locked" ? "vault-lock-completed" : resultType);
         await ReconnectAsync(cancellationToken);
     }
 

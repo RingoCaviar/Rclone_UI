@@ -52,6 +52,22 @@ public sealed class DesktopShellStateTests
     }
 
     [Fact]
+    public void CommandFailuresProduceAVisibleLocalizedNotification()
+    {
+        var shell = new DesktopShellState();
+
+        shell.ApplyAction("remote-input-invalid");
+
+        Assert.True(shell.HasActionNotification);
+        Assert.Equal(DesktopActionNotificationKind.Error, shell.ActionNotificationKind);
+        Assert.Contains("服务器", shell.ActionNotificationMessage, StringComparison.Ordinal);
+
+        shell.ToggleLanguage();
+
+        Assert.Contains("server", shell.ActionNotificationMessage, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public void AdvancedOptionsAreShownOnlyForImplementedJourneysAndResetOnNavigation()
     {
         var shell = new DesktopShellState();
@@ -187,6 +203,22 @@ public sealed class DesktopShellStateTests
         Assert.Equal("ftp", client.Arguments.GetProperty("providerType").GetString());
         Assert.Equal("true", client.Arguments.GetProperty("configuration").GetProperty("explicit_tls").GetString());
         Assert.Empty(shell.ConnectionPassword);
+    }
+
+    [Fact]
+    public async Task IncompleteConnectionRemoteShowsInputNotificationWithoutSendingOAuthCommand()
+    {
+        var client = new RecordingClient(); var shell = new DesktopShellState(); var controller = new DesktopHostController(client, shell);
+        await controller.ReconnectAsync(TestContext.Current.CancellationToken);
+        shell.Navigate("Remotes"); shell.RemoteDisplayName = "FTPS"; shell.ConnectionUser = "alice"; shell.ConnectionPassword = "secret";
+
+        await controller.ActivatePrimaryAsync(TestContext.Current.CancellationToken);
+
+        Assert.Null(client.CommandType);
+        Assert.Equal("remote-input-invalid", shell.LastAction);
+        Assert.Equal(DesktopActionNotificationKind.Error, shell.ActionNotificationKind);
+        shell.ToggleLanguage();
+        Assert.Contains("server", shell.ActionNotificationMessage, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]

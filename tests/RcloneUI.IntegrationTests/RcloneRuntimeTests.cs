@@ -33,6 +33,23 @@ public sealed class RcloneRuntimeTests
     }
 
     [Fact]
+    public async Task RuntimeFailsClosedWhenVfsQueueObservationIsUnavailable()
+    {
+        var runtime = new ScriptedRcloneRuntime(CreateCapabilities("vfs/stats"), []);
+
+        await Assert.ThrowsAsync<NotSupportedException>(() => runtime.GetVfsStatusAsync("remote:", TestContext.Current.CancellationToken).AsTask());
+    }
+
+    [Fact]
+    public async Task RuntimeReturnsTypedVfsUploadObservation()
+    {
+        var observed = new RcloneVfsStatus(1024, 1, 2, 3, false, 4, 5, DateTimeOffset.UtcNow);
+        var runtime = new ScriptedRcloneRuntime(CreateCapabilities("vfs/stats", "vfs/queue"), []) { VfsStatus = observed };
+
+        Assert.Equal(observed, await runtime.GetVfsStatusAsync("remote:", TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
     public void BinaryVerificationRejectsChangedBytes()
     {
         var path = Path.Combine(Path.GetTempPath(), $"rclone-{Guid.NewGuid():N}.exe");

@@ -25,6 +25,7 @@ public sealed class ScriptedRcloneRuntime : IRcloneRuntime
     public RcloneCapabilitySnapshot Capabilities { get; }
     public IReadOnlyDictionary<string, RcloneRemoteConfiguration> ConfiguredRemotes => configuredRemotes;
     public IReadOnlyCollection<RcloneExecutionRequest> Requests => requests;
+    public RcloneVfsStatus? VfsStatus { get; set; }
     private readonly List<RcloneExecutionRequest> requests = [];
     private readonly Dictionary<string, RcloneRemoteConfiguration> configuredRemotes = new(StringComparer.Ordinal);
 
@@ -81,6 +82,13 @@ public sealed class ScriptedRcloneRuntime : IRcloneRuntime
         if (!Capabilities.Endpoints.Contains("config/delete")) throw new NotSupportedException("The scripted rclone does not expose 'config/delete'.");
         configuredRemotes.Remove(name);
         return ValueTask.CompletedTask;
+    }
+
+    public ValueTask<RcloneVfsStatus> GetVfsStatusAsync(string fileSystem, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        if (!Capabilities.Endpoints.Contains("vfs/stats") || !Capabilities.Endpoints.Contains("vfs/queue")) throw new NotSupportedException("The scripted rclone does not expose the required VFS observation endpoints.");
+        return VfsStatus is { } status ? ValueTask.FromResult(status) : throw new InvalidOperationException("The scripted rclone has no VFS status fixture.");
     }
 
     public static RcloneExecutionResult Success() => new(true, false, null, EmptyBody());

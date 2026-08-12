@@ -66,6 +66,15 @@ public sealed record RcloneTransferStats(
 
 public sealed record RcloneExecutionResult(bool Success, bool Cancelled, string? ErrorCode, JsonElement Body);
 public sealed record RcloneRemoteConfiguration(string ProviderType, IReadOnlyDictionary<string, string> Parameters);
+public sealed record RcloneVfsStatus(
+    long? BytesUsed,
+    int? ErroredFiles,
+    int? UploadsInProgress,
+    int? UploadsQueued,
+    bool? OutOfSpace,
+    int? InUse,
+    int QueueItems,
+    DateTimeOffset ObservedUtc);
 
 public interface IRcloneRuntime
 {
@@ -77,6 +86,7 @@ public interface IRcloneRuntime
     ValueTask<string> ObscureAsync(string clearText, CancellationToken cancellationToken);
     ValueTask ConfigureRemoteAsync(string name, string providerType, IReadOnlyDictionary<string, string> parameters, bool passwordsAlreadyObscured, CancellationToken cancellationToken);
     ValueTask RemoveRemoteAsync(string name, CancellationToken cancellationToken);
+    ValueTask<RcloneVfsStatus> GetVfsStatusAsync(string fileSystem, CancellationToken cancellationToken);
 }
 
 public sealed class RcloneCapabilityChangedException(string expected, string actual)

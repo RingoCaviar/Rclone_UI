@@ -85,6 +85,30 @@ public sealed class RcloneRcAdapter : IRcloneRuntime, IDisposable
         using var _ = await ReadSuccessAsync(response, cancellationToken).ConfigureAwait(false);
     }
 
+    public async ValueTask<RcloneVfsStatus> GetVfsStatusAsync(string fileSystem, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(fileSystem)) throw new ArgumentException("A VFS filesystem is required.", nameof(fileSystem));
+        if (!Capabilities.Endpoints.Contains("vfs/stats") || !Capabilities.Endpoints.Contains("vfs/queue"))
+            throw new NotSupportedException("The managed rclone does not expose the required VFS observation endpoints.");
+        using var statsResponse = await client.PostAsJsonAsync("vfs/stats", new { fs = fileSystem }, cancellationToken).ConfigureAwait(false);
+        using var statsDocument = await ReadSuccessAsync(statsResponse, cancellationToken).ConfigureAwait(false);
+        using var queueResponse = await client.PostAsJsonAsync("vfs/queue", new { fs = fileSystem }, cancellationToken).ConfigureAwait(false);
+        using var queueDocument = await ReadSuccessAsync(queueResponse, cancellationToken).ConfigureAwait(false);
+        var stats = statsDocument.RootElement;
+        var cache = stats.TryGetProperty("diskCache", out var diskCache) && diskCache.ValueKind == JsonValueKind.Object ? diskCache : default;
+        if (!queueDocument.RootElement.TryGetProperty("queue", out var queue) || queue.ValueKind != JsonValueKind.Array)
+            throw new InvalidDataException("rclone returned an unsupported VFS queue shape.");
+        return new(
+            ReadNullableInt64(cache, "bytesUsed"),
+            ReadNullableInt32(cache, "erroredFiles"),
+            ReadNullableInt32(cache, "uploadsInProgress"),
+            ReadNullableInt32(cache, "uploadsQueued"),
+            ReadNullableBoolean(cache, "outOfSpace"),
+            ReadNullableInt32(stats, "inUse"),
+            queue.GetArrayLength(),
+            DateTimeOffset.UtcNow);
+    }
+
     public async ValueTask<RcloneTransferStats> GetStatsAsync(RcloneExecutionHandle handle, CancellationToken cancellationToken)
     {
         using var response = await client.PostAsJsonAsync("core/stats", new { group = handle.Group }, cancellationToken).ConfigureAwait(false);
@@ -146,6 +170,10 @@ public sealed class RcloneRcAdapter : IRcloneRuntime, IDisposable
 
     private static long ReadInt64(JsonElement value, string property) =>
         value.TryGetProperty(property, out var item) && item.TryGetInt64(out var parsed) ? parsed : 0;
+
+    private static long? ReadNullableInt64(JsonElement value, string property) => value.ValueKind == JsonValueKind.Object && value.TryGetProperty(property, out var item) && item.TryGetInt64(out var parsed) ? parsed : null;
+    private static int? ReadNullableInt32(JsonElement value, string property) => value.ValueKind == JsonValueKind.Object && value.TryGetProperty(property, out var item) && item.TryGetInt32(out var parsed) ? parsed : null;
+    private static bool? ReadNullableBoolean(JsonElement value, string property) => value.ValueKind == JsonValueKind.Object && value.TryGetProperty(property, out var item) && item.ValueKind is JsonValueKind.True or JsonValueKind.False ? item.GetBoolean() : null;
 
     private static double ReadDouble(JsonElement value, string property)
     {

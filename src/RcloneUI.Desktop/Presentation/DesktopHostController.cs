@@ -138,6 +138,17 @@ public sealed class DesktopHostController(IDesktopHostClient client, DesktopShel
         if (resultType == "folder-created") { shell.NewBrowserFolderName = string.Empty; await BrowseAsync(cancellationToken).ConfigureAwait(false); }
     }
 
+    public async ValueTask DeleteBrowserFileAsync(CancellationToken cancellationToken = default)
+    {
+        if (shell.CapabilityBinding is null) { shell.ApplyAction("rclone-unavailable"); return; }
+        if (shell.BrowserRemote is null || shell.SelectedBrowserItem is not { IsDirectory: false } item || !shell.CanDeleteBrowserFile) { shell.ApplyAction("file-delete-confirmation-required"); return; }
+        using var arguments = JsonDocument.Parse(JsonSerializer.Serialize(new { remoteId = shell.BrowserRemote.Id, path = shell.BrowserPath, name = item.Path, capabilityBinding = shell.CapabilityBinding }));
+        var result = await client.SendCommandAsync("delete-remote-file", arguments.RootElement, cancellationToken).ConfigureAwait(false);
+        var resultType = result.GetProperty("resultType").GetString() ?? "unknown-result";
+        shell.ApplyAction(resultType);
+        if (resultType == "file-deleted") { shell.BrowserDeleteConfirmation = string.Empty; await BrowseAsync(cancellationToken).ConfigureAwait(false); }
+    }
+
     private async ValueTask ToggleMountAsync(CancellationToken cancellationToken)
     {
         if (shell.CapabilityBinding is null) { shell.ApplyAction("rclone-unavailable"); return; }

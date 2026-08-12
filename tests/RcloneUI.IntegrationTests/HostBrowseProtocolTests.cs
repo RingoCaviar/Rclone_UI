@@ -61,9 +61,35 @@ public sealed class HostBrowseProtocolTests
         finally { Directory.Delete(root, recursive: true); }
     }
 
+    [Fact]
+    public async Task DeleteFileMapsOnlyAValidatedChildFileToRcloneDeleteFile()
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"rcloneui-delete-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(root);
+        try
+        {
+            var capabilities = new RcloneCapabilitySnapshot(new("test", new string('A', 64), 1), new string('B', 64), new string('C', 64), ImmutableSortedSet.Create("operations/deletefile"), ImmutableSortedSet<string>.Empty, DateTimeOffset.UtcNow);
+            var runtime = new ScriptedRcloneRuntime(capabilities, [new(RclonePrimitive.DeleteFile, new(0, 0, 0, 0, 0, TimeSpan.Zero, true), Success("{}"))]);
+            var remoteId = Guid.NewGuid();
+            using var authority = new HostStateAuthority(root, runtime, new BrowseProjection(remoteId));
+
+            var result = await authority.DispatchAsync(DeleteFileCommand(new { remoteId, path = "docs", name = "report.pdf", capabilityBinding = capabilities.Binding }), TestContext.Current.CancellationToken);
+
+            Assert.Equal("file-deleted", result.ResultType);
+            var request = Assert.Single(runtime.Requests);
+            Assert.Equal(RclonePrimitive.DeleteFile, request.Primitive);
+            Assert.Equal("docs/report.pdf", request.Source.Path);
+            var invalid = await authority.DispatchAsync(DeleteFileCommand(new { remoteId, path = "docs", name = "nested/file.txt", capabilityBinding = capabilities.Binding }), TestContext.Current.CancellationToken);
+            Assert.Equal("file-delete-invalid", invalid.ResultType);
+            Assert.Single(runtime.Requests);
+        }
+        finally { Directory.Delete(root, recursive: true); }
+    }
+
     private static ProtocolEnvelope Command(object arguments) => ProtocolEnvelope.CreateRequest(MessageType.Command, new("browse-request"), 1, new(new("client"), 0), new(new("browse-key"), new("browse-cancel"), DateTimeOffset.UtcNow.AddMinutes(1)), JsonSerializer.SerializeToUtf8Bytes(new { commandType = "browse-remote", arguments }));
 
     private static ProtocolEnvelope FolderCommand(object arguments) => ProtocolEnvelope.CreateRequest(MessageType.Command, new("folder-request"), 1, new(new("client"), 0), new(new($"folder-key-{Guid.NewGuid():N}"), new("folder-cancel"), DateTimeOffset.UtcNow.AddMinutes(1)), JsonSerializer.SerializeToUtf8Bytes(new { commandType = "create-remote-folder", arguments }));
+    private static ProtocolEnvelope DeleteFileCommand(object arguments) => ProtocolEnvelope.CreateRequest(MessageType.Command, new("delete-file-request"), 1, new(new("client"), 0), new(new($"delete-file-key-{Guid.NewGuid():N}"), new("delete-file-cancel"), DateTimeOffset.UtcNow.AddMinutes(1)), JsonSerializer.SerializeToUtf8Bytes(new { commandType = "delete-remote-file", arguments }));
 
     private static RcloneExecutionResult Success(string json)
     {

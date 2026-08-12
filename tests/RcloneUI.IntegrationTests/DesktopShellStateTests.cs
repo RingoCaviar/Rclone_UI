@@ -479,6 +479,25 @@ public sealed class DesktopShellStateTests
     }
 
     [Fact]
+    public async Task BrowserFileDeletionRequiresExactPathAndNeverDeletesADirectory()
+    {
+        var client = new RecordingClient(); var shell = new DesktopShellState(); var controller = new DesktopHostController(client, shell);
+        await controller.ReconnectAsync(TestContext.Current.CancellationToken);
+        shell.Navigate("Browser"); shell.BrowserPath = "docs"; shell.ApplyBrowserItems([new("report.pdf", false, 1), new("folder", true, null)]);
+        shell.SelectedBrowserItem = shell.BrowserItems.Single(item => item.Path == "report.pdf");
+
+        await controller.DeleteBrowserFileAsync(TestContext.Current.CancellationToken);
+        Assert.Equal("file-delete-confirmation-required", shell.LastAction);
+        shell.BrowserDeleteConfirmation = "docs/report.pdf";
+        await controller.DeleteBrowserFileAsync(TestContext.Current.CancellationToken);
+        Assert.Contains("delete-remote-file", client.CommandTypes);
+        shell.ApplyBrowserItems([new("folder", true, null)]);
+        shell.SelectedBrowserItem = shell.BrowserItems.Single(item => item.Path == "folder");
+        shell.BrowserDeleteConfirmation = "docs/folder";
+        Assert.False(shell.CanDeleteBrowserFile);
+    }
+
+    [Fact]
     public async Task RemoteDeletionRequiresTypedNameAndUsesSnapshotRevision()
     {
         var client = new RecordingClient(); var shell = new DesktopShellState(); var controller = new DesktopHostController(client, shell);
@@ -501,6 +520,7 @@ public sealed class DesktopShellStateTests
         internal static readonly Guid DestinationId = Guid.Parse("22222222-2222-2222-2222-222222222222");
         internal static readonly Guid ProfileId = Guid.Parse("33333333-3333-3333-3333-333333333333");
         public string? CommandType { get; private set; }
+        public List<string> CommandTypes { get; } = [];
         public JsonElement Arguments { get; private set; }
         public ValueTask<HostSnapshot> GetSnapshotAsync(CancellationToken cancellationToken)
         {
@@ -509,8 +529,8 @@ public sealed class DesktopShellStateTests
         }
         public ValueTask<JsonElement> SendCommandAsync(string commandType, JsonElement arguments, CancellationToken cancellationToken)
         {
-            CommandType = commandType; Arguments = arguments.Clone();
-            var resultType = commandType == "add-token-remote" ? "remote-added" : commandType == "add-connection-remote" ? connectionResultType : commandType == "delete-remote" ? "remote-deleted" : commandType == "create-remote-folder" ? "folder-created" : commandType == "browse-remote" ? "browse-completed" : "copy-not-started";
+            CommandType = commandType; CommandTypes.Add(commandType); Arguments = arguments.Clone();
+            var resultType = commandType == "add-token-remote" ? "remote-added" : commandType == "add-connection-remote" ? connectionResultType : commandType == "delete-remote" ? "remote-deleted" : commandType == "create-remote-folder" ? "folder-created" : commandType == "delete-remote-file" ? "file-deleted" : commandType == "browse-remote" ? "browse-completed" : "copy-not-started";
             using var document = JsonDocument.Parse(JsonSerializer.Serialize(new { resultType, items = commandType == "browse-remote" ? new[] { new { path = "readme.txt", isDirectory = false, size = 42L } } : null, result = new { code = "test" } }));
             return ValueTask.FromResult(document.RootElement.Clone());
         }

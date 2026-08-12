@@ -134,6 +134,10 @@ internal sealed class HostStateAuthority : IDisposable
             {
                 result = await CreateRemoteFolderAsync(envelope.Body, cancellationToken).ConfigureAwait(false);
             }
+            else if (commandType == "delete-remote-file")
+            {
+                result = await DeleteRemoteFileAsync(envelope.Body, cancellationToken).ConfigureAwait(false);
+            }
             else if (commandType == "start-read-only-mount")
             {
                 result = await StartMountAsync(envelope.Body, cancellationToken).ConfigureAwait(false);
@@ -277,6 +281,27 @@ internal sealed class HostStateAuthority : IDisposable
             return made.Success ? CreateResult("folder-created", new { }, Cursor) : CreateResult("folder-create-failed", new { code = made.ErrorCode ?? "rclone-mkdir-failed" }, Cursor);
         }
         catch (Exception exception) when (exception is not OperationCanceledException) { return CreateResult("folder-create-failed", new { code = exception.GetType().Name.ToLowerInvariant() }, Cursor); }
+    }
+
+    private async ValueTask<HostCommandResult> DeleteRemoteFileAsync(JsonElement body, CancellationToken cancellationToken)
+    {
+        if (remotes?.SessionState != "operational") return CreateResult("vault-locked", new { }, Cursor);
+        if (rclone is null || remotes is not IHostRemoteResolver resolver) return CreateResult("file-delete-unavailable", new { }, Cursor);
+        if (!body.TryGetProperty("arguments", out var arguments) || ReadGuidArgument(arguments, "remoteId") is not { } remoteId || ReadPathArgument(arguments, "path") is not { } path || ReadArgument(arguments, "name", 255) is not { } name || ReadArgument(arguments, "capabilityBinding") is not { } binding) return CreateResult("file-delete-invalid", new { code = "arguments-invalid" }, Cursor);
+        if (!IsNewFolderNameValid(name)) return CreateResult("file-delete-invalid", new { code = "child-path-invalid" }, Cursor);
+        string? fileSystem;
+        try { fileSystem = await resolver.ResolveFileSystemAsync(remoteId, cancellationToken).ConfigureAwait(false); }
+        catch (Exception exception) when (exception is not OperationCanceledException) { return CreateResult("file-delete-invalid", new { code = "remote-configuration-invalid" }, Cursor); }
+        if (fileSystem is null) return CreateResult("file-delete-invalid", new { code = "remote-not-found" }, Cursor);
+        var remotePath = string.Join('/', new[] { path.Trim('/'), name.Trim() }.Where(segment => segment.Length > 0));
+        try
+        {
+            var id = Guid.NewGuid();
+            var handle = await rclone.StartAsync(new(id, binding, RclonePrimitive.DeleteFile, new(fileSystem, remotePath), null, $"delete-file/{id:N}"), cancellationToken).ConfigureAwait(false);
+            var deleted = await rclone.WaitAsync(handle, cancellationToken).ConfigureAwait(false);
+            return deleted.Success ? CreateResult("file-deleted", new { }, Cursor) : CreateResult("file-delete-failed", new { code = deleted.ErrorCode ?? "rclone-deletefile-failed" }, Cursor);
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException) { return CreateResult("file-delete-failed", new { code = exception.GetType().Name.ToLowerInvariant() }, Cursor); }
     }
 
     private static bool IsNewFolderNameValid(string name) => name == name.Trim() && name.Length is > 0 and <= 255 && name is not "." and not ".." && name.IndexOfAny(['/', '\\', '\0']) < 0;

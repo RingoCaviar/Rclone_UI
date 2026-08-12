@@ -27,10 +27,10 @@ public sealed class DesktopShellStateTests
         var shell = new DesktopShellState();
         shell.Navigate("Transfers");
         Assert.True(shell.IsJourney);
-        Assert.Contains("预览", shell.JourneyDescription, StringComparison.Ordinal);
+        Assert.Contains("单向复制", shell.JourneyDescription, StringComparison.Ordinal);
         shell.ToggleLanguage();
         Assert.Equal("Transfer Tasks", shell.PageTitle);
-        Assert.Contains("preview", shell.JourneyDescription, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("one-way copy", shell.JourneyDescription, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -438,6 +438,31 @@ public sealed class DesktopShellStateTests
 
         shell.TransferMode = DesktopTransferMode.RemoteCopy;
         Assert.Equal("Start copy", shell.JourneyPrimaryAction);
+    }
+
+    [Fact]
+    public void TransferChoicesAreLocalizedAndUploadHidesTheRemoteSource()
+    {
+        var shell = new DesktopShellState();
+
+        Assert.Equal("下载到此电脑", shell.TransferModeChoice.DisplayName);
+        Assert.True(shell.IsRemoteSourceVisible);
+        shell.TransferModeChoice = shell.TransferModeOptions.Single(option => option.Key == "upload");
+        Assert.Equal(DesktopTransferMode.Upload, shell.TransferMode);
+        Assert.False(shell.IsRemoteSourceVisible);
+        shell.ToggleLanguage();
+        Assert.Equal("Upload a local folder", shell.TransferModeChoice.DisplayName);
+        Assert.Contains("not yet offered", shell.TransferModeHelpText, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void BrowserActionLabelsFollowTheSelectedLanguage()
+    {
+        var shell = new DesktopShellState();
+        Assert.Equal("打开文件夹", shell.BrowserOpenLabel);
+        shell.ToggleLanguage();
+        Assert.Equal("Open folder", shell.BrowserOpenLabel);
+        Assert.Equal("Use as transfer source", shell.BrowserUseAsTransferSourceLabel);
     }
 
     private sealed class RecordingClient : IDesktopHostClient

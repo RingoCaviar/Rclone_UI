@@ -137,13 +137,14 @@
                 <TextBlock Text="{Binding TransferFormHeading}" FontWeight="SemiBold" />
                 <StackPanel IsVisible="{Binding IsTransferAdvancedVisible}" Spacing="6">
                   <TextBlock Text="{Binding TransferModeHeading}" FontWeight="SemiBold" />
-                  <ComboBox ItemsSource="{Binding TransferModes}" SelectedItem="{Binding TransferMode}" AutomationProperties.Name="Transfer mode" />
+                  <ComboBox ItemsSource="{Binding TransferModeOptions}" SelectedItem="{Binding TransferModeChoice}" DisplayMemberBinding="{Binding DisplayName}" AutomationProperties.Name="Transfer mode" />
+                  <TextBlock Text="{Binding TransferModeHelpText}" TextWrapping="Wrap" Opacity="0.72" />
                   <Grid ColumnDefinitions="*,*" ColumnSpacing="10">
                     <TextBox Grid.Column="0" Text="{Binding MaximumTransferMiB}" PlaceholderText="{Binding MaximumTransferMiBHint}" AutomationProperties.Name="Maximum transfer MiB" />
                     <TextBox Grid.Column="1" Text="{Binding MaximumDurationMinutes}" PlaceholderText="{Binding MaximumDurationMinutesHint}" AutomationProperties.Name="Maximum duration minutes" />
                   </Grid>
                 </StackPanel>
-                <Grid ColumnDefinitions="*,*" ColumnSpacing="10">
+                <Grid IsVisible="{Binding IsRemoteSourceVisible}" ColumnDefinitions="*,*" ColumnSpacing="10">
                   <ComboBox Grid.Column="0" ItemsSource="{Binding RemoteOptions}" SelectedItem="{Binding CopySourceRemote}" DisplayMemberBinding="{Binding DisplayName}" PlaceholderText="{Binding SourceRemoteHint}" AutomationProperties.Name="Copy source Remote" />
                   <TextBox Grid.Column="1" PlaceholderText="{Binding SourcePathHint}" Text="{Binding CopySourcePath}" AutomationProperties.Name="Copy source path" />
                 </Grid>
@@ -174,9 +175,9 @@
                 <TextBlock Text="{Binding BrowserEmptyText}" IsVisible="{Binding BrowserEmptyText}" Opacity="0.72" />
                 <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
                   <ListBox ItemsSource="{Binding BrowserItems}" SelectedItem="{Binding SelectedBrowserItem}" DisplayMemberBinding="{Binding DisplayName}" AutomationProperties.Name="Remote files" />
-                  <Button Grid.Column="1" VerticalAlignment="Top" IsEnabled="{Binding CanOpenBrowserFolder}" Content="Open" Click="OpenBrowserFolderClicked" AutomationProperties.Name="Open selected folder" />
+                  <Button Grid.Column="1" VerticalAlignment="Top" IsEnabled="{Binding CanOpenBrowserFolder}" Content="{Binding BrowserOpenLabel}" Click="OpenBrowserFolderClicked" AutomationProperties.Name="Open selected folder" />
                 </Grid>
-                <Button IsEnabled="{Binding CanUseBrowserSelectionForTransfer}" Content="Use as transfer source" Click="UseBrowserSelectionClicked" AutomationProperties.Name="Use selected item as transfer source" />
+                <Button IsEnabled="{Binding CanUseBrowserSelectionForTransfer}" Content="{Binding BrowserUseAsTransferSourceLabel}" Click="UseBrowserSelectionClicked" AutomationProperties.Name="Use selected item as transfer source" />
               </StackPanel>
               <StackPanel IsVisible="{Binding IsActivityJourney}" Spacing="10">
                 <TextBlock Text="{Binding ActivityEmptyText}" IsVisible="{Binding ActivityEmptyText}" Opacity="0.72" />

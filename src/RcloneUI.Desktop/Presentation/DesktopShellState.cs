@@ -38,6 +38,7 @@ public sealed class DesktopShellState : INotifyPropertyChanged
     private DesktopChoice remoteSetupKind = new("connection", "");
     private DesktopChoice connectionProtocol = new("ftp", "FTP");
     private DesktopTransferMode transferMode;
+    private DesktopChoice transferModeChoice = null!;
     private string downloadDestinationPath = string.Empty;
     private string uploadSourcePath = string.Empty;
     private string maximumTransferMiB = string.Empty;
@@ -122,7 +123,7 @@ public sealed class DesktopShellState : INotifyPropertyChanged
     public string ConnectionSecureCertificate => T("验证服务器证书（推荐）", "Verify server certificate (recommended)");
     public string ConnectionInsecureCertificate => T("跳过证书验证（不安全）", "Skip certificate verification (insecure)");
     public string RemoteHelpText => T("支持 Google Drive、OneDrive 和 Dropbox。Host 会先测试连接，成功后才加密保存。", "Supports Google Drive, OneDrive, and Dropbox. The Host tests the connection before encrypted storage.");
-    public string TransferFormHeading => T("下载与复制", "Download and copy");
+    public string TransferFormHeading => T("下载、上传与远程复制", "Download, upload, and remote copy");
     public string SourceRemoteHint => T("选择来源 Remote", "Select source Remote");
     public string SourcePathHint => T("远程文件或文件夹路径（根目录可留空）", "Remote file or folder path (leave empty for root)");
     public string DownloadFolderHint => T("选择电脑上的下载目录", "Select a download folder on this computer");
@@ -138,6 +139,7 @@ public sealed class DesktopShellState : INotifyPropertyChanged
     public bool IsTransferAdvancedVisible => IsTransferJourney && advancedOptionsExpanded;
     public string AdvancedOptionsLabel => advancedOptionsExpanded ? T("收起高级选项", "Hide advanced options") : T("高级选项", "Advanced options");
     public string TransferModeHeading => T("传输类型", "Transfer mode");
+    public string TransferModeHelpText => T("选择一种单向传输。移动与镜像尚未在桌面端直接提供。", "Choose one one-way transfer. Direct move and mirror are not yet offered by the desktop app.");
     public string MasterPasswordHint => T("主密码", "Master password");
     public string PageTitle => route switch { "Home" => T("主页", "Home"), "Remotes" => T("远程存储", "Remotes"), "Transfers" => T("传输任务", "Transfer Tasks"), "Browser" => T("文件浏览器", "File Browser"), "Mounts" => T("挂载磁盘", "Mounts"), "Schedules" => T("计划任务", "Schedules"), "Activity" => T("活动与日志", "Activity & Logs"), _ => T("设置", "Settings") };
     public bool IsHome => route == "Home";
@@ -163,6 +165,8 @@ public sealed class DesktopShellState : INotifyPropertyChanged
     public bool CanBrowseParent => !string.IsNullOrWhiteSpace(BrowserPath);
     public string BrowserRemoteHint => T("选择要浏览的 Remote", "Select a Remote to browse");
     public string BrowserPathHint => T("目录路径（根目录可留空）", "Folder path (leave empty for root)");
+    public string BrowserOpenLabel => T("打开文件夹", "Open folder");
+    public string BrowserUseAsTransferSourceLabel => T("用作传输来源", "Use as transfer source");
     public string BrowserEmptyText => browserItems.Length == 0 ? T("尚未读取目录或目录为空。", "No listing yet, or this folder is empty.") : string.Empty;
     public string CurrentRoute => route;
     public string ConnectionLabel => connection switch { DesktopConnectionState.Connecting => T("正在连接…", "Connecting…"), DesktopConnectionState.ConnectedLocked or DesktopConnectionState.ConnectedOperational => T("已自动连接", "Auto-connected"), DesktopConnectionState.ReadOnlyRecovery => T("已连接（恢复模式）", "Connected (recovery)"), _ => T("连接已中断", "Disconnected") };
@@ -232,11 +236,33 @@ public sealed class DesktopShellState : INotifyPropertyChanged
     public DesktopRemoteOption? CopySourceRemote { get; set; }
     public DesktopRemoteOption? CopyDestinationRemote { get; set; }
     public DesktopRemoteOption? MountRemote { get; set; }
-    public IReadOnlyList<DesktopTransferMode> TransferModes { get; } = [DesktopTransferMode.Download, DesktopTransferMode.Upload, DesktopTransferMode.RemoteCopy];
-    public DesktopTransferMode TransferMode { get => transferMode; set { if (transferMode == value) return; transferMode = value; ChangedAll(); } }
+    public IReadOnlyList<DesktopChoice> TransferModeOptions { get; private set; } = [];
+    public DesktopChoice TransferModeChoice
+    {
+        get => transferModeChoice;
+        set
+        {
+            if (transferModeChoice == value) return;
+            transferModeChoice = value;
+            transferMode = value.Key switch { "upload" => DesktopTransferMode.Upload, "remote-copy" => DesktopTransferMode.RemoteCopy, _ => DesktopTransferMode.Download };
+            ChangedAll();
+        }
+    }
+    public DesktopTransferMode TransferMode
+    {
+        get => transferMode;
+        set
+        {
+            if (transferMode == value) return;
+            transferMode = value;
+            transferModeChoice = TransferModeOptions.Single(option => option.Key == TransferModeKey(value));
+            ChangedAll();
+        }
+    }
     public bool IsDownloadMode => transferMode == DesktopTransferMode.Download;
     public bool IsUploadMode => transferMode == DesktopTransferMode.Upload;
     public bool IsRemoteCopyMode => transferMode == DesktopTransferMode.RemoteCopy;
+    public bool IsRemoteSourceVisible => !IsUploadMode;
     public string DownloadDestinationPath { get => downloadDestinationPath; set { if (downloadDestinationPath == value) return; downloadDestinationPath = value; ChangedAll(); } }
     public string UploadSourcePath { get => uploadSourcePath; set { if (uploadSourcePath == value) return; uploadSourcePath = value; ChangedAll(); } }
     public string MaximumTransferMiB { get => maximumTransferMiB; set { if (maximumTransferMiB == value) return; maximumTransferMiB = value; ChangedAll(); } }
@@ -376,7 +402,7 @@ public sealed class DesktopShellState : INotifyPropertyChanged
     public string DeleteMountProfileLabel => T("删除配置", "Delete profile");
     public string NewMountProfileLabel => T("新建", "New");
     public string JourneyHeading => PageTitle;
-    public string JourneyDescription => route switch { "Remotes" => T("通过三步向导添加云端账号；凭据只发送给后台服务并写入加密保险库。", "Add cloud accounts in three guided steps. Credentials go only to the Host and encrypted Vault."), "Transfers" => T("复制、移动或单向镜像。执行前必须接受预览，涉及删除时需要明确确认。", "Copy, move, or one-way mirror. Accept a preview before execution; deletion requires explicit confirmation."), "Mounts" => T("创建稳定盘符的挂载配置。Ready 与安全卸载均需要完整证据。", "Create stable drive profiles. Ready and safe unmount require complete evidence."), "Activity" => T("查看真实结果、部分完成、未知状态和可脱敏导出的诊断信息。", "Review truthful outcomes, partial results, unknown states, and redacted diagnostics."), _ => T("此功能通过后台服务快照和命令工作；界面不直接操作 rclone 或保险库。", "This journey uses Host snapshots and commands; the UI never operates rclone or the Vault directly.") };
+    public string JourneyDescription => route switch { "Remotes" => T("通过三步向导添加云端账号；凭据只发送给后台服务并写入加密保险库。", "Add cloud accounts in three guided steps. Credentials go only to the Host and encrypted Vault."), "Transfers" => T("下载、上传或远程复制。每次操作都是单向复制，不会删除来源或执行镜像。", "Download, upload, or copy between Remotes. Each action is a one-way copy; it does not delete the source or mirror a destination."), "Mounts" => T("创建稳定盘符的挂载配置。Ready 与安全卸载均需要完整证据。", "Create stable drive profiles. Ready and safe unmount require complete evidence."), "Activity" => T("查看真实结果、部分完成、未知状态和可脱敏导出的诊断信息。", "Review truthful outcomes, partial results, unknown states, and redacted diagnostics."), _ => T("此功能通过后台服务快照和命令工作；界面不直接操作 rclone 或保险库。", "This journey uses Host snapshots and commands; the UI never operates rclone or the Vault directly.") };
     public string JourneyStatus => connection == DesktopConnectionState.ConnectedOperational ? T("可以开始", "Ready") : T("当前不可执行", "Action unavailable");
     public string JourneyActionHint => connection == DesktopConnectionState.ConnectedOperational ? T("普通用户默认值已启用，高级选项按需展开。", "Ordinary-user defaults are active; advanced options remain available on demand.") : AttentionDetail;
     public string JourneyPrimaryAction => route switch { "Remotes" => T("添加远程存储", "Add Remote"), "Browser" => T("读取目录", "List folder"), "Transfers" when TransferMode == DesktopTransferMode.Download => T("开始下载", "Start download"), "Transfers" when TransferMode == DesktopTransferMode.Upload => T("开始上传", "Start upload"), "Transfers" => T("开始复制", "Start copy"), "Mounts" when HasActiveMount => T("安全卸载", "Safe unmount"), "Mounts" when MountNeedsRemount => T("重新挂载", "Remount"), "Mounts" when MountRecoveryRequired => T("需要人工恢复", "Manual recovery required"), "Mounts" when mountCachePreset.Key == "standard-read-write" => T("读写挂载", "Mount read/write"), "Mounts" => T("只读挂载", "Mount read-only"), "Activity" => T("导出脱敏诊断", "Export Redacted Diagnostics"), _ => T("继续", "Continue") };
@@ -471,6 +497,14 @@ public sealed class DesktopShellState : INotifyPropertyChanged
     private string T(string zh, string en) => english ? en : zh;
     private void RefreshMountChoices()
     {
+        var transferModeKey = TransferModeKey(transferMode);
+        TransferModeOptions =
+        [
+            new("download", T("下载到此电脑", "Download to this computer")),
+            new("upload", T("上传本地文件夹", "Upload a local folder")),
+            new("remote-copy", T("远程存储之间复制", "Copy between Remotes"))
+        ];
+        transferModeChoice = TransferModeOptions.Single(option => option.Key == transferModeKey);
         var presentationKey = mountPresentation?.Key ?? "network-drive";
         var driveKey = mountDriveSelection?.Key ?? "preferred";
         var cachePresetKey = mountCachePreset?.Key ?? "read-only";
@@ -494,6 +528,12 @@ public sealed class DesktopShellState : INotifyPropertyChanged
         mountDriveSelection = driveSelectionOptions.Single(option => option.Key == driveKey);
         mountCachePreset = mountCachePresetOptions.Single(option => option.Key == cachePresetKey);
     }
+    private static string TransferModeKey(DesktopTransferMode mode) => mode switch
+    {
+        DesktopTransferMode.Upload => "upload",
+        DesktopTransferMode.RemoteCopy => "remote-copy",
+        _ => "download"
+    };
     private static DesktopRemoteOption? KeepSelection(DesktopRemoteOption? selected, DesktopRemoteOption[] options) => selected is null ? null : options.FirstOrDefault(option => option.Id == selected.Id);
     private void ApplyMountProfile(DesktopMountProfileOption profile)
     {

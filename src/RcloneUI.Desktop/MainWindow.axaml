@@ -132,12 +132,14 @@
               </StackPanel>
               <StackPanel IsVisible="{Binding IsMountJourney}" Spacing="10">
                 <Border Classes="status" Background="{DynamicResource CardBrush}">
-                  <Grid ColumnDefinitions="*,Auto">
+                  <Grid ColumnDefinitions="*,Auto,Auto">
                     <StackPanel>
                       <TextBlock Text="{Binding MountPrerequisiteHeading}" FontWeight="SemiBold" />
                       <TextBlock Text="{Binding MountPrerequisiteStatus}" Foreground="{Binding MountPrerequisiteBrush}" />
+                      <TextBlock IsVisible="{Binding CanInstallWinFsp}" Text="{Binding WinFspStableNotice}" TextWrapping="Wrap" Opacity="0.72" />
                     </StackPanel>
-                    <Button Grid.Column="1" Content="{Binding RedetectLabel}" Click="RedetectClicked" />
+                    <Button Grid.Column="1" IsVisible="{Binding CanInstallWinFsp}" Content="{Binding InstallWinFspLabel}" Click="InstallWinFspClicked" />
+                    <Button Grid.Column="2" Content="{Binding RedetectLabel}" Click="RedetectClicked" />
                   </Grid>
                 </Border>
                 <Grid ColumnDefinitions="*,Auto,Auto,Auto" ColumnSpacing="8">

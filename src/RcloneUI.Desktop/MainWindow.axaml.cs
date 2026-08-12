@@ -15,7 +15,7 @@ public sealed partial class MainWindow : Window
         shell = new();
         DataContext = shell;
         InitializeComponent();
-        if (client is not null) controller = new(client, shell);
+        if (client is not null) controller = new(client, shell, client is BootstrappingDesktopHostClient bootstrap ? new OfficialStableWinFspInstaller(bootstrap.DataRootPath) : null);
         Opened += async (_, _) => { if (controller is not null) await controller.InitializeDesktopSessionAsync(); else shell.ApplyConnection(DesktopConnectionState.Disconnected); };
     }
     private void NavigationChanged(object? sender, SelectionChangedEventArgs args) { if (sender is ListBox { SelectedItem: ListBoxItem { Tag: string route } }) shell.Navigate(route); }
@@ -26,6 +26,7 @@ public sealed partial class MainWindow : Window
     private async void AttentionClicked(object? sender, RoutedEventArgs args) { if (controller is not null) { if (shell.IsVaultLocked) await controller.UnlockAsync(); else await controller.ReconnectAsync(); } }
     private async void LockVaultClicked(object? sender, RoutedEventArgs args) { if (controller is not null) await controller.LockAsync(); }
     private async void RedetectClicked(object? sender, RoutedEventArgs args) { if (controller is not null) await controller.ReconnectAsync(); }
+    private async void InstallWinFspClicked(object? sender, RoutedEventArgs args) { if (controller is not null) await controller.InstallWinFspAsync(); }
     private async void SaveMountProfileClicked(object? sender, RoutedEventArgs args) { if (controller is not null) await controller.SaveMountProfileAsync(); }
     private async void DeleteMountProfileClicked(object? sender, RoutedEventArgs args) { if (controller is not null) await controller.DeleteMountProfileAsync(); }
     private void NewMountProfileClicked(object? sender, RoutedEventArgs args) => shell.BeginNewMountProfile();

@@ -4,7 +4,7 @@ using System.Text.Json;
 
 namespace RcloneUI.Desktop.Presentation;
 
-public sealed class DesktopHostController(IDesktopHostClient client, DesktopShellState shell)
+public sealed class DesktopHostController(IDesktopHostClient client, DesktopShellState shell, IWinFspInstaller? winFspInstaller = null)
 {
     private int reconnecting;
 
@@ -37,6 +37,14 @@ public sealed class DesktopHostController(IDesktopHostClient client, DesktopShel
             shell.ApplyAction("host-unavailable");
         }
         finally { Volatile.Write(ref reconnecting, 0); }
+    }
+
+    public async ValueTask InstallWinFspAsync(CancellationToken cancellationToken = default)
+    {
+        if (winFspInstaller is null) { shell.ApplyAction("winfsp-installer-unavailable"); return; }
+        var result = await winFspInstaller.InstallAsync(cancellationToken).ConfigureAwait(false);
+        shell.ApplyAction(result.Detail is null ? result.ResultType : $"{result.ResultType}:{result.Detail}");
+        await ReconnectAsync(cancellationToken).ConfigureAwait(false);
     }
 
     public async ValueTask ActivatePrimaryAsync(CancellationToken cancellationToken = default)

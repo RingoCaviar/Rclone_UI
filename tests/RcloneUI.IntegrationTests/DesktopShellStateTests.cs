@@ -111,6 +111,14 @@ public sealed class DesktopShellStateTests
     }
 
     [Fact]
+    public void OfficialStableWinFspInstallerPinsOfficialStableRelease()
+    {
+        Assert.Equal("2.1.25156", OfficialStableWinFspInstaller.Version);
+        Assert.Equal("073A70E00F77423E34BED98B86E600DEF93393BA5822204FAC57A29324DB9F7A", OfficialStableWinFspInstaller.Sha256);
+        Assert.Equal("https://github.com/winfsp/winfsp/releases/download/v2.1/winfsp-2.1.25156.msi", OfficialStableWinFspInstaller.DownloadUri.AbsoluteUri);
+    }
+
+    [Fact]
     public async Task TransferPrimaryActionUsesSnapshotCapabilityAndTypedFields()
     {
         var cancellationToken = TestContext.Current.CancellationToken;

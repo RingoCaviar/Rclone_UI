@@ -191,6 +191,9 @@ public sealed class DesktopShellState : INotifyPropertyChanged
     };
     public IBrush MountPrerequisiteBrush => MountPrerequisitesReady ? Brushes.MediumSeaGreen : Brushes.IndianRed;
     public string RedetectLabel => T("重新检测", "Detect again");
+    public bool CanInstallWinFsp => winFspStatus is "missing" or "incomplete";
+    public string InstallWinFspLabel => T("安装/修复 WinFsp（需要管理员权限）", "Install/repair WinFsp (administrator approval required)");
+    public string WinFspStableNotice => T("将下载官方稳定版 WinFsp 2.1.25156。此版本存在已公开的后续安全修复；你已选择继续使用稳定版。", "Downloads official stable WinFsp 2.1.25156. Later public security fixes exist; you chose to continue with the stable release.");
     public IReadOnlyList<DesktopMountProfileOption> MountProfiles => mountProfiles;
     public DesktopMountProfileOption? SelectedMountProfile { get => selectedMountProfile; set { if (selectedMountProfile?.Id == value?.Id) return; selectedMountProfile = value; if (value is not null) ApplyMountProfile(value); ChangedAll(); } }
     public string MountProfileName { get; set; } = string.Empty;

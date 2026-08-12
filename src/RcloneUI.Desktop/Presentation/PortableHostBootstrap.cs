@@ -80,6 +80,7 @@ public static class PortableHostBootstrap
 public sealed class BootstrappingDesktopHostClient(PortableHostLocation location) : IDesktopHostClient
 {
     private readonly NamedPipeDesktopHostClient inner = new(location.DataRootPath);
+    public string DataRootPath => location.DataRootPath;
     public async ValueTask<RcloneUI.Contracts.HostProtocol.V1.HostSnapshot> GetSnapshotAsync(CancellationToken cancellationToken)
     {
         await PortableHostBootstrap.EnsureStartedAsync(location, cancellationToken).ConfigureAwait(false);

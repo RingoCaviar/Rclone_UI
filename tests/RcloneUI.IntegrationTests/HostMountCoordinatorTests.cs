@@ -54,6 +54,36 @@ public sealed class HostMountCoordinatorTests
     }
 
     [Fact]
+    public async Task WritableDrainRefusesUnmountWhenVfsTelemetryIsUnknown()
+    {
+        var capabilities = new RcloneCapabilitySnapshot(new("test", new string('A', 64), 1), new string('B', 64), new string('C', 64), ImmutableSortedSet.Create("mount/mount", "mount/unmount", "vfs/stats", "vfs/queue"), ImmutableSortedSet.Create("mount"), DateTimeOffset.UtcNow);
+        var runtime = new ScriptedRcloneRuntime(capabilities, [new(RclonePrimitive.Mount, Stats(), ScriptedRcloneRuntime.Success())]) { VfsStatus = new(null, null, null, null, null, null, 0, DateTimeOffset.UtcNow) };
+        var coordinator = new HostMountCoordinator(runtime, new FakeResolver(), new FakeNamespace(), new FakeWinFsp());
+        var (_, mounted) = await coordinator.StartReadWriteAsync(Guid.NewGuid(), string.Empty, MountPresentationMode.NetworkDrive, DriveLetterSelection.Preferred, 'R', null, "Cloud", capabilities.Binding, TestContext.Current.CancellationToken);
+        var mountedSnapshot = Assert.IsType<HostMountSnapshot>(mounted);
+
+        var (resultType, _) = await coordinator.StopAsync(mountedSnapshot.InstanceId, capabilities.Binding, TestContext.Current.CancellationToken);
+
+        Assert.Equal("mount-drain-not-proved", resultType);
+        Assert.Single(runtime.Requests);
+    }
+
+    [Fact]
+    public async Task WritableDrainAllowsUnmountOnlyWhenNoUploadRiskIsObserved()
+    {
+        var capabilities = new RcloneCapabilitySnapshot(new("test", new string('A', 64), 1), new string('B', 64), new string('C', 64), ImmutableSortedSet.Create("mount/mount", "mount/unmount", "vfs/stats", "vfs/queue"), ImmutableSortedSet.Create("mount"), DateTimeOffset.UtcNow);
+        var runtime = new ScriptedRcloneRuntime(capabilities, [new(RclonePrimitive.Mount, Stats(), ScriptedRcloneRuntime.Success()), new(RclonePrimitive.Unmount, Stats(), ScriptedRcloneRuntime.Success())]) { VfsStatus = new(0, 0, 0, 0, false, null, 0, DateTimeOffset.UtcNow) };
+        var coordinator = new HostMountCoordinator(runtime, new FakeResolver(), new FakeNamespace(), new FakeWinFsp());
+        var (_, mounted) = await coordinator.StartReadWriteAsync(Guid.NewGuid(), string.Empty, MountPresentationMode.NetworkDrive, DriveLetterSelection.Preferred, 'R', null, "Cloud", capabilities.Binding, TestContext.Current.CancellationToken);
+        var mountedSnapshot = Assert.IsType<HostMountSnapshot>(mounted);
+
+        var (resultType, _) = await coordinator.StopAsync(mountedSnapshot.InstanceId, capabilities.Binding, TestContext.Current.CancellationToken);
+
+        Assert.Equal("mount-stopped", resultType);
+        Assert.Equal(2, runtime.Requests.Count);
+    }
+
+    [Fact]
     public async Task OccupiedDriveLetterFailsBeforeRcloneExecution()
     {
         var capabilities = Capabilities();

@@ -232,7 +232,7 @@ internal static class RcloneRequestMapper
         body["fs"] = request.Source.FileSystem + request.Source.Path;
         body["mountPoint"] = destination.Path;
         body["mountType"] = options.MountType;
-        body["vfsOpt"] = new { ReadOnly = options.ReadOnly, CacheMode = 0 };
+        body["vfsOpt"] = new { ReadOnly = options.ReadOnly, CacheMode = (int)options.CacheMode, CacheMaxSize = options.CacheMaxSizeBytes ?? -1L };
         body["mountOpt"] = new { VolumeName = options.VolumeName, options.NetworkMode };
         return "mount/mount";
     }

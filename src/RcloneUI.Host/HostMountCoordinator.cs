@@ -5,7 +5,7 @@ using RcloneUI.Rclone;
 
 namespace RcloneUI.Host;
 
-internal sealed record HostMountSnapshot(Guid InstanceId, Guid? ProfileId, Guid RemoteId, string Subpath, string MountPoint, string VolumeName, MountPresentationMode PresentationMode, string State, string? DiagnosticCode, DateTimeOffset StartedUtc, DateTimeOffset UpdatedUtc, string? VfsFileSystem = null);
+internal sealed record HostMountSnapshot(Guid InstanceId, Guid? ProfileId, Guid RemoteId, string Subpath, string MountPoint, string VolumeName, MountPresentationMode PresentationMode, string State, string? DiagnosticCode, DateTimeOffset StartedUtc, DateTimeOffset UpdatedUtc, string? VfsFileSystem = null, bool RequiresVfsDrain = false);
 
 internal interface IWindowsMountNamespace
 {
@@ -71,7 +71,13 @@ internal sealed class HostMountCoordinator
         catch (Exception exception) when (exception is NotSupportedException or InvalidDataException or HttpRequestException) { return ("mount-vfs-unavailable", null); }
     }
 
-    internal async ValueTask<(string ResultType, HostMountSnapshot? Snapshot)> StartReadOnlyAsync(Guid remoteId, string subpath, MountPresentationMode presentationMode, DriveLetterSelection driveSelection, char driveLetter, string? fixedDirectoryPath, string volumeName, string capabilityBinding, CancellationToken cancellationToken, Guid? profileId = null)
+    internal ValueTask<(string ResultType, HostMountSnapshot? Snapshot)> StartReadOnlyAsync(Guid remoteId, string subpath, MountPresentationMode presentationMode, DriveLetterSelection driveSelection, char driveLetter, string? fixedDirectoryPath, string volumeName, string capabilityBinding, CancellationToken cancellationToken, Guid? profileId = null) =>
+        StartAsync(remoteId, subpath, presentationMode, driveSelection, driveLetter, fixedDirectoryPath, volumeName, true, capabilityBinding, profileId, cancellationToken);
+
+    internal ValueTask<(string ResultType, HostMountSnapshot? Snapshot)> StartReadWriteAsync(Guid remoteId, string subpath, MountPresentationMode presentationMode, DriveLetterSelection driveSelection, char driveLetter, string? fixedDirectoryPath, string volumeName, string capabilityBinding, CancellationToken cancellationToken, Guid? profileId = null) =>
+        StartAsync(remoteId, subpath, presentationMode, driveSelection, driveLetter, fixedDirectoryPath, volumeName, false, capabilityBinding, profileId, cancellationToken);
+
+    private async ValueTask<(string ResultType, HostMountSnapshot? Snapshot)> StartAsync(Guid remoteId, string subpath, MountPresentationMode presentationMode, DriveLetterSelection driveSelection, char driveLetter, string? fixedDirectoryPath, string volumeName, bool readOnly, string capabilityBinding, Guid? profileId, CancellationToken cancellationToken)
     {
         if (journalCorrupt) return ("mount-recovery-required", Failed(remoteId, subpath, string.Empty, volumeName, presentationMode, "mount-lifecycle-journal-corrupt"));
         if (profileId is not null)
@@ -104,7 +110,10 @@ internal sealed class HostMountCoordinator
         {
             mounts[id] = new(id, profileId, remoteId, subpath, mountPoint, volumeName.Trim(), presentationMode, "starting", null, started, started);
             Persist();
-            var handle = await rclone.StartAsync(new(id, capabilityBinding, RclonePrimitive.Mount, new(fileSystem, subpath), new(string.Empty, mountPoint), $"mount/{id:N}", MountOptions: new(mountType, true, volumeName.Trim(), presentationMode == MountPresentationMode.NetworkDrive)), cancellationToken).ConfigureAwait(false);
+            var options = readOnly
+                ? new RcloneMountOptions(mountType, true, volumeName.Trim(), presentationMode == MountPresentationMode.NetworkDrive)
+                : new RcloneMountOptions(mountType, false, volumeName.Trim(), presentationMode == MountPresentationMode.NetworkDrive, RcloneVfsCacheMode.Writes, 10L * 1024 * 1024 * 1024);
+            var handle = await rclone.StartAsync(new(id, capabilityBinding, RclonePrimitive.Mount, new(fileSystem, subpath), new(string.Empty, mountPoint), $"mount/{id:N}", MountOptions: options), cancellationToken).ConfigureAwait(false);
             var result = await rclone.WaitAsync(handle, cancellationToken).ConfigureAwait(false);
             if (!result.Success)
             {
@@ -125,7 +134,7 @@ internal sealed class HostMountCoordinator
                 return ("mount-not-ready", Failed(remoteId, subpath, mountPoint, volumeName, presentationMode, "mount-namespace-not-presented"));
             }
             var now = DateTimeOffset.UtcNow;
-            var snapshot = new HostMountSnapshot(id, profileId, remoteId, subpath, mountPoint, volumeName.Trim(), presentationMode, "ready", null, started, now, fileSystem + subpath);
+            var snapshot = new HostMountSnapshot(id, profileId, remoteId, subpath, mountPoint, volumeName.Trim(), presentationMode, "ready", null, started, now, fileSystem + subpath, !readOnly);
             mounts[id] = snapshot;
             Persist();
             return ("mount-ready", snapshot);
@@ -144,6 +153,12 @@ internal sealed class HostMountCoordinator
         if (!mounts.TryGetValue(instanceId, out var current)) return ("mount-not-found", null);
         if (current.State != "ready") return ("mount-recovery-required", current);
         if (!StringComparer.Ordinal.Equals(capabilityBinding, rclone.Capabilities.Binding)) return ("mount-unmount-failed", current with { DiagnosticCode = "capability-binding-changed" });
+        if (current.RequiresVfsDrain)
+        {
+            var (observationType, status) = await ObserveVfsAsync(instanceId, capabilityBinding, cancellationToken).ConfigureAwait(false);
+            if (observationType != "mount-vfs-observed" || status is null || !ProvesVfsDrain(status))
+                return ("mount-drain-not-proved", current with { DiagnosticCode = "vfs-upload-state-not-clean", UpdatedUtc = DateTimeOffset.UtcNow });
+        }
         if (!await TryUnmountAsync(current.MountPoint, capabilityBinding, cancellationToken).ConfigureAwait(false)) return ("mount-unmount-failed", current with { DiagnosticCode = "unmount-rc-failed", UpdatedUtc = DateTimeOffset.UtcNow });
         if (!await windowsNamespace.WaitForAsync(current.MountPoint, false, TimeSpan.FromSeconds(10), cancellationToken).ConfigureAwait(false)) return ("mount-unmount-failed", current with { DiagnosticCode = "mount-namespace-still-present", UpdatedUtc = DateTimeOffset.UtcNow });
         mounts.TryRemove(instanceId, out _);
@@ -163,6 +178,7 @@ internal sealed class HostMountCoordinator
     }
 
     private static string? ReadMountPoint(JsonElement body) => body.TryGetProperty("output", out var output) && output.ValueKind == JsonValueKind.Object && output.TryGetProperty("mountPoint", out var value) ? value.GetString() : body.TryGetProperty("mountPoint", out value) ? value.GetString() : null;
+    private static bool ProvesVfsDrain(RcloneVfsStatus status) => status.ErroredFiles == 0 && status.UploadsInProgress == 0 && status.UploadsQueued == 0 && status.OutOfSpace == false && status.QueueItems == 0;
     private static bool ValidEmptyDirectory(string path)
     {
         try { return Path.IsPathFullyQualified(path) && Directory.Exists(path) && !Directory.EnumerateFileSystemEntries(path).Any(); }

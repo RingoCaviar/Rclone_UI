@@ -96,8 +96,10 @@ public sealed class DesktopShellState : INotifyPropertyChanged
     public string ShortcutRemote => T("☁ 添加远程存储", "☁ Add Remote");
     public string TransferCardHeading => T("传输任务", "Transfer tasks");
     public string EmptyTaskText => T("暂无运行中的任务。创建任务前会先展示变更预览和删除风险。", "No tasks are running. Changes and deletion risks are shown before a task starts.");
+    public string HomeTransferStatus => CopyStatus;
     public string RemoteHealthHeading => T("远程存储健康", "Remote health");
     public string NoRemoteText => T("尚未添加远程存储", "No Remotes added");
+    public string HomeRemoteStatus => RemoteSummary;
     public string OpenRemoteWizardLabel => T("打开三步设置向导", "Open three-step setup");
     public string QuickAddHeading => T("快速添加（高级）", "Quick add (advanced)");
     public string RemoteSetupKindHint => T("添加方式", "Setup method");

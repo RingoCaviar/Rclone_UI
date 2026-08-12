@@ -343,6 +343,18 @@ public sealed class DesktopShellStateTests
         Assert.Contains(shell.ActivityRows, row => row.Contains("Mount · ready · R:", StringComparison.Ordinal));
     }
 
+    [Fact]
+    public void HomeDashboardUsesRemoteAndTransferSnapshotSummaries()
+    {
+        using var document = JsonDocument.Parse("""{"session":"operational","remotes":[{"id":"11111111-1111-1111-1111-111111111111","displayName":"FTPS"}],"copyRuns":[{"state":"running","bytes":5,"totalBytes":10,"bytesPerSecond":1}]}""");
+        var shell = new DesktopShellState();
+        shell.ApplySnapshot(new(new(new("home"), 1), DateTimeOffset.UtcNow, document.RootElement.Clone()));
+        shell.ToggleLanguage();
+
+        Assert.Contains("FTPS", shell.HomeRemoteStatus, StringComparison.Ordinal);
+        Assert.Contains("running", shell.HomeTransferStatus, StringComparison.Ordinal);
+    }
+
     private sealed class RecordingClient : IDesktopHostClient
     {
         private readonly string connectionResultType;

@@ -84,13 +84,13 @@
             <Border Classes="card">
               <StackPanel Spacing="12">
                 <Grid ColumnDefinitions="*,Auto"><TextBlock Text="{Binding TransferCardHeading}" FontSize="18" FontWeight="SemiBold" /><TextBlock Grid.Column="1" Text="{Binding RunningTasksLabel}" /></Grid>
-                <Border Classes="empty"><TextBlock Text="{Binding EmptyTaskText}" TextWrapping="Wrap" /></Border>
+                <Border Classes="empty"><TextBlock Text="{Binding HomeTransferStatus}" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite" /></Border>
               </StackPanel>
             </Border>
             <Border Grid.Column="1" Classes="card">
               <StackPanel Spacing="12">
                 <TextBlock Text="{Binding RemoteHealthHeading}" FontSize="18" FontWeight="SemiBold" />
-                <TextBlock Text="{Binding NoRemoteText}" />
+                <TextBlock Text="{Binding HomeRemoteStatus}" TextWrapping="Wrap" />
                 <Button Content="{Binding OpenRemoteWizardLabel}" Tag="Remotes" Click="ShortcutClicked" />
               </StackPanel>
             </Border>

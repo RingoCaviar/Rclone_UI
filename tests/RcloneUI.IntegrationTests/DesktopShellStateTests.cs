@@ -444,6 +444,30 @@ public sealed class DesktopShellStateTests
     }
 
     [Fact]
+    public void BrowserSelectionPreparesDownloadAndClearsTheOldDestination()
+    {
+        var remote = new DesktopRemoteOption(Guid.NewGuid(), "FTPS");
+        var shell = new DesktopShellState
+        {
+            BrowserRemote = remote,
+            BrowserPath = "docs",
+            DownloadDestinationPath = @"C:\\old-downloads"
+        };
+        shell.ApplyBrowserItems([new("manual.pdf", false, 1)]);
+        shell.SelectedBrowserItem = shell.BrowserItems.Single();
+
+        shell.PrepareBrowserSelectionForDownload();
+
+        Assert.Equal("Transfers", shell.CurrentRoute);
+        Assert.True(shell.IsDownloadMode);
+        Assert.Equal(remote, shell.CopySourceRemote);
+        Assert.Equal("docs/manual.pdf", shell.CopySourcePath);
+        Assert.Empty(shell.DownloadDestinationPath);
+        shell.ToggleLanguage();
+        Assert.Equal("Start download", shell.JourneyPrimaryAction);
+    }
+
+    [Fact]
     public void BrowserFilterStaysLocalAndClearsAHiddenSelection()
     {
         var shell = new DesktopShellState();

@@ -194,7 +194,10 @@
                     <TextBlock Text="{Binding BrowserSelectionDetails}" TextWrapping="Wrap" />
                   </StackPanel>
                 </Border>
-                <Button IsEnabled="{Binding CanUseBrowserSelectionForTransfer}" Content="{Binding BrowserUseAsTransferSourceLabel}" Click="UseBrowserSelectionClicked" AutomationProperties.Name="Use selected item as transfer source" />
+                <StackPanel Orientation="Horizontal" Spacing="10">
+                  <Button IsEnabled="{Binding CanDownloadBrowserSelection}" Content="{Binding BrowserDownloadSelectedLabel}" Click="DownloadBrowserSelectionClicked" AutomationProperties.Name="Download selected remote item" />
+                  <Button IsEnabled="{Binding CanUseBrowserSelectionForTransfer}" Content="{Binding BrowserUseAsTransferSourceLabel}" Click="UseBrowserSelectionClicked" AutomationProperties.Name="Use selected item as transfer source" />
+                </StackPanel>
                 <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
                   <TextBox Text="{Binding BrowserDeleteConfirmation}" PlaceholderText="{Binding BrowserDeleteConfirmationHint}" AutomationProperties.Name="Remote file delete confirmation" />
                   <Button Grid.Column="1" IsEnabled="{Binding CanDeleteBrowserFile}" Content="{Binding DeleteBrowserFileLabel}" Click="DeleteBrowserFileClicked" AutomationProperties.Name="Delete selected remote file" />

@@ -14,6 +14,12 @@ $ErrorActionPreference = "Stop"
 $repositoryRoot = Split-Path -Parent $PSScriptRoot
 $staging = Join-Path $repositoryRoot "artifacts\portable\$Runtime"
 $release = Join-Path $repositoryRoot "artifacts\release"
+foreach ($componentPath in @($RcloneExecutable, $LibArgon2Library) | Where-Object { $_ }) {
+    $resolvedComponentPath = (Resolve-Path -LiteralPath $componentPath).Path
+    if ($resolvedComponentPath.StartsWith($staging + [IO.Path]::DirectorySeparatorChar, [StringComparison]::OrdinalIgnoreCase)) {
+        throw "Component input must be outside the portable output directory because publishing replaces it: $resolvedComponentPath"
+    }
+}
 if (Test-Path -LiteralPath $staging) { Remove-Item -LiteralPath $staging -Recurse -Force }
 New-Item -ItemType Directory -Path $staging, $release -Force | Out-Null
 

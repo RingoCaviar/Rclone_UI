@@ -13,6 +13,7 @@ public sealed record DesktopRemoteOption(Guid Id, string DisplayName);
 public sealed record DesktopChoice(string Key, string DisplayName);
 public sealed record DesktopMountProfileOption(Guid Id, ulong Revision, string DisplayName, Guid RemoteId, string Subpath, string PresentationMode, string DriveSelection, string DriveLetter, string? FixedDirectoryPath, string VolumeName, string CachePreset);
 public sealed record DesktopMountVfsStatus(bool Available, long? BytesUsed, int? ErroredFiles, int? UploadsInProgress, int? UploadsQueued, bool? OutOfSpace, int? QueueItems, DateTimeOffset? ObservedUtc);
+public sealed record DesktopBrowserItem(string Path, bool IsDirectory, long? Size) { public string DisplayName => IsDirectory ? $"📁 {Path}" : $"📄 {Path}" + (Size is null ? string.Empty : $"  ({Size} B)"); }
 
 public interface IDesktopHostClient
 {
@@ -56,7 +57,7 @@ public sealed class DesktopShellState : INotifyPropertyChanged
     private bool rcloneMountAvailable;
     private DesktopMountProfileOption[] mountProfiles = [];
     private DesktopMountProfileOption? selectedMountProfile;
-    private string[] browserItems = [];
+    private DesktopBrowserItem[] browserItems = [];
 
     public DesktopShellState() => RefreshMountChoices();
 
@@ -138,7 +139,8 @@ public sealed class DesktopShellState : INotifyPropertyChanged
     public bool IsBrowserJourney => route == "Browser";
     public DesktopRemoteOption? BrowserRemote { get; set; }
     public string BrowserPath { get; set; } = string.Empty;
-    public IReadOnlyList<string> BrowserItems => browserItems;
+    public IReadOnlyList<DesktopBrowserItem> BrowserItems => browserItems;
+    public bool CanBrowseParent => !string.IsNullOrWhiteSpace(BrowserPath);
     public string BrowserRemoteHint => T("选择要浏览的 Remote", "Select a Remote to browse");
     public string BrowserPathHint => T("目录路径（根目录可留空）", "Folder path (leave empty for root)");
     public string BrowserEmptyText => browserItems.Length == 0 ? T("尚未读取目录或目录为空。", "No listing yet, or this folder is empty.") : string.Empty;
@@ -462,6 +464,13 @@ public sealed class DesktopShellState : INotifyPropertyChanged
     private static bool? ReadNullableBool(JsonElement value, string property) => value.TryGetProperty(property, out var item) && (item.ValueKind == JsonValueKind.True || item.ValueKind == JsonValueKind.False) ? item.GetBoolean() : null;
     private static DateTimeOffset? ReadNullableDateTimeOffset(JsonElement value, string property) => value.TryGetProperty(property, out var item) && item.ValueKind == JsonValueKind.String && item.TryGetDateTimeOffset(out var result) ? result : null;
     private static string FormatBytes(long value) => value >= 1024L * 1024 * 1024 ? $"{value / (1024d * 1024 * 1024):F1} GiB" : value >= 1024L * 1024 ? $"{value / (1024d * 1024):F1} MiB" : $"{value} B";
-    public void ApplyBrowserItems(IEnumerable<string> items) { browserItems = items.Order(StringComparer.OrdinalIgnoreCase).ToArray(); ChangedAll(); }
+    public void BrowseParent()
+    {
+        var normalized = BrowserPath.Trim('/');
+        var separator = normalized.LastIndexOf('/');
+        BrowserPath = separator < 0 ? string.Empty : normalized[..separator];
+        ChangedAll();
+    }
+    public void ApplyBrowserItems(IEnumerable<DesktopBrowserItem> items) { browserItems = items.OrderByDescending(item => item.IsDirectory).ThenBy(item => item.Path, StringComparer.OrdinalIgnoreCase).ToArray(); ChangedAll(); }
     private void ChangedAll() { foreach (var property in GetType().GetProperties().Where(x => x.GetIndexParameters().Length == 0)) PropertyChanged?.Invoke(this, new(property.Name)); }
 }

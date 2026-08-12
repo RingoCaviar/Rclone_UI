@@ -31,6 +31,7 @@ public sealed partial class MainWindow : Window
     private async void DeleteMountProfileClicked(object? sender, RoutedEventArgs args) { if (controller is not null) await controller.DeleteMountProfileAsync(); }
     private void NewMountProfileClicked(object? sender, RoutedEventArgs args) => shell.BeginNewMountProfile();
     private async void JourneyPrimaryClicked(object? sender, RoutedEventArgs args) { if (controller is not null) await controller.ActivatePrimaryAsync(); }
+    private async void BrowseParentClicked(object? sender, RoutedEventArgs args) { if (controller is not null) await controller.BrowseParentAsync(); }
     private async void PickDownloadFolderClicked(object? sender, RoutedEventArgs args)
     {
         var folders = await StorageProvider.OpenFolderPickerAsync(new() { Title = "Select download folder", AllowMultiple = false });

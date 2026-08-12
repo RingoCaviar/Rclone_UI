@@ -328,7 +328,7 @@ public sealed class DesktopShellStateTests
         Assert.Equal("browse-remote", client.CommandType);
         Assert.Equal(RecordingClient.SourceId, client.Arguments.GetProperty("remoteId").GetGuid());
         Assert.Equal("docs", client.Arguments.GetProperty("path").GetString());
-        Assert.Contains("readme.txt", shell.BrowserItems);
+        Assert.Contains(shell.BrowserItems, item => item.Path == "readme.txt");
     }
 
     private sealed class RecordingClient : IDesktopHostClient

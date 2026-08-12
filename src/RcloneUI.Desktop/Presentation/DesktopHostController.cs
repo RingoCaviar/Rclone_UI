@@ -101,8 +101,20 @@ public sealed class DesktopHostController(IDesktopHostClient client, DesktopShel
         if (resultType == "browse-completed" && result.TryGetProperty("output", out var output))
         {
             var root = output.TryGetProperty("list", out var list) ? list : output;
-            shell.ApplyBrowserItems(root.ValueKind == JsonValueKind.Array ? root.EnumerateArray().Select(item => item.TryGetProperty("Path", out var path) ? path.GetString() : item.TryGetProperty("Name", out var name) ? name.GetString() : null).Where(value => !string.IsNullOrWhiteSpace(value)).Select(value => value!) : []);
+            shell.ApplyBrowserItems(root.ValueKind == JsonValueKind.Array ? root.EnumerateArray().Select(item =>
+            {
+                var path = item.TryGetProperty("Path", out var pathValue) ? pathValue.GetString() : item.TryGetProperty("Name", out var name) ? name.GetString() : null;
+                var isDirectory = item.TryGetProperty("IsDir", out var directory) && directory.ValueKind == JsonValueKind.True;
+                var size = item.TryGetProperty("Size", out var sizeValue) && sizeValue.TryGetInt64(out var parsed) ? parsed : (long?)null;
+                return string.IsNullOrWhiteSpace(path) ? null : new DesktopBrowserItem(path!, isDirectory, size);
+            }).Where(item => item is not null).Select(item => item!) : []);
         }
+    }
+
+    public async ValueTask BrowseParentAsync(CancellationToken cancellationToken = default)
+    {
+        shell.BrowseParent();
+        await BrowseAsync(cancellationToken).ConfigureAwait(false);
     }
 
     private async ValueTask ToggleMountAsync(CancellationToken cancellationToken)

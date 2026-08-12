@@ -21,13 +21,7 @@ internal static class Program
             eventArgs.Cancel = true;
             shutdown.Cancel();
         };
-        try
-        {
-            await Task.Delay(Timeout.InfiniteTimeSpan, shutdown.Token).ConfigureAwait(false);
-        }
-        catch (OperationCanceledException)
-        {
-        }
+        await Task.WhenAny(host.WaitForShutdownAsync(), Task.Delay(Timeout.InfiniteTimeSpan, shutdown.Token)).ConfigureAwait(false);
 
         await host.StopAsync(TimeSpan.FromSeconds(15)).ConfigureAwait(false);
         return 0;

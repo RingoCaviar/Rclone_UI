@@ -37,6 +37,7 @@
             </StackPanel>
           </Border>
           <Button Content="{Binding ExitLabel}" HorizontalAlignment="Stretch" Click="ExitClicked" />
+          <Button Content="{Binding QuitAllLabel}" HorizontalAlignment="Stretch" Click="QuitAllClicked" />
         </StackPanel>
       </Grid>
     </Border>

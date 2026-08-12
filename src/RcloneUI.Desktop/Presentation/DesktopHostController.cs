@@ -47,6 +47,15 @@ public sealed class DesktopHostController(IDesktopHostClient client, DesktopShel
         await ReconnectAsync(cancellationToken).ConfigureAwait(false);
     }
 
+    public async ValueTask<bool> ShutdownHostAsync(CancellationToken cancellationToken = default)
+    {
+        using var arguments = JsonDocument.Parse("{}");
+        var result = await client.SendCommandAsync("shutdown-host", arguments.RootElement, cancellationToken).ConfigureAwait(false);
+        var accepted = result.GetProperty("resultType").GetString() == "shutdown-accepted";
+        shell.ApplyAction(accepted ? "shutdown-accepted" : "shutdown-blocked-active-mount");
+        return accepted;
+    }
+
     public async ValueTask ActivatePrimaryAsync(CancellationToken cancellationToken = default)
     {
         if (shell.CurrentRoute == "Remotes") { await AddRemoteAsync(cancellationToken); return; }

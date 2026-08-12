@@ -74,6 +74,7 @@ public sealed class DesktopShellState : INotifyPropertyChanged
     public bool CanLockVault => connection == DesktopConnectionState.ConnectedOperational;
     public string LockVaultLabel => T("立即锁定", "Lock now");
     public string ExitLabel => T("退出界面", "Exit Desktop");
+    public string QuitAllLabel => T("彻底退出（停止后台）", "Quit completely (stop Host)");
     public string NotificationsLabel => T("通知", "Notifications");
     public string HomeHeading => T("一切尽在掌握", "Everything under control");
     public string HomeDescription => T("查看云端状态并继续最近的任务。", "Review cloud status and continue recent tasks.");

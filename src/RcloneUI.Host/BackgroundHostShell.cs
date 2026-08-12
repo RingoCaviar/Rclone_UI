@@ -40,11 +40,17 @@ internal sealed class BackgroundHostShell : IAsyncDisposable
         this.identity = identity;
         ownedVault = remotes is null ? new(dataRootPath, argon2) : null;
         state = new(dataRootPath, rclone, remotes ?? ownedVault, argon2);
+        state.ShutdownRequested += () => _ = Task.Run(async () => { await Task.Delay(200).ConfigureAwait(false); shutdown.Cancel(); });
         workReconciler = new(dataRootPath);
         lifecycleJournal = new(dataRootPath);
     }
 
     internal HostEndpoint Endpoint => endpoint;
+    internal async Task WaitForShutdownAsync()
+    {
+        try { await Task.Delay(Timeout.InfiniteTimeSpan, shutdown.Token).ConfigureAwait(false); }
+        catch (OperationCanceledException) { }
+    }
 
     internal static BackgroundHostShell? TryCreate(string dataRootPath, Guid dataRootId, IRcloneRuntime? rclone = null, IHostRemoteProjection? remotes = null, LibArgon2Binding? argon2 = null)
     {

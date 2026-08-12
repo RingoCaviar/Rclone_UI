@@ -42,4 +42,5 @@ public sealed partial class MainWindow : Window
         if (folders.Count == 1 && folders[0].TryGetLocalPath() is { } path) shell.MountFixedDirectoryPath = path;
     }
     private void ExitClicked(object? sender, RoutedEventArgs args) => Close();
+    private async void QuitAllClicked(object? sender, RoutedEventArgs args) { if (controller is null || await controller.ShutdownHostAsync()) Close(); }
 }

@@ -25,6 +25,7 @@ internal sealed class HostStateAuthority : IDisposable
     private readonly StateEpoch epoch = new(Guid.NewGuid().ToString("N"));
     private ulong revision;
     private int activationCount;
+    internal event Action? ShutdownRequested;
 
     internal HostStateAuthority(string dataRootPath, IRcloneRuntime? rclone = null, IHostRemoteProjection? remotes = null, LibArgon2Binding? argon2 = null, IWinFspDetector? winFsp = null)
     {
@@ -103,6 +104,11 @@ internal sealed class HostStateAuthority : IDisposable
             else if (commandType == "lock-vault")
             {
                 result = await LockVaultAsync(cancellationToken).ConfigureAwait(false);
+            }
+            else if (commandType == "shutdown-host")
+            {
+                if (mounts?.Snapshots.Any(snapshot => snapshot.State == "ready") == true) result = CreateResult("shutdown-blocked-active-mount", new { }, Cursor);
+                else { result = CreateResult("shutdown-accepted", new { }, Cursor); ShutdownRequested?.Invoke(); }
             }
             else if (commandType == "start-copy")
             {

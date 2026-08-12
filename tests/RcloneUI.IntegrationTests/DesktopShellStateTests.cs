@@ -234,6 +234,22 @@ public sealed class DesktopShellStateTests
     }
 
     [Fact]
+    public async Task UploadPrimaryActionUsesSelectedLocalFolderAndDestinationRemote()
+    {
+        var client = new RecordingClient(); var shell = new DesktopShellState(); var controller = new DesktopHostController(client, shell);
+        await controller.ReconnectAsync(TestContext.Current.CancellationToken);
+        shell.Navigate("Transfers"); shell.TransferMode = DesktopTransferMode.Upload; shell.UploadSourcePath = "C:\\Uploads"; shell.CopyDestinationPath = "backup";
+
+        await controller.ActivatePrimaryAsync(TestContext.Current.CancellationToken);
+
+        Assert.Equal("start-copy", client.CommandType);
+        Assert.Equal("C:\\Uploads", client.Arguments.GetProperty("sourceLocalPath").GetString());
+        Assert.Equal(RecordingClient.DestinationId, client.Arguments.GetProperty("destinationRemoteId").GetGuid());
+        Assert.Equal("backup", client.Arguments.GetProperty("destinationPath").GetString());
+        Assert.Equal(JsonValueKind.Null, client.Arguments.GetProperty("sourceRemoteId").ValueKind);
+    }
+
+    [Fact]
     public async Task MountPrimaryActionSendsSelectedReadOnlyProfileToHost()
     {
         var client = new RecordingClient(); var shell = new DesktopShellState(); var controller = new DesktopHostController(client, shell);

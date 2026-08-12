@@ -7,7 +7,7 @@ using RcloneUI.Contracts.HostProtocol.V1;
 namespace RcloneUI.Desktop.Presentation;
 
 public enum DesktopConnectionState { Connecting, ConnectedLocked, ConnectedOperational, ReadOnlyRecovery, Disconnected }
-public enum DesktopTransferMode { Download, RemoteCopy }
+public enum DesktopTransferMode { Download, Upload, RemoteCopy }
 public enum DesktopActionNotificationKind { Success, Error, Information }
 public sealed record DesktopRemoteOption(Guid Id, string DisplayName);
 public sealed record DesktopChoice(string Key, string DisplayName);
@@ -39,6 +39,7 @@ public sealed class DesktopShellState : INotifyPropertyChanged
     private DesktopChoice connectionProtocol = new("ftp", "FTP");
     private DesktopTransferMode transferMode;
     private string downloadDestinationPath = string.Empty;
+    private string uploadSourcePath = string.Empty;
     private Guid? activeMountId;
     private string mountLifecycleState = "stopped";
     private Guid? mountLifecycleProfileId;
@@ -123,6 +124,7 @@ public sealed class DesktopShellState : INotifyPropertyChanged
     public string SourceRemoteHint => T("选择来源 Remote", "Select source Remote");
     public string SourcePathHint => T("远程文件或文件夹路径（根目录可留空）", "Remote file or folder path (leave empty for root)");
     public string DownloadFolderHint => T("选择电脑上的下载目录", "Select a download folder on this computer");
+    public string UploadFolderHint => T("选择电脑上要上传的文件夹", "Select a local folder to upload");
     public string PickFolderLabel => T("选择文件夹…", "Choose folder…");
     public string DestinationRemoteHint => T("选择目标 Remote", "Select destination Remote");
     public string DestinationPathHint => T("目标路径", "Destination path");
@@ -178,7 +180,7 @@ public sealed class DesktopShellState : INotifyPropertyChanged
     public DesktopActionNotificationKind ActionNotificationKind => lastAction switch
     {
         "remote-added" or "copy-accepted" or "mount-started" or "mount-stopped" or "mount-profile-saved" or "mount-profile-deleted" or "vault-unlocked" or "vault-lock-completed" or "shutdown-accepted" or "winfsp-install-complete" or "winfsp-install-complete:restart-required" => DesktopActionNotificationKind.Success,
-        "remote-input-invalid" or "remote-host-key-required" or "remote-test-failed" or "vault-locked" or "host-unavailable" or "rclone-unavailable" or "mount-prerequisites-unavailable" or "mount-profile-required" or "mount-drain-not-proved" or "source-remote-required" or "destination-remote-required" or "download-folder-required" or "shutdown-blocked-active-mount" or "winfsp-installer-unavailable" or "winfsp-installer-not-started" or "winfsp-download-failed" or "winfsp-hash-mismatch" or "winfsp-signature-invalid" or "winfsp-install-cancelled" or "winfsp-uac-cancelled" => DesktopActionNotificationKind.Error,
+        "remote-input-invalid" or "remote-host-key-required" or "remote-test-failed" or "vault-locked" or "host-unavailable" or "rclone-unavailable" or "mount-prerequisites-unavailable" or "mount-profile-required" or "mount-drain-not-proved" or "source-remote-required" or "destination-remote-required" or "download-folder-required" or "upload-folder-required" or "shutdown-blocked-active-mount" or "winfsp-installer-unavailable" or "winfsp-installer-not-started" or "winfsp-download-failed" or "winfsp-hash-mismatch" or "winfsp-signature-invalid" or "winfsp-install-cancelled" or "winfsp-uac-cancelled" => DesktopActionNotificationKind.Error,
         var value when value.StartsWith("winfsp-installer-failed:", StringComparison.Ordinal) || value.StartsWith("winfsp-install-failed:", StringComparison.Ordinal) => DesktopActionNotificationKind.Error,
         _ => DesktopActionNotificationKind.Information
     };
@@ -205,6 +207,7 @@ public sealed class DesktopShellState : INotifyPropertyChanged
         "source-remote-required" => T("请选择来源远程存储。", "Select a source Remote."),
         "destination-remote-required" => T("请选择目标远程存储。", "Select a destination Remote."),
         "download-folder-required" => T("请选择本地下载文件夹。", "Select a local download folder."),
+        "upload-folder-required" => T("请选择要上传的本地文件夹。", "Select a local folder to upload."),
         "shutdown-blocked-active-mount" => T("仍有正在使用的挂载，无法彻底退出。请先安全卸载。", "A Mount is still active, so the Host cannot stop. Safely unmount it first."),
         "winfsp-install-started" => T("正在下载 WinFsp，随后会请求管理员授权安装。请留意 Windows 的授权窗口。", "Downloading WinFsp, then Windows will request administrator approval. Watch for the UAC prompt."),
         "winfsp-install-complete" => T("WinFsp 已安装完成。正在重新检测挂载条件。", "WinFsp installation completed. Rechecking Mount prerequisites."),
@@ -224,11 +227,13 @@ public sealed class DesktopShellState : INotifyPropertyChanged
     public DesktopRemoteOption? CopySourceRemote { get; set; }
     public DesktopRemoteOption? CopyDestinationRemote { get; set; }
     public DesktopRemoteOption? MountRemote { get; set; }
-    public IReadOnlyList<DesktopTransferMode> TransferModes { get; } = [DesktopTransferMode.Download, DesktopTransferMode.RemoteCopy];
+    public IReadOnlyList<DesktopTransferMode> TransferModes { get; } = [DesktopTransferMode.Download, DesktopTransferMode.Upload, DesktopTransferMode.RemoteCopy];
     public DesktopTransferMode TransferMode { get => transferMode; set { if (transferMode == value) return; transferMode = value; ChangedAll(); } }
     public bool IsDownloadMode => transferMode == DesktopTransferMode.Download;
+    public bool IsUploadMode => transferMode == DesktopTransferMode.Upload;
     public bool IsRemoteCopyMode => transferMode == DesktopTransferMode.RemoteCopy;
     public string DownloadDestinationPath { get => downloadDestinationPath; set { if (downloadDestinationPath == value) return; downloadDestinationPath = value; ChangedAll(); } }
+    public string UploadSourcePath { get => uploadSourcePath; set { if (uploadSourcePath == value) return; uploadSourcePath = value; ChangedAll(); } }
     public string CopyStatus => copyStatus;
     public string CopySourcePath { get; set; } = string.Empty;
     public string CopyDestinationPath { get; set; } = string.Empty;
@@ -352,7 +357,7 @@ public sealed class DesktopShellState : INotifyPropertyChanged
     public string JourneyDescription => route switch { "Remotes" => T("通过三步向导添加云端账号；凭据只发送给后台服务并写入加密保险库。", "Add cloud accounts in three guided steps. Credentials go only to the Host and encrypted Vault."), "Transfers" => T("复制、移动或单向镜像。执行前必须接受预览，涉及删除时需要明确确认。", "Copy, move, or one-way mirror. Accept a preview before execution; deletion requires explicit confirmation."), "Mounts" => T("创建稳定盘符的挂载配置。Ready 与安全卸载均需要完整证据。", "Create stable drive profiles. Ready and safe unmount require complete evidence."), "Activity" => T("查看真实结果、部分完成、未知状态和可脱敏导出的诊断信息。", "Review truthful outcomes, partial results, unknown states, and redacted diagnostics."), _ => T("此功能通过后台服务快照和命令工作；界面不直接操作 rclone 或保险库。", "This journey uses Host snapshots and commands; the UI never operates rclone or the Vault directly.") };
     public string JourneyStatus => connection == DesktopConnectionState.ConnectedOperational ? T("可以开始", "Ready") : T("当前不可执行", "Action unavailable");
     public string JourneyActionHint => connection == DesktopConnectionState.ConnectedOperational ? T("普通用户默认值已启用，高级选项按需展开。", "Ordinary-user defaults are active; advanced options remain available on demand.") : AttentionDetail;
-    public string JourneyPrimaryAction => route switch { "Remotes" => T("添加远程存储", "Add Remote"), "Browser" => T("读取目录", "List folder"), "Transfers" when TransferMode == DesktopTransferMode.Download => T("开始下载", "Start download"), "Transfers" => T("开始复制", "Start copy"), "Mounts" when HasActiveMount => T("安全卸载", "Safe unmount"), "Mounts" when MountNeedsRemount => T("重新挂载", "Remount"), "Mounts" when MountRecoveryRequired => T("需要人工恢复", "Manual recovery required"), "Mounts" when mountCachePreset.Key == "standard-read-write" => T("读写挂载", "Mount read/write"), "Mounts" => T("只读挂载", "Mount read-only"), "Activity" => T("导出脱敏诊断", "Export Redacted Diagnostics"), _ => T("继续", "Continue") };
+    public string JourneyPrimaryAction => route switch { "Remotes" => T("添加远程存储", "Add Remote"), "Browser" => T("读取目录", "List folder"), "Transfers" when TransferMode == DesktopTransferMode.Download => T("开始下载", "Start download"), "Transfers" when TransferMode == DesktopTransferMode.Upload => T("开始上传", "Start upload"), "Transfers" => T("开始复制", "Start copy"), "Mounts" when HasActiveMount => T("安全卸载", "Safe unmount"), "Mounts" when MountNeedsRemount => T("重新挂载", "Remount"), "Mounts" when MountRecoveryRequired => T("需要人工恢复", "Manual recovery required"), "Mounts" when mountCachePreset.Key == "standard-read-write" => T("读写挂载", "Mount read/write"), "Mounts" => T("只读挂载", "Mount read-only"), "Activity" => T("导出脱敏诊断", "Export Redacted Diagnostics"), _ => T("继续", "Continue") };
 
     public void Navigate(string value) { route = value; advancedOptionsExpanded = false; ChangedAll(); }
     public void ToggleLanguage() { english = !english; RefreshMountChoices(); ChangedAll(); }

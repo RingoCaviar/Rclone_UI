@@ -147,9 +147,17 @@
                   <TextBox Text="{Binding DownloadDestinationPath}" IsReadOnly="True" PlaceholderText="{Binding DownloadFolderHint}" AutomationProperties.Name="Download destination folder" />
                   <Button Grid.Column="1" Content="{Binding PickFolderLabel}" Click="PickDownloadFolderClicked" />
                 </Grid>
+                <Grid IsVisible="{Binding IsUploadMode}" ColumnDefinitions="*,Auto" ColumnSpacing="10">
+                  <TextBox Text="{Binding UploadSourcePath}" IsReadOnly="True" PlaceholderText="{Binding UploadFolderHint}" AutomationProperties.Name="Upload source folder" />
+                  <Button Grid.Column="1" Content="{Binding PickFolderLabel}" Click="PickUploadFolderClicked" />
+                </Grid>
                 <Grid IsVisible="{Binding IsRemoteCopyMode}" ColumnDefinitions="*,*" ColumnSpacing="10">
                   <ComboBox Grid.Column="0" ItemsSource="{Binding RemoteOptions}" SelectedItem="{Binding CopyDestinationRemote}" DisplayMemberBinding="{Binding DisplayName}" PlaceholderText="{Binding DestinationRemoteHint}" AutomationProperties.Name="Copy destination Remote" />
                   <TextBox Grid.Column="1" PlaceholderText="{Binding DestinationPathHint}" Text="{Binding CopyDestinationPath}" AutomationProperties.Name="Copy destination path" />
+                </Grid>
+                <Grid IsVisible="{Binding IsUploadMode}" ColumnDefinitions="*,*" ColumnSpacing="10">
+                  <ComboBox Grid.Column="0" ItemsSource="{Binding RemoteOptions}" SelectedItem="{Binding CopyDestinationRemote}" DisplayMemberBinding="{Binding DisplayName}" PlaceholderText="{Binding DestinationRemoteHint}" AutomationProperties.Name="Upload destination Remote" />
+                  <TextBox Grid.Column="1" PlaceholderText="{Binding DestinationPathHint}" Text="{Binding CopyDestinationPath}" AutomationProperties.Name="Upload destination path" />
                 </Grid>
                 <TextBlock Text="{Binding CopyStatus}" AutomationProperties.LiveSetting="Polite" />
               </StackPanel>

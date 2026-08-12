@@ -177,15 +177,23 @@ internal sealed class HostStateAuthority : IDisposable
         if (!body.TryGetProperty("arguments", out var arguments) || arguments.ValueKind != JsonValueKind.Object) return CreateResult("copy-invalid", new { code = "arguments-missing" }, Cursor);
         if (remotes is not IHostRemoteResolver resolver) return CreateResult("copy-invalid", new { code = "remote-resolver-unavailable" }, Cursor);
         var sourceRemoteId = ReadGuidArgument(arguments, "sourceRemoteId"); var sourcePath = ReadPathArgument(arguments, "sourcePath");
+        var sourceLocalPath = ReadArgument(arguments, "sourceLocalPath", 32767);
         var destinationRemoteId = ReadGuidArgument(arguments, "destinationRemoteId"); var destinationPath = ReadArgument(arguments, "destinationPath");
         var destinationLocalPath = ReadArgument(arguments, "destinationLocalPath", 32767);
         var binding = ReadArgument(arguments, "capabilityBinding");
         var localDownload = destinationLocalPath is not null;
-        if (sourceRemoteId is null || sourcePath is null || binding is null || localDownload == (destinationRemoteId is not null || destinationPath is not null)) return CreateResult("copy-invalid", new { code = "arguments-invalid" }, Cursor);
+        var localUpload = sourceLocalPath is not null;
+        if (binding is null || localDownload && localUpload || (localDownload ? sourceRemoteId is null || sourcePath is null || destinationRemoteId is not null || destinationPath is not null : localUpload ? destinationRemoteId is null || destinationPath is null || sourceRemoteId is not null || sourcePath is not null : sourceRemoteId is null || sourcePath is null || destinationRemoteId is null || destinationPath is null)) return CreateResult("copy-invalid", new { code = "arguments-invalid" }, Cursor);
         string? sourceFs; string? destinationFs;
         try
         {
-            sourceFs = await resolver.ResolveFileSystemAsync(sourceRemoteId.Value, cancellationToken).ConfigureAwait(false);
+            if (localUpload)
+            {
+                if (!Path.IsPathFullyQualified(sourceLocalPath!) || !Directory.Exists(Path.GetFullPath(sourceLocalPath!))) return CreateResult("copy-invalid", new { code = "local-directory-not-found" }, Cursor);
+                sourceFs = Path.GetFullPath(sourceLocalPath!).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar).Replace('\\', '/') + "/";
+                sourcePath = string.Empty;
+            }
+            else sourceFs = await resolver.ResolveFileSystemAsync(sourceRemoteId!.Value, cancellationToken).ConfigureAwait(false);
             if (localDownload)
             {
                 if (!Path.IsPathFullyQualified(destinationLocalPath!)) return CreateResult("copy-invalid", new { code = "local-path-not-absolute" }, Cursor);
@@ -202,7 +210,7 @@ internal sealed class HostStateAuthority : IDisposable
         RcloneExecutionHandle handle;
         try
         {
-            handle = await rclone.StartAsync(new(id, binding, RclonePrimitive.Copy, new(sourceFs, sourcePath), new(destinationFs, destinationPath!), $"copy/{id:N}"), cancellationToken).ConfigureAwait(false);
+            handle = await rclone.StartAsync(new(id, binding, RclonePrimitive.Copy, new(sourceFs, sourcePath ?? string.Empty), new(destinationFs, destinationPath!), $"copy/{id:N}"), cancellationToken).ConfigureAwait(false);
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {

@@ -122,6 +122,35 @@ public sealed class DesktopHostClientTests
     }
 
     [Fact]
+    public async Task UploadCommandMapsSelectedAbsoluteFolderToLocalRcloneFileSystem()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var root = Path.Combine(Path.GetTempPath(), "RcloneUI.Desktop.Upload.Tests", Guid.NewGuid().ToString("N")); Directory.CreateDirectory(root);
+        var source = Path.Combine(root, "uploads"); Directory.CreateDirectory(source);
+        var binary = new RcloneBinaryIdentity("test", new string('A', 64), 1);
+        var capabilities = new RcloneCapabilitySnapshot(binary, new string('B', 64), new string('C', 64), ImmutableSortedSet.Create("sync/copy"), ImmutableSortedSet<string>.Empty, DateTimeOffset.UtcNow);
+        var runtime = new ScriptedRcloneRuntime(capabilities, [new(RclonePrimitive.Copy, new(1, 1, 1, 0, 1, TimeSpan.Zero, true), ScriptedRcloneRuntime.Success())]);
+        var store = new TestRemoteStore();
+        try
+        {
+            await using (var host = BackgroundHostShell.TryCreate(root, Guid.NewGuid(), runtime, new VaultHostRemoteProjection(store, new(root))))
+            {
+                Assert.NotNull(host); host.Start(); var client = new NamedPipeDesktopHostClient(root);
+                using var arguments = JsonDocument.Parse(JsonSerializer.Serialize(new { sourceLocalPath = source, destinationRemoteId = store.Id, destinationPath = "backup", capabilityBinding = capabilities.Binding }));
+
+                var accepted = await client.SendCommandAsync("start-copy", arguments.RootElement, cancellationToken);
+
+                Assert.Equal("copy-accepted", accepted.GetProperty("resultType").GetString());
+                var request = Assert.Single(runtime.Requests);
+                Assert.Equal(source.Replace('\\', '/').TrimEnd('/') + "/", request.Source.FileSystem);
+                Assert.Equal(string.Empty, request.Source.Path);
+                Assert.Equal("backup", request.Destination?.Path);
+            }
+        }
+        finally { Directory.Delete(root, recursive: true); }
+    }
+
+    [Fact]
     public async Task UnlockCommandOpensVaultWithoutPersistingPasswordMaterial()
     {
         var cancellationToken = TestContext.Current.CancellationToken;

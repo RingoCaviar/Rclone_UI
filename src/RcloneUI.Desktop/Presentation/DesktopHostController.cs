@@ -71,15 +71,17 @@ public sealed class DesktopHostController(IDesktopHostClient client, DesktopShel
         if (shell.CurrentRoute == "Mounts") { await ToggleMountAsync(cancellationToken); return; }
         if (shell.CurrentRoute != "Transfers") { await ReconnectAsync(cancellationToken); return; }
         if (shell.CapabilityBinding is null) { shell.ApplyAction("rclone-unavailable"); return; }
-        if (shell.CopySourceRemote is null) { shell.ApplyAction("source-remote-required"); return; }
+        if (shell.TransferMode != DesktopTransferMode.Upload && shell.CopySourceRemote is null) { shell.ApplyAction("source-remote-required"); return; }
         if (shell.TransferMode == DesktopTransferMode.Download && string.IsNullOrWhiteSpace(shell.DownloadDestinationPath)) { shell.ApplyAction("download-folder-required"); return; }
-        if (shell.TransferMode == DesktopTransferMode.RemoteCopy && shell.CopyDestinationRemote is null) { shell.ApplyAction("destination-remote-required"); return; }
+        if (shell.TransferMode == DesktopTransferMode.Upload && string.IsNullOrWhiteSpace(shell.UploadSourcePath)) { shell.ApplyAction("upload-folder-required"); return; }
+        if ((shell.TransferMode is DesktopTransferMode.RemoteCopy or DesktopTransferMode.Upload) && shell.CopyDestinationRemote is null) { shell.ApplyAction("destination-remote-required"); return; }
         using var arguments = JsonDocument.Parse(JsonSerializer.Serialize(new
         {
-            sourceRemoteId = shell.CopySourceRemote.Id,
-            sourcePath = shell.CopySourcePath,
-            destinationRemoteId = shell.TransferMode == DesktopTransferMode.RemoteCopy ? shell.CopyDestinationRemote?.Id : null,
-            destinationPath = shell.TransferMode == DesktopTransferMode.RemoteCopy ? shell.CopyDestinationPath : null,
+            sourceRemoteId = shell.TransferMode == DesktopTransferMode.Upload ? null : shell.CopySourceRemote?.Id,
+            sourcePath = shell.TransferMode == DesktopTransferMode.Upload ? null : shell.CopySourcePath,
+            sourceLocalPath = shell.TransferMode == DesktopTransferMode.Upload ? shell.UploadSourcePath : null,
+            destinationRemoteId = shell.TransferMode is DesktopTransferMode.RemoteCopy or DesktopTransferMode.Upload ? shell.CopyDestinationRemote?.Id : null,
+            destinationPath = shell.TransferMode is DesktopTransferMode.RemoteCopy or DesktopTransferMode.Upload ? shell.CopyDestinationPath : null,
             destinationLocalPath = shell.TransferMode == DesktopTransferMode.Download ? shell.DownloadDestinationPath : null,
             capabilityBinding = shell.CapabilityBinding
         }));

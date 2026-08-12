@@ -153,6 +153,7 @@ public sealed class DesktopShellState : INotifyPropertyChanged
     public IReadOnlyList<DesktopBrowserItem> BrowserItems => browserItems;
     public DesktopBrowserItem? SelectedBrowserItem { get; set; }
     public bool CanOpenBrowserFolder => SelectedBrowserItem?.IsDirectory == true;
+    public bool CanUseBrowserSelectionForTransfer => BrowserRemote is not null && SelectedBrowserItem is not null;
     public bool CanBrowseParent => !string.IsNullOrWhiteSpace(BrowserPath);
     public string BrowserRemoteHint => T("选择要浏览的 Remote", "Select a Remote to browse");
     public string BrowserPathHint => T("目录路径（根目录可留空）", "Folder path (leave empty for root)");
@@ -496,6 +497,13 @@ public sealed class DesktopShellState : INotifyPropertyChanged
         BrowserPath = string.Join('/', new[] { BrowserPath.Trim('/'), item.Path.Trim('/') }.Where(value => value.Length > 0));
         SelectedBrowserItem = null;
         ChangedAll();
+    }
+    public void UseBrowserSelectionForTransfer()
+    {
+        if (BrowserRemote is null || SelectedBrowserItem is null) return;
+        CopySourceRemote = BrowserRemote;
+        CopySourcePath = string.Join('/', new[] { BrowserPath.Trim('/'), SelectedBrowserItem.Path.Trim('/') }.Where(value => value.Length > 0));
+        Navigate("Transfers");
     }
     public void ApplyBrowserItems(IEnumerable<DesktopBrowserItem> items) { browserItems = items.OrderByDescending(item => item.IsDirectory).ThenBy(item => item.Path, StringComparer.OrdinalIgnoreCase).ToArray(); ChangedAll(); }
     private void ChangedAll() { foreach (var property in GetType().GetProperties().Where(x => x.GetIndexParameters().Length == 0)) PropertyChanged?.Invoke(this, new(property.Name)); }

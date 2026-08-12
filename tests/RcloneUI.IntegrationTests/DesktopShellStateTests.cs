@@ -381,6 +381,21 @@ public sealed class DesktopShellStateTests
         Assert.Null(shell.SelectedBrowserItem);
     }
 
+    [Fact]
+    public void BrowserSelectionOnlyPreparesTransferSource()
+    {
+        var remote = new DesktopRemoteOption(Guid.NewGuid(), "FTPS");
+        var shell = new DesktopShellState { BrowserRemote = remote, BrowserPath = "docs" };
+        shell.ApplyBrowserItems([new("manual.pdf", false, 1)]);
+        shell.SelectedBrowserItem = shell.BrowserItems.Single();
+
+        shell.UseBrowserSelectionForTransfer();
+
+        Assert.Equal("Transfers", shell.CurrentRoute);
+        Assert.Equal(remote, shell.CopySourceRemote);
+        Assert.Equal("docs/manual.pdf", shell.CopySourcePath);
+    }
+
     private sealed class RecordingClient : IDesktopHostClient
     {
         private readonly string connectionResultType;

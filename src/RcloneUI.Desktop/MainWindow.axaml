@@ -164,6 +164,7 @@
                   <ListBox ItemsSource="{Binding BrowserItems}" SelectedItem="{Binding SelectedBrowserItem}" DisplayMemberBinding="{Binding DisplayName}" AutomationProperties.Name="Remote files" />
                   <Button Grid.Column="1" VerticalAlignment="Top" IsEnabled="{Binding CanOpenBrowserFolder}" Content="Open" Click="OpenBrowserFolderClicked" AutomationProperties.Name="Open selected folder" />
                 </Grid>
+                <Button IsEnabled="{Binding CanUseBrowserSelectionForTransfer}" Content="Use as transfer source" Click="UseBrowserSelectionClicked" AutomationProperties.Name="Use selected item as transfer source" />
               </StackPanel>
               <StackPanel IsVisible="{Binding IsActivityJourney}" Spacing="10">
                 <TextBlock Text="{Binding ActivityEmptyText}" IsVisible="{Binding ActivityEmptyText}" Opacity="0.72" />

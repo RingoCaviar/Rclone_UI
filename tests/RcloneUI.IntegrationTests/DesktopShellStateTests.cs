@@ -444,6 +444,25 @@ public sealed class DesktopShellStateTests
     }
 
     [Fact]
+    public void BrowserFilterStaysLocalAndClearsAHiddenSelection()
+    {
+        var shell = new DesktopShellState();
+        shell.ApplyBrowserItems([new("photos", true, null), new("report.pdf", false, 10), new("notes.txt", false, 1)]);
+        shell.SelectedBrowserItem = shell.BrowserItems.Single(item => item.Path == "report.pdf");
+
+        shell.BrowserFilter = "note";
+
+        Assert.Single(shell.BrowserItems);
+        Assert.Equal("notes.txt", shell.BrowserItems.Single().Path);
+        Assert.Null(shell.SelectedBrowserItem);
+        shell.BrowserFilter = string.Empty;
+        Assert.Equal(3, shell.BrowserItems.Count);
+        shell.BrowserFilter = "missing";
+        shell.ToggleLanguage();
+        Assert.Contains("No items match", shell.BrowserEmptyText, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void TransferActionLabelsMatchTheSubmittedMode()
     {
         var shell = new DesktopShellState();

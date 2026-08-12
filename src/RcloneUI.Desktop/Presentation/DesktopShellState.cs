@@ -70,6 +70,8 @@ public sealed class DesktopShellState : INotifyPropertyChanged
     private DesktopMountProfileOption[] mountProfiles = [];
     private DesktopMountProfileOption? selectedMountProfile;
     private DesktopBrowserItem[] browserItems = [];
+    private DesktopBrowserItem[] allBrowserItems = [];
+    private string browserFilter = string.Empty;
     private string newBrowserFolderName = string.Empty;
     private string browserDeleteConfirmation = string.Empty;
     private string browserRenameNewName = string.Empty;
@@ -180,6 +182,17 @@ public sealed class DesktopShellState : INotifyPropertyChanged
     public DesktopRemoteOption? BrowserRemote { get; set; }
     public string BrowserPath { get; set; } = string.Empty;
     public IReadOnlyList<DesktopBrowserItem> BrowserItems => browserItems;
+    public string BrowserFilter
+    {
+        get => browserFilter;
+        set
+        {
+            if (browserFilter == value) return;
+            browserFilter = value;
+            ApplyBrowserFilter();
+            ChangedAll();
+        }
+    }
     public DesktopBrowserItem? SelectedBrowserItem { get; set { field = value; browserDeleteConfirmation = string.Empty; ChangedAll(); } }
     public string NewBrowserFolderName { get => newBrowserFolderName; set { if (newBrowserFolderName == value) return; newBrowserFolderName = value; ChangedAll(); } }
     public string BrowserDeleteConfirmation { get => browserDeleteConfirmation; set { if (browserDeleteConfirmation == value) return; browserDeleteConfirmation = value; ChangedAll(); } }
@@ -192,6 +205,7 @@ public sealed class DesktopShellState : INotifyPropertyChanged
     public bool CanRenameBrowserFile => CanDeleteBrowserFile && !string.IsNullOrWhiteSpace(browserRenameNewName) && !StringComparer.Ordinal.Equals(browserRenameNewName, SelectedBrowserItem!.Path);
     public string BrowserRemoteHint => T("选择要浏览的 Remote", "Select a Remote to browse");
     public string BrowserPathHint => T("目录路径（根目录可留空）", "Folder path (leave empty for root)");
+    public string BrowserFilterHint => T("筛选当前目录中的名称", "Filter names in this folder");
     public string BrowserOpenLabel => T("打开文件夹", "Open folder");
     public string BrowserUseAsTransferSourceLabel => T("用作传输来源", "Use as transfer source");
     public string NewBrowserFolderHint => T("新文件夹名称", "New folder name");
@@ -200,7 +214,7 @@ public sealed class DesktopShellState : INotifyPropertyChanged
     public string DeleteBrowserFileLabel => T("删除所选文件", "Delete selected file");
     public string BrowserRenameNewNameHint => T("新的文件名", "New file name");
     public string RenameBrowserFileLabel => T("重命名所选文件", "Rename selected file");
-    public string BrowserEmptyText => browserItems.Length == 0 ? T("尚未读取目录或目录为空。", "No listing yet, or this folder is empty.") : string.Empty;
+    public string BrowserEmptyText => browserItems.Length != 0 ? string.Empty : allBrowserItems.Length != 0 && !string.IsNullOrWhiteSpace(browserFilter) ? T("当前筛选没有匹配项。", "No items match the current filter.") : T("尚未读取目录或目录为空。", "No listing yet, or this folder is empty.");
     public string CurrentRoute => route;
     public string ConnectionLabel => connection switch { DesktopConnectionState.Connecting => T("正在连接…", "Connecting…"), DesktopConnectionState.ConnectedLocked or DesktopConnectionState.ConnectedOperational => T("已自动连接", "Auto-connected"), DesktopConnectionState.ReadOnlyRecovery => T("已连接（恢复模式）", "Connected (recovery)"), _ => T("连接已中断", "Disconnected") };
     public string SessionLabel => connection switch { DesktopConnectionState.ConnectedOperational => T("数据保险库已解锁", "Vault unlocked"), DesktopConnectionState.ConnectedLocked => T("需要解锁数据保险库", "Vault unlock required"), DesktopConnectionState.ReadOnlyRecovery => T("写入已停用，数据保持原状", "Writes disabled; data preserved"), _ => T("后台任务状态可能不是最新", "Background state may be stale") };
@@ -635,6 +649,18 @@ public sealed class DesktopShellState : INotifyPropertyChanged
         Navigate("Transfers");
     }
     public string SelectedBrowserPath(DesktopBrowserItem item) => string.Join('/', new[] { BrowserPath.Trim('/'), item.Path.Trim('/') }.Where(value => value.Length > 0));
-    public void ApplyBrowserItems(IEnumerable<DesktopBrowserItem> items) { browserItems = items.OrderByDescending(item => item.IsDirectory).ThenBy(item => item.Path, StringComparer.OrdinalIgnoreCase).ToArray(); ChangedAll(); }
+    public void ApplyBrowserItems(IEnumerable<DesktopBrowserItem> items)
+    {
+        var selectedPath = SelectedBrowserItem?.Path;
+        allBrowserItems = items.OrderByDescending(item => item.IsDirectory).ThenBy(item => item.Path, StringComparer.OrdinalIgnoreCase).ToArray();
+        ApplyBrowserFilter();
+        SelectedBrowserItem = selectedPath is null ? null : browserItems.FirstOrDefault(item => StringComparer.Ordinal.Equals(item.Path, selectedPath));
+        ChangedAll();
+    }
+    private void ApplyBrowserFilter()
+    {
+        browserItems = string.IsNullOrWhiteSpace(browserFilter) ? allBrowserItems : allBrowserItems.Where(item => item.Path.Contains(browserFilter.Trim(), StringComparison.OrdinalIgnoreCase)).ToArray();
+        if (SelectedBrowserItem is { } selected && !browserItems.Any(item => StringComparer.Ordinal.Equals(item.Path, selected.Path))) SelectedBrowserItem = null;
+    }
     private void ChangedAll() { foreach (var property in GetType().GetProperties().Where(x => x.GetIndexParameters().Length == 0)) PropertyChanged?.Invoke(this, new(property.Name)); }
 }

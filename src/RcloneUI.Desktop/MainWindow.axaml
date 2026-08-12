@@ -192,6 +192,10 @@
                   <TextBox Text="{Binding BrowserDeleteConfirmation}" PlaceholderText="{Binding BrowserDeleteConfirmationHint}" AutomationProperties.Name="Remote file delete confirmation" />
                   <Button Grid.Column="1" IsEnabled="{Binding CanDeleteBrowserFile}" Content="{Binding DeleteBrowserFileLabel}" Click="DeleteBrowserFileClicked" AutomationProperties.Name="Delete selected remote file" />
                 </Grid>
+                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
+                  <TextBox Text="{Binding BrowserRenameNewName}" PlaceholderText="{Binding BrowserRenameNewNameHint}" AutomationProperties.Name="New remote file name" />
+                  <Button Grid.Column="1" IsEnabled="{Binding CanRenameBrowserFile}" Content="{Binding RenameBrowserFileLabel}" Click="RenameBrowserFileClicked" AutomationProperties.Name="Rename selected remote file" />
+                </Grid>
               </StackPanel>
               <StackPanel IsVisible="{Binding IsActivityJourney}" Spacing="10">
                 <TextBlock Text="{Binding ActivityEmptyText}" IsVisible="{Binding ActivityEmptyText}" Opacity="0.72" />

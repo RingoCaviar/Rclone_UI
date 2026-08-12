@@ -31,6 +31,7 @@ public enum RclonePrimitive
     Copy,
     Check,
     DeleteFile,
+    MoveFile,
     MakeDirectory,
     Stat,
     Mount,

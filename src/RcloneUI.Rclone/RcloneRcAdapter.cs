@@ -199,6 +199,7 @@ internal static class RcloneRequestMapper
             RclonePrimitive.Copy => MapPair(body, request, "sync/copy"),
             RclonePrimitive.Check => MapPair(body, request, "operations/check"),
             RclonePrimitive.DeleteFile => MapSingle(body, request, "operations/deletefile"),
+            RclonePrimitive.MoveFile => MapPair(body, request, "operations/movefile"),
             RclonePrimitive.MakeDirectory => MapSingle(body, request, "operations/mkdir"),
             RclonePrimitive.Stat => MapSingle(body, request, "operations/stat"),
             RclonePrimitive.Mount => MapMount(body, request),

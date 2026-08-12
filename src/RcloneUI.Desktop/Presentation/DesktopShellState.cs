@@ -72,6 +72,7 @@ public sealed class DesktopShellState : INotifyPropertyChanged
     private DesktopBrowserItem[] browserItems = [];
     private string newBrowserFolderName = string.Empty;
     private string browserDeleteConfirmation = string.Empty;
+    private string browserRenameNewName = string.Empty;
     private string[] activityRows = [];
     private DesktopCopyRunOption[] copyRunOptions = [];
     private DesktopCopyRunOption? selectedCopyRun;
@@ -182,11 +183,13 @@ public sealed class DesktopShellState : INotifyPropertyChanged
     public DesktopBrowserItem? SelectedBrowserItem { get; set { field = value; browserDeleteConfirmation = string.Empty; ChangedAll(); } }
     public string NewBrowserFolderName { get => newBrowserFolderName; set { if (newBrowserFolderName == value) return; newBrowserFolderName = value; ChangedAll(); } }
     public string BrowserDeleteConfirmation { get => browserDeleteConfirmation; set { if (browserDeleteConfirmation == value) return; browserDeleteConfirmation = value; ChangedAll(); } }
+    public string BrowserRenameNewName { get => browserRenameNewName; set { if (browserRenameNewName == value) return; browserRenameNewName = value; ChangedAll(); } }
     public bool CanOpenBrowserFolder => SelectedBrowserItem?.IsDirectory == true;
     public bool CanUseBrowserSelectionForTransfer => BrowserRemote is not null && SelectedBrowserItem is not null;
     public bool CanBrowseParent => !string.IsNullOrWhiteSpace(BrowserPath);
     public bool CanCreateBrowserFolder => BrowserRemote is not null && !string.IsNullOrWhiteSpace(newBrowserFolderName);
     public bool CanDeleteBrowserFile => SelectedBrowserItem is { IsDirectory: false } item && StringComparer.Ordinal.Equals(browserDeleteConfirmation, SelectedBrowserPath(item));
+    public bool CanRenameBrowserFile => CanDeleteBrowserFile && !string.IsNullOrWhiteSpace(browserRenameNewName) && !StringComparer.Ordinal.Equals(browserRenameNewName, SelectedBrowserItem!.Path);
     public string BrowserRemoteHint => T("选择要浏览的 Remote", "Select a Remote to browse");
     public string BrowserPathHint => T("目录路径（根目录可留空）", "Folder path (leave empty for root)");
     public string BrowserOpenLabel => T("打开文件夹", "Open folder");
@@ -195,6 +198,8 @@ public sealed class DesktopShellState : INotifyPropertyChanged
     public string CreateBrowserFolderLabel => T("新建文件夹", "Create folder");
     public string BrowserDeleteConfirmationHint => T("输入所选文件的完整路径以删除", "Type the selected file path to delete");
     public string DeleteBrowserFileLabel => T("删除所选文件", "Delete selected file");
+    public string BrowserRenameNewNameHint => T("新的文件名", "New file name");
+    public string RenameBrowserFileLabel => T("重命名所选文件", "Rename selected file");
     public string BrowserEmptyText => browserItems.Length == 0 ? T("尚未读取目录或目录为空。", "No listing yet, or this folder is empty.") : string.Empty;
     public string CurrentRoute => route;
     public string ConnectionLabel => connection switch { DesktopConnectionState.Connecting => T("正在连接…", "Connecting…"), DesktopConnectionState.ConnectedLocked or DesktopConnectionState.ConnectedOperational => T("已自动连接", "Auto-connected"), DesktopConnectionState.ReadOnlyRecovery => T("已连接（恢复模式）", "Connected (recovery)"), _ => T("连接已中断", "Disconnected") };
@@ -215,8 +220,8 @@ public sealed class DesktopShellState : INotifyPropertyChanged
     public bool HasActionNotification => !string.IsNullOrWhiteSpace(lastAction);
     public DesktopActionNotificationKind ActionNotificationKind => lastAction switch
     {
-        "remote-added" or "remote-deleted" or "folder-created" or "file-deleted" or "copy-accepted" or "copy-cancel-requested" or "mount-started" or "mount-stopped" or "mount-profile-saved" or "mount-profile-deleted" or "vault-unlocked" or "vault-lock-completed" or "shutdown-accepted" or "winfsp-install-complete" or "winfsp-install-complete:restart-required" => DesktopActionNotificationKind.Success,
-        "remote-input-invalid" or "remote-host-key-required" or "remote-test-failed" or "remote-delete-confirmation-required" or "remote-delete-blocked-profile" or "remote-delete-conflict" or "remote-delete-unavailable" or "remote-delete-invalid" or "folder-create-invalid" or "folder-create-failed" or "folder-create-unavailable" or "file-delete-confirmation-required" or "file-delete-invalid" or "file-delete-failed" or "file-delete-unavailable" or "copy-cancel-invalid" or "copy-cancel-not-running" or "copy-cancel-unavailable" or "copy-cancel-failed" or "vault-locked" or "host-unavailable" or "rclone-unavailable" or "mount-prerequisites-unavailable" or "mount-profile-required" or "mount-drain-not-proved" or "source-remote-required" or "destination-remote-required" or "download-folder-required" or "upload-folder-required" or "transfer-limits-invalid" or "shutdown-blocked-active-mount" or "winfsp-installer-unavailable" or "winfsp-installer-not-started" or "winfsp-download-failed" or "winfsp-hash-mismatch" or "winfsp-signature-invalid" or "winfsp-install-cancelled" or "winfsp-uac-cancelled" => DesktopActionNotificationKind.Error,
+        "remote-added" or "remote-deleted" or "folder-created" or "file-deleted" or "file-renamed" or "copy-accepted" or "copy-cancel-requested" or "mount-started" or "mount-stopped" or "mount-profile-saved" or "mount-profile-deleted" or "vault-unlocked" or "vault-lock-completed" or "shutdown-accepted" or "winfsp-install-complete" or "winfsp-install-complete:restart-required" => DesktopActionNotificationKind.Success,
+        "remote-input-invalid" or "remote-host-key-required" or "remote-test-failed" or "remote-delete-confirmation-required" or "remote-delete-blocked-profile" or "remote-delete-conflict" or "remote-delete-unavailable" or "remote-delete-invalid" or "folder-create-invalid" or "folder-create-failed" or "folder-create-unavailable" or "file-delete-confirmation-required" or "file-delete-invalid" or "file-delete-failed" or "file-delete-unavailable" or "file-rename-confirmation-required" or "file-rename-invalid" or "file-rename-failed" or "file-rename-unavailable" or "copy-cancel-invalid" or "copy-cancel-not-running" or "copy-cancel-unavailable" or "copy-cancel-failed" or "vault-locked" or "host-unavailable" or "rclone-unavailable" or "mount-prerequisites-unavailable" or "mount-profile-required" or "mount-drain-not-proved" or "source-remote-required" or "destination-remote-required" or "download-folder-required" or "upload-folder-required" or "transfer-limits-invalid" or "shutdown-blocked-active-mount" or "winfsp-installer-unavailable" or "winfsp-installer-not-started" or "winfsp-download-failed" or "winfsp-hash-mismatch" or "winfsp-signature-invalid" or "winfsp-install-cancelled" or "winfsp-uac-cancelled" => DesktopActionNotificationKind.Error,
         var value when value.StartsWith("winfsp-installer-failed:", StringComparison.Ordinal) || value.StartsWith("winfsp-install-failed:", StringComparison.Ordinal) => DesktopActionNotificationKind.Error,
         _ => DesktopActionNotificationKind.Information
     };
@@ -238,6 +243,10 @@ public sealed class DesktopShellState : INotifyPropertyChanged
         "file-delete-confirmation-required" => T("请先输入所选文件的完整路径以确认删除。", "Type the selected file path to confirm deletion."),
         "file-delete-invalid" => T("只能删除当前目录中选定的单个文件。", "Only one selected file in the current folder can be deleted."),
         "file-delete-failed" => T("无法删除远程文件。请检查连接和写入权限后重试。", "Could not delete the remote file. Check the connection and write permission, then try again."),
+        "file-renamed" => T("远程文件已重命名。", "The remote file was renamed."),
+        "file-rename-confirmation-required" => T("请确认原文件路径并输入不同的新文件名。", "Confirm the original file path and enter a different new file name."),
+        "file-rename-invalid" => T("新文件名无效；只能在当前目录中重命名单个文件。", "The new name is invalid; only one file in the current folder can be renamed."),
+        "file-rename-failed" => T("无法重命名远程文件。请检查连接和写入权限后重试。", "Could not rename the remote file. Check the connection and write permission, then try again."),
         "copy-cancel-requested" => T("已请求取消传输，正在等待后台服务确认最终状态。", "Cancellation was requested; waiting for the Background Host to confirm the final state."),
         "copy-cancel-not-running" => T("该传输已结束或不再由后台服务管理。", "That transfer already ended or is no longer managed by the Background Host."),
         "copy-cancel-failed" => T("无法取消传输；请稍后刷新活动状态。", "Could not cancel the transfer. Refresh Activity shortly."),

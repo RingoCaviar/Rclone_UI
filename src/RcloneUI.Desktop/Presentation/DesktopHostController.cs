@@ -149,6 +149,17 @@ public sealed class DesktopHostController(IDesktopHostClient client, DesktopShel
         if (resultType == "file-deleted") { shell.BrowserDeleteConfirmation = string.Empty; await BrowseAsync(cancellationToken).ConfigureAwait(false); }
     }
 
+    public async ValueTask RenameBrowserFileAsync(CancellationToken cancellationToken = default)
+    {
+        if (shell.CapabilityBinding is null) { shell.ApplyAction("rclone-unavailable"); return; }
+        if (shell.BrowserRemote is null || shell.SelectedBrowserItem is not { IsDirectory: false } item || !shell.CanRenameBrowserFile) { shell.ApplyAction("file-rename-confirmation-required"); return; }
+        using var arguments = JsonDocument.Parse(JsonSerializer.Serialize(new { remoteId = shell.BrowserRemote.Id, path = shell.BrowserPath, name = item.Path, newName = shell.BrowserRenameNewName, capabilityBinding = shell.CapabilityBinding }));
+        var result = await client.SendCommandAsync("rename-remote-file", arguments.RootElement, cancellationToken).ConfigureAwait(false);
+        var resultType = result.GetProperty("resultType").GetString() ?? "unknown-result";
+        shell.ApplyAction(resultType);
+        if (resultType == "file-renamed") { shell.BrowserDeleteConfirmation = string.Empty; shell.BrowserRenameNewName = string.Empty; await BrowseAsync(cancellationToken).ConfigureAwait(false); }
+    }
+
     public async ValueTask CancelSelectedCopyAsync(CancellationToken cancellationToken = default)
     {
         if (shell.SelectedCopyRun is not { } run || !shell.CanCancelSelectedCopy) { shell.ApplyAction("copy-cancel-not-running"); return; }

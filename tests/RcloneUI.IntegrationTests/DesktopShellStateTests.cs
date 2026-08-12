@@ -368,6 +368,19 @@ public sealed class DesktopShellStateTests
         Assert.Contains("WinFsp 2.1-test ready", shell.SettingsWinFspStatus, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void BrowserOpensOnlySelectedDirectoriesBelowTheRemoteRoot()
+    {
+        var shell = new DesktopShellState { BrowserPath = "parent" };
+        shell.ApplyBrowserItems([new("child", true, null), new("file.txt", false, 1)]);
+        shell.SelectedBrowserItem = shell.BrowserItems.Single(item => item.Path == "child");
+
+        shell.OpenSelectedBrowserFolder();
+
+        Assert.Equal("parent/child", shell.BrowserPath);
+        Assert.Null(shell.SelectedBrowserItem);
+    }
+
     private sealed class RecordingClient : IDesktopHostClient
     {
         private readonly string connectionResultType;

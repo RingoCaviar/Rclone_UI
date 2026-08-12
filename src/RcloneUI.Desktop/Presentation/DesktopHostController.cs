@@ -117,6 +117,12 @@ public sealed class DesktopHostController(IDesktopHostClient client, DesktopShel
         await BrowseAsync(cancellationToken).ConfigureAwait(false);
     }
 
+    public async ValueTask OpenBrowserFolderAsync(CancellationToken cancellationToken = default)
+    {
+        shell.OpenSelectedBrowserFolder();
+        await BrowseAsync(cancellationToken).ConfigureAwait(false);
+    }
+
     private async ValueTask ToggleMountAsync(CancellationToken cancellationToken)
     {
         if (shell.CapabilityBinding is null) { shell.ApplyAction("rclone-unavailable"); return; }

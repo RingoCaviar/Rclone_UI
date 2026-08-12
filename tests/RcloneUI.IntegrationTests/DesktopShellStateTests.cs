@@ -396,6 +396,18 @@ public sealed class DesktopShellStateTests
         Assert.Equal("docs/manual.pdf", shell.CopySourcePath);
     }
 
+    [Fact]
+    public void TransferActionLabelsMatchTheSubmittedMode()
+    {
+        var shell = new DesktopShellState();
+        shell.Navigate("Transfers");
+        shell.ToggleLanguage();
+        Assert.Equal("Start download", shell.JourneyPrimaryAction);
+
+        shell.TransferMode = DesktopTransferMode.RemoteCopy;
+        Assert.Equal("Start copy", shell.JourneyPrimaryAction);
+    }
+
     private sealed class RecordingClient : IDesktopHostClient
     {
         private readonly string connectionResultType;

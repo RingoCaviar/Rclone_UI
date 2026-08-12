@@ -466,6 +466,19 @@ public sealed class DesktopShellStateTests
     }
 
     [Fact]
+    public async Task BrowserFolderCreationUsesTheCurrentRemoteAndPath()
+    {
+        var client = new RecordingClient(); var shell = new DesktopShellState(); var controller = new DesktopHostController(client, shell);
+        await controller.ReconnectAsync(TestContext.Current.CancellationToken);
+        shell.Navigate("Browser"); shell.BrowserPath = "uploads"; shell.NewBrowserFolderName = "photos";
+
+        await controller.CreateBrowserFolderAsync(TestContext.Current.CancellationToken);
+
+        Assert.Equal("browse-remote", client.CommandType);
+        Assert.Empty(shell.NewBrowserFolderName);
+    }
+
+    [Fact]
     public async Task RemoteDeletionRequiresTypedNameAndUsesSnapshotRevision()
     {
         var client = new RecordingClient(); var shell = new DesktopShellState(); var controller = new DesktopHostController(client, shell);
@@ -497,7 +510,7 @@ public sealed class DesktopShellStateTests
         public ValueTask<JsonElement> SendCommandAsync(string commandType, JsonElement arguments, CancellationToken cancellationToken)
         {
             CommandType = commandType; Arguments = arguments.Clone();
-            var resultType = commandType == "add-token-remote" ? "remote-added" : commandType == "add-connection-remote" ? connectionResultType : commandType == "delete-remote" ? "remote-deleted" : commandType == "browse-remote" ? "browse-completed" : "copy-not-started";
+            var resultType = commandType == "add-token-remote" ? "remote-added" : commandType == "add-connection-remote" ? connectionResultType : commandType == "delete-remote" ? "remote-deleted" : commandType == "create-remote-folder" ? "folder-created" : commandType == "browse-remote" ? "browse-completed" : "copy-not-started";
             using var document = JsonDocument.Parse(JsonSerializer.Serialize(new { resultType, items = commandType == "browse-remote" ? new[] { new { path = "readme.txt", isDirectory = false, size = 42L } } : null, result = new { code = "test" } }));
             return ValueTask.FromResult(document.RootElement.Clone());
         }

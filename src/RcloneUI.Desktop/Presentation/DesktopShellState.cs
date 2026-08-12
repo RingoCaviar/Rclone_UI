@@ -66,6 +66,7 @@ public sealed class DesktopShellState : INotifyPropertyChanged
     private DesktopMountProfileOption[] mountProfiles = [];
     private DesktopMountProfileOption? selectedMountProfile;
     private DesktopBrowserItem[] browserItems = [];
+    private string newBrowserFolderName = string.Empty;
     private string[] activityRows = [];
 
     public DesktopShellState() => RefreshMountChoices();
@@ -167,13 +168,17 @@ public sealed class DesktopShellState : INotifyPropertyChanged
     public string BrowserPath { get; set; } = string.Empty;
     public IReadOnlyList<DesktopBrowserItem> BrowserItems => browserItems;
     public DesktopBrowserItem? SelectedBrowserItem { get; set; }
+    public string NewBrowserFolderName { get => newBrowserFolderName; set { if (newBrowserFolderName == value) return; newBrowserFolderName = value; ChangedAll(); } }
     public bool CanOpenBrowserFolder => SelectedBrowserItem?.IsDirectory == true;
     public bool CanUseBrowserSelectionForTransfer => BrowserRemote is not null && SelectedBrowserItem is not null;
     public bool CanBrowseParent => !string.IsNullOrWhiteSpace(BrowserPath);
+    public bool CanCreateBrowserFolder => BrowserRemote is not null && !string.IsNullOrWhiteSpace(newBrowserFolderName);
     public string BrowserRemoteHint => T("选择要浏览的 Remote", "Select a Remote to browse");
     public string BrowserPathHint => T("目录路径（根目录可留空）", "Folder path (leave empty for root)");
     public string BrowserOpenLabel => T("打开文件夹", "Open folder");
     public string BrowserUseAsTransferSourceLabel => T("用作传输来源", "Use as transfer source");
+    public string NewBrowserFolderHint => T("新文件夹名称", "New folder name");
+    public string CreateBrowserFolderLabel => T("新建文件夹", "Create folder");
     public string BrowserEmptyText => browserItems.Length == 0 ? T("尚未读取目录或目录为空。", "No listing yet, or this folder is empty.") : string.Empty;
     public string CurrentRoute => route;
     public string ConnectionLabel => connection switch { DesktopConnectionState.Connecting => T("正在连接…", "Connecting…"), DesktopConnectionState.ConnectedLocked or DesktopConnectionState.ConnectedOperational => T("已自动连接", "Auto-connected"), DesktopConnectionState.ReadOnlyRecovery => T("已连接（恢复模式）", "Connected (recovery)"), _ => T("连接已中断", "Disconnected") };
@@ -194,8 +199,8 @@ public sealed class DesktopShellState : INotifyPropertyChanged
     public bool HasActionNotification => !string.IsNullOrWhiteSpace(lastAction);
     public DesktopActionNotificationKind ActionNotificationKind => lastAction switch
     {
-        "remote-added" or "remote-deleted" or "copy-accepted" or "mount-started" or "mount-stopped" or "mount-profile-saved" or "mount-profile-deleted" or "vault-unlocked" or "vault-lock-completed" or "shutdown-accepted" or "winfsp-install-complete" or "winfsp-install-complete:restart-required" => DesktopActionNotificationKind.Success,
-        "remote-input-invalid" or "remote-host-key-required" or "remote-test-failed" or "remote-delete-confirmation-required" or "remote-delete-blocked-profile" or "remote-delete-conflict" or "remote-delete-unavailable" or "remote-delete-invalid" or "vault-locked" or "host-unavailable" or "rclone-unavailable" or "mount-prerequisites-unavailable" or "mount-profile-required" or "mount-drain-not-proved" or "source-remote-required" or "destination-remote-required" or "download-folder-required" or "upload-folder-required" or "transfer-limits-invalid" or "shutdown-blocked-active-mount" or "winfsp-installer-unavailable" or "winfsp-installer-not-started" or "winfsp-download-failed" or "winfsp-hash-mismatch" or "winfsp-signature-invalid" or "winfsp-install-cancelled" or "winfsp-uac-cancelled" => DesktopActionNotificationKind.Error,
+        "remote-added" or "remote-deleted" or "folder-created" or "copy-accepted" or "mount-started" or "mount-stopped" or "mount-profile-saved" or "mount-profile-deleted" or "vault-unlocked" or "vault-lock-completed" or "shutdown-accepted" or "winfsp-install-complete" or "winfsp-install-complete:restart-required" => DesktopActionNotificationKind.Success,
+        "remote-input-invalid" or "remote-host-key-required" or "remote-test-failed" or "remote-delete-confirmation-required" or "remote-delete-blocked-profile" or "remote-delete-conflict" or "remote-delete-unavailable" or "remote-delete-invalid" or "folder-create-invalid" or "folder-create-failed" or "folder-create-unavailable" or "vault-locked" or "host-unavailable" or "rclone-unavailable" or "mount-prerequisites-unavailable" or "mount-profile-required" or "mount-drain-not-proved" or "source-remote-required" or "destination-remote-required" or "download-folder-required" or "upload-folder-required" or "transfer-limits-invalid" or "shutdown-blocked-active-mount" or "winfsp-installer-unavailable" or "winfsp-installer-not-started" or "winfsp-download-failed" or "winfsp-hash-mismatch" or "winfsp-signature-invalid" or "winfsp-install-cancelled" or "winfsp-uac-cancelled" => DesktopActionNotificationKind.Error,
         var value when value.StartsWith("winfsp-installer-failed:", StringComparison.Ordinal) || value.StartsWith("winfsp-install-failed:", StringComparison.Ordinal) => DesktopActionNotificationKind.Error,
         _ => DesktopActionNotificationKind.Information
     };
@@ -210,6 +215,9 @@ public sealed class DesktopShellState : INotifyPropertyChanged
     {
         "remote-added" => T("远程存储已添加，并已验证连接。", "Remote added and its connection was verified."),
         "remote-deleted" => T("远程存储已删除。", "The Remote was deleted."),
+        "folder-created" => T("远程文件夹已创建。", "The remote folder was created."),
+        "folder-create-invalid" => T("文件夹名称无效。名称不能包含斜杠，且不能为 . 或 ..。", "The folder name is invalid. It cannot contain a slash or be . or .. ."),
+        "folder-create-failed" => T("无法创建远程文件夹。请检查连接和写入权限后重试。", "Could not create the remote folder. Check the connection and write permission, then try again."),
         "remote-delete-confirmation-required" => T("请先输入所选远程存储的完整名称以确认删除。", "Type the selected Remote's full name to confirm deletion."),
         "remote-delete-blocked-profile" => T("该远程存储仍被挂载配置引用；请先删除或改用其他远程存储。", "This Remote is still referenced by a Mount profile. Delete or change that profile first."),
         "remote-delete-conflict" => T("远程存储已被其他操作更改或删除；请刷新后重试。", "The Remote changed or was deleted elsewhere. Refresh and try again."),

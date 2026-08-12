@@ -35,7 +35,35 @@ public sealed class HostBrowseProtocolTests
         finally { Directory.Delete(root, recursive: true); }
     }
 
+    [Fact]
+    public async Task CreateFolderMapsOnlyAValidatedChildPathToRcloneMkdir()
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"rcloneui-mkdir-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(root);
+        try
+        {
+            var capabilities = new RcloneCapabilitySnapshot(new("test", new string('A', 64), 1), new string('B', 64), new string('C', 64), ImmutableSortedSet.Create("operations/mkdir"), ImmutableSortedSet<string>.Empty, DateTimeOffset.UtcNow);
+            var runtime = new ScriptedRcloneRuntime(capabilities, [new(RclonePrimitive.MakeDirectory, new(0, 0, 0, 0, 0, TimeSpan.Zero, true), Success("{}"))]);
+            var remoteId = Guid.NewGuid();
+            using var authority = new HostStateAuthority(root, runtime, new BrowseProjection(remoteId));
+
+            var result = await authority.DispatchAsync(FolderCommand(new { remoteId, path = "docs/2026", name = "reports", capabilityBinding = capabilities.Binding }), TestContext.Current.CancellationToken);
+
+            Assert.Equal("folder-created", result.ResultType);
+            var request = Assert.Single(runtime.Requests);
+            Assert.Equal(RclonePrimitive.MakeDirectory, request.Primitive);
+            Assert.Equal("remote-abc", request.Source.FileSystem);
+            Assert.Equal("docs/2026/reports", request.Source.Path);
+            var invalid = await authority.DispatchAsync(FolderCommand(new { remoteId, path = "docs", name = "../escape", capabilityBinding = capabilities.Binding }), TestContext.Current.CancellationToken);
+            Assert.Equal("folder-create-invalid", invalid.ResultType);
+            Assert.Single(runtime.Requests);
+        }
+        finally { Directory.Delete(root, recursive: true); }
+    }
+
     private static ProtocolEnvelope Command(object arguments) => ProtocolEnvelope.CreateRequest(MessageType.Command, new("browse-request"), 1, new(new("client"), 0), new(new("browse-key"), new("browse-cancel"), DateTimeOffset.UtcNow.AddMinutes(1)), JsonSerializer.SerializeToUtf8Bytes(new { commandType = "browse-remote", arguments }));
+
+    private static ProtocolEnvelope FolderCommand(object arguments) => ProtocolEnvelope.CreateRequest(MessageType.Command, new("folder-request"), 1, new(new("client"), 0), new(new($"folder-key-{Guid.NewGuid():N}"), new("folder-cancel"), DateTimeOffset.UtcNow.AddMinutes(1)), JsonSerializer.SerializeToUtf8Bytes(new { commandType = "create-remote-folder", arguments }));
 
     private static RcloneExecutionResult Success(string json)
     {

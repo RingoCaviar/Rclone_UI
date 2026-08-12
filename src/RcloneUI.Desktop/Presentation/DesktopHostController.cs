@@ -127,6 +127,17 @@ public sealed class DesktopHostController(IDesktopHostClient client, DesktopShel
         await BrowseAsync(cancellationToken).ConfigureAwait(false);
     }
 
+    public async ValueTask CreateBrowserFolderAsync(CancellationToken cancellationToken = default)
+    {
+        if (shell.CapabilityBinding is null) { shell.ApplyAction("rclone-unavailable"); return; }
+        if (shell.BrowserRemote is null || !shell.CanCreateBrowserFolder) { shell.ApplyAction("folder-create-invalid"); return; }
+        using var arguments = JsonDocument.Parse(JsonSerializer.Serialize(new { remoteId = shell.BrowserRemote.Id, path = shell.BrowserPath, name = shell.NewBrowserFolderName, capabilityBinding = shell.CapabilityBinding }));
+        var result = await client.SendCommandAsync("create-remote-folder", arguments.RootElement, cancellationToken).ConfigureAwait(false);
+        var resultType = result.GetProperty("resultType").GetString() ?? "unknown-result";
+        shell.ApplyAction(resultType);
+        if (resultType == "folder-created") { shell.NewBrowserFolderName = string.Empty; await BrowseAsync(cancellationToken).ConfigureAwait(false); }
+    }
+
     private async ValueTask ToggleMountAsync(CancellationToken cancellationToken)
     {
         if (shell.CapabilityBinding is null) { shell.ApplyAction("rclone-unavailable"); return; }

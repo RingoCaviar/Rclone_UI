@@ -34,6 +34,7 @@ public sealed partial class MainWindow : Window
     private async void JourneyPrimaryClicked(object? sender, RoutedEventArgs args) { if (controller is not null) await controller.ActivatePrimaryAsync(); }
     private async void BrowseParentClicked(object? sender, RoutedEventArgs args) { if (controller is not null) await controller.BrowseParentAsync(); }
     private async void OpenBrowserFolderClicked(object? sender, RoutedEventArgs args) { if (controller is not null) await controller.OpenBrowserFolderAsync(); }
+    private async void CreateBrowserFolderClicked(object? sender, RoutedEventArgs args) { if (controller is not null) await controller.CreateBrowserFolderAsync(); }
     private void UseBrowserSelectionClicked(object? sender, RoutedEventArgs args) => ((DesktopShellState)DataContext!).UseBrowserSelectionForTransfer();
     private async void PickDownloadFolderClicked(object? sender, RoutedEventArgs args)
     {

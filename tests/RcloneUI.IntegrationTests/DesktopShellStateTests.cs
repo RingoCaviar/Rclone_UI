@@ -355,6 +355,19 @@ public sealed class DesktopShellStateTests
         Assert.Contains("running", shell.HomeTransferStatus, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void SettingsSummarizeHostManagedComponentState()
+    {
+        using var document = JsonDocument.Parse("""{"session":"operational","rclone":{"status":"ready","version":"v1.75.0","capabilityBinding":"caps","mountAvailable":true},"winFsp":{"status":"ready","version":"2.1-test"}}""");
+        var shell = new DesktopShellState();
+        shell.ApplySnapshot(new(new(new("settings"), 1), DateTimeOffset.UtcNow, document.RootElement.Clone()));
+        shell.ToggleLanguage();
+
+        Assert.Equal("Unlocked", shell.SettingsVaultStatus);
+        Assert.Equal("rclone v1.75.0", shell.SettingsRcloneStatus);
+        Assert.Contains("WinFsp 2.1-test ready", shell.SettingsWinFspStatus, StringComparison.Ordinal);
+    }
+
     private sealed class RecordingClient : IDesktopHostClient
     {
         private readonly string connectionResultType;

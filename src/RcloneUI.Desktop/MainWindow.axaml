@@ -166,6 +166,12 @@
                 <TextBlock Text="{Binding ActivityEmptyText}" IsVisible="{Binding ActivityEmptyText}" Opacity="0.72" />
                 <ListBox ItemsSource="{Binding ActivityRows}" AutomationProperties.Name="Recent activity" />
               </StackPanel>
+              <StackPanel IsVisible="{Binding IsSettingsJourney}" Spacing="10">
+                <TextBlock Text="{Binding SettingsHostStatus}" AutomationProperties.LiveSetting="Polite" />
+                <TextBlock Text="{Binding SettingsVaultStatus}" />
+                <TextBlock Text="{Binding SettingsRcloneStatus}" />
+                <TextBlock Text="{Binding SettingsWinFspStatus}" />
+              </StackPanel>
               <StackPanel IsVisible="{Binding IsMountJourney}" Spacing="10">
                 <Border Classes="status" Background="{DynamicResource CardBrush}">
                   <Grid ColumnDefinitions="*,Auto,Auto">

@@ -141,6 +141,11 @@ public sealed class DesktopShellState : INotifyPropertyChanged
     public bool IsMountJourney => route == "Mounts";
     public bool IsBrowserJourney => route == "Browser";
     public bool IsActivityJourney => route == "Activity";
+    public bool IsSettingsJourney => route == "Settings";
+    public string SettingsHostStatus => ConnectionLabel;
+    public string SettingsVaultStatus => VaultStatusLabel;
+    public string SettingsRcloneStatus => rcloneVersion is null ? T("rclone 不可用", "rclone unavailable") : $"rclone {rcloneVersion}";
+    public string SettingsWinFspStatus => MountPrerequisiteStatus;
     public IReadOnlyList<string> ActivityRows => activityRows;
     public string ActivityEmptyText => activityRows.Length == 0 ? T("尚无后台服务记录的传输或挂载活动。", "No transfer or Mount activity is currently recorded by the Background Host.") : string.Empty;
     public DesktopRemoteOption? BrowserRemote { get; set; }

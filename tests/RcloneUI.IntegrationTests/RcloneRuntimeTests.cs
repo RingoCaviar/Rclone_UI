@@ -9,6 +9,18 @@ namespace RcloneUI.IntegrationTests;
 public sealed class RcloneRuntimeTests
 {
     [Fact]
+    public async Task RuntimeConfiguresRemoteBeforeUsingItsNamedFileSystem()
+    {
+        var runtime = new ScriptedRcloneRuntime(CreateCapabilities("config/create", "config/delete", "operations/list"), []);
+        var parameters = new Dictionary<string, string> { ["host"] = "files.example.test", ["port"] = "3587" };
+
+        await runtime.ConfigureRemoteAsync("rcloneui_test", "ftp", parameters, passwordsAlreadyObscured: true, TestContext.Current.CancellationToken);
+
+        Assert.Equal("ftp", runtime.ConfiguredRemotes["rcloneui_test"].ProviderType);
+        Assert.Equal("3587", runtime.ConfiguredRemotes["rcloneui_test"].Parameters["port"]);
+    }
+
+    [Fact]
     public void BinaryVerificationRejectsChangedBytes()
     {
         var path = Path.Combine(Path.GetTempPath(), $"rclone-{Guid.NewGuid():N}.exe");
@@ -89,9 +101,9 @@ public sealed class RcloneRuntimeTests
         Assert.True(process.WaitForExit(TimeSpan.FromSeconds(10)));
     }
 
-    private static RcloneCapabilitySnapshot CreateCapabilities()
+    private static RcloneCapabilitySnapshot CreateCapabilities(params string[] endpoints)
     {
         var binary = new RcloneBinaryIdentity("v1", new string('A', 64), 1);
-        return new(binary, new string('B', 64), new string('C', 64), ImmutableSortedSet.Create("sync/copy"), ImmutableSortedSet<string>.Empty, DateTimeOffset.UtcNow);
+        return new(binary, new string('B', 64), new string('C', 64), ImmutableSortedSet.CreateRange(endpoints.Length == 0 ? ["sync/copy"] : endpoints), ImmutableSortedSet<string>.Empty, DateTimeOffset.UtcNow);
     }
 }

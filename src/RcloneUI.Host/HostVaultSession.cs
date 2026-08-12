@@ -115,10 +115,16 @@ internal sealed class HostVaultSession : IHostVaultSession, IHostRemoteResolver,
             if (sessionState != "operational" || store is null) return "vault-locked";
             if ((await store.ListAsync(cancellationToken).ConfigureAwait(false)).Any(remote => StringComparer.OrdinalIgnoreCase.Equals(remote.DisplayName, displayName))) return "remote-name-conflict";
             var candidate = new StoredRemote(RemoteId.New(), displayName.Trim(), providerType, 0, new Dictionary<string, string>(StringComparer.Ordinal) { ["token"] = token }, new(RemoteHealthKind.Unknown, DateTimeOffset.UtcNow, null, null));
-            var fileSystem = await configWriter.BindAsync(candidate, cancellationToken).ConfigureAwait(false);
+            var fileSystem = HostRcloneConfigWriter.FileSystem(candidate.Id.Value);
             var committed = false;
+            var configured = false;
+            var bound = false;
             try
             {
+                await rclone.ConfigureRemoteAsync(fileSystem[..^1], providerType, candidate.Configuration, passwordsAlreadyObscured: true, cancellationToken).ConfigureAwait(false);
+                configured = true;
+                await configWriter.BindAsync(candidate, cancellationToken).ConfigureAwait(false);
+                bound = true;
                 var handle = await rclone.StartAsync(new(Guid.NewGuid(), rclone.Capabilities.Binding, RclonePrimitive.List, new(fileSystem, string.Empty), null, $"remote-test/{candidate.Id.Value:N}"), cancellationToken).ConfigureAwait(false);
                 var tested = await rclone.WaitAsync(handle, cancellationToken).ConfigureAwait(false);
                 if (!tested.Success) return "remote-test-failed";
@@ -128,7 +134,14 @@ internal sealed class HostVaultSession : IHostVaultSession, IHostRemoteResolver,
                 return "remote-added";
             }
             catch (Exception exception) when (exception is not OperationCanceledException) { return "remote-test-failed"; }
-            finally { if (!committed) await configWriter.UnbindAsync(candidate.Id.Value, CancellationToken.None).ConfigureAwait(false); }
+            finally
+            {
+                if (!committed)
+                {
+                    if (configured) try { await rclone.RemoveRemoteAsync(fileSystem[..^1], CancellationToken.None).ConfigureAwait(false); } catch { }
+                    if (bound) await configWriter.UnbindAsync(candidate.Id.Value, CancellationToken.None).ConfigureAwait(false);
+                }
+            }
         }
         finally { gate.Release(); }
     }
@@ -147,9 +160,26 @@ internal sealed class HostVaultSession : IHostVaultSession, IHostRemoteResolver,
             var secured = new Dictionary<string, string>(configuration, StringComparer.Ordinal);
             if (secured.TryGetValue("pass", out var clearPassword)) secured["pass"] = await rclone.ObscureAsync(clearPassword, cancellationToken).ConfigureAwait(false);
             var candidate = new StoredRemote(RemoteId.New(), displayName.Trim(), providerType, 0, secured, new(RemoteHealthKind.Unknown, DateTimeOffset.UtcNow, null, null));
-            var fileSystem = await configWriter.BindAsync(candidate, cancellationToken).ConfigureAwait(false); var committed = false;
-            try { var handle = await rclone.StartAsync(new(Guid.NewGuid(), rclone.Capabilities.Binding, RclonePrimitive.List, new(fileSystem, string.Empty), null, $"remote-test/{candidate.Id.Value:N}"), cancellationToken).ConfigureAwait(false); if (!(await rclone.WaitAsync(handle, cancellationToken).ConfigureAwait(false)).Success) return "remote-test-failed"; await store.UpsertAsync(candidate with { Health = new(RemoteHealthKind.Healthy, DateTimeOffset.UtcNow, rclone.Capabilities.Binding, null) }, 0, cancellationToken).ConfigureAwait(false); committed = true; return "remote-added"; }
-            finally { if (!committed) await configWriter.UnbindAsync(candidate.Id.Value, CancellationToken.None).ConfigureAwait(false); }
+            var fileSystem = HostRcloneConfigWriter.FileSystem(candidate.Id.Value); var committed = false; var configured = false; var bound = false;
+            try
+            {
+                await rclone.ConfigureRemoteAsync(fileSystem[..^1], providerType, candidate.Configuration, passwordsAlreadyObscured: true, cancellationToken).ConfigureAwait(false);
+                configured = true;
+                await configWriter.BindAsync(candidate, cancellationToken).ConfigureAwait(false);
+                bound = true;
+                var handle = await rclone.StartAsync(new(Guid.NewGuid(), rclone.Capabilities.Binding, RclonePrimitive.List, new(fileSystem, string.Empty), null, $"remote-test/{candidate.Id.Value:N}"), cancellationToken).ConfigureAwait(false);
+                if (!(await rclone.WaitAsync(handle, cancellationToken).ConfigureAwait(false)).Success) return "remote-test-failed";
+                await store.UpsertAsync(candidate with { Health = new(RemoteHealthKind.Healthy, DateTimeOffset.UtcNow, rclone.Capabilities.Binding, null) }, 0, cancellationToken).ConfigureAwait(false); committed = true; return "remote-added";
+            }
+            catch (Exception exception) when (exception is not OperationCanceledException) { return "remote-test-failed"; }
+            finally
+            {
+                if (!committed)
+                {
+                    if (configured) try { await rclone.RemoveRemoteAsync(fileSystem[..^1], CancellationToken.None).ConfigureAwait(false); } catch { }
+                    if (bound) await configWriter.UnbindAsync(candidate.Id.Value, CancellationToken.None).ConfigureAwait(false);
+                }
+            }
         }
         finally { gate.Release(); }
     }

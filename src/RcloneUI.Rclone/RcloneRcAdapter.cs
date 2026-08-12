@@ -71,6 +71,20 @@ public sealed class RcloneRcAdapter : IRcloneRuntime, IDisposable
         return result.RootElement.TryGetProperty("obscured", out var obscured) && obscured.ValueKind == JsonValueKind.String ? obscured.GetString()! : throw new InvalidDataException("rclone did not return an obscured secret.");
     }
 
+    public async ValueTask ConfigureRemoteAsync(string name, string providerType, IReadOnlyDictionary<string, string> parameters, bool passwordsAlreadyObscured, CancellationToken cancellationToken)
+    {
+        if (!Capabilities.Endpoints.Contains("config/create")) throw new NotSupportedException("The managed rclone does not expose 'config/create'.");
+        using var response = await client.PostAsJsonAsync("config/create", new { name, type = providerType, parameters, opt = new { noObscure = passwordsAlreadyObscured, nonInteractive = true, noOutput = true } }, cancellationToken).ConfigureAwait(false);
+        using var _ = await ReadSuccessAsync(response, cancellationToken).ConfigureAwait(false);
+    }
+
+    public async ValueTask RemoveRemoteAsync(string name, CancellationToken cancellationToken)
+    {
+        if (!Capabilities.Endpoints.Contains("config/delete")) throw new NotSupportedException("The managed rclone does not expose 'config/delete'.");
+        using var response = await client.PostAsJsonAsync("config/delete", new { name }, cancellationToken).ConfigureAwait(false);
+        using var _ = await ReadSuccessAsync(response, cancellationToken).ConfigureAwait(false);
+    }
+
     public async ValueTask<RcloneTransferStats> GetStatsAsync(RcloneExecutionHandle handle, CancellationToken cancellationToken)
     {
         using var response = await client.PostAsJsonAsync("core/stats", new { group = handle.Group }, cancellationToken).ConfigureAwait(false);

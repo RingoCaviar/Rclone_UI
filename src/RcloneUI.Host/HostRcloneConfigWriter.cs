@@ -25,6 +25,8 @@ internal sealed class HostRcloneConfigWriter(string dataRootPath) : IDisposable
         finally { gate.Release(); }
     }
 
+    internal static string FileSystem(Guid remoteId) => Name(remoteId) + ":";
+
     internal async ValueTask UnbindAsync(Guid remoteId, CancellationToken cancellationToken)
     {
         await gate.WaitAsync(cancellationToken).ConfigureAwait(false);

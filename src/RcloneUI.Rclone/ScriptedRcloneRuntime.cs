@@ -23,8 +23,10 @@ public sealed class ScriptedRcloneRuntime : IRcloneRuntime
     }
 
     public RcloneCapabilitySnapshot Capabilities { get; }
+    public IReadOnlyDictionary<string, RcloneRemoteConfiguration> ConfiguredRemotes => configuredRemotes;
     public IReadOnlyCollection<RcloneExecutionRequest> Requests => requests;
     private readonly List<RcloneExecutionRequest> requests = [];
+    private readonly Dictionary<string, RcloneRemoteConfiguration> configuredRemotes = new(StringComparer.Ordinal);
 
     public ValueTask<RcloneExecutionHandle> StartAsync(RcloneExecutionRequest request, CancellationToken cancellationToken)
     {
@@ -64,6 +66,22 @@ public sealed class ScriptedRcloneRuntime : IRcloneRuntime
         return ValueTask.CompletedTask;
     }
     public ValueTask<string> ObscureAsync(string clearText, CancellationToken cancellationToken) => ValueTask.FromResult(clearText);
+
+    public ValueTask ConfigureRemoteAsync(string name, string providerType, IReadOnlyDictionary<string, string> parameters, bool passwordsAlreadyObscured, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        if (!Capabilities.Endpoints.Contains("config/create")) throw new NotSupportedException("The scripted rclone does not expose 'config/create'.");
+        configuredRemotes.Add(name, new(providerType, new Dictionary<string, string>(parameters, StringComparer.Ordinal)));
+        return ValueTask.CompletedTask;
+    }
+
+    public ValueTask RemoveRemoteAsync(string name, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        if (!Capabilities.Endpoints.Contains("config/delete")) throw new NotSupportedException("The scripted rclone does not expose 'config/delete'.");
+        configuredRemotes.Remove(name);
+        return ValueTask.CompletedTask;
+    }
 
     public static RcloneExecutionResult Success() => new(true, false, null, EmptyBody());
 

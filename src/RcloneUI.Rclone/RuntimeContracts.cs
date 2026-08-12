@@ -65,6 +65,7 @@ public sealed record RcloneTransferStats(
     bool Finished);
 
 public sealed record RcloneExecutionResult(bool Success, bool Cancelled, string? ErrorCode, JsonElement Body);
+public sealed record RcloneRemoteConfiguration(string ProviderType, IReadOnlyDictionary<string, string> Parameters);
 
 public interface IRcloneRuntime
 {
@@ -74,6 +75,8 @@ public interface IRcloneRuntime
     ValueTask<RcloneExecutionResult> WaitAsync(RcloneExecutionHandle handle, CancellationToken cancellationToken);
     ValueTask CancelAsync(RcloneExecutionHandle handle, CancellationToken cancellationToken);
     ValueTask<string> ObscureAsync(string clearText, CancellationToken cancellationToken);
+    ValueTask ConfigureRemoteAsync(string name, string providerType, IReadOnlyDictionary<string, string> parameters, bool passwordsAlreadyObscured, CancellationToken cancellationToken);
+    ValueTask RemoveRemoteAsync(string name, CancellationToken cancellationToken);
 }
 
 public sealed class RcloneCapabilityChangedException(string expected, string actual)

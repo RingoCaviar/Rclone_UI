@@ -195,6 +195,10 @@
               </StackPanel>
               <StackPanel IsVisible="{Binding IsActivityJourney}" Spacing="10">
                 <TextBlock Text="{Binding ActivityEmptyText}" IsVisible="{Binding ActivityEmptyText}" Opacity="0.72" />
+                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
+                  <ComboBox ItemsSource="{Binding CopyRunOptions}" SelectedItem="{Binding SelectedCopyRun}" DisplayMemberBinding="{Binding DisplayName}" PlaceholderText="{Binding CopyRunHint}" AutomationProperties.Name="Running transfers" />
+                  <Button Grid.Column="1" IsEnabled="{Binding CanCancelSelectedCopy}" Content="{Binding CancelCopyLabel}" Click="CancelSelectedCopyClicked" AutomationProperties.Name="Cancel selected transfer" />
+                </Grid>
                 <ListBox ItemsSource="{Binding ActivityRows}" AutomationProperties.Name="Recent activity" />
               </StackPanel>
               <StackPanel IsVisible="{Binding IsSettingsJourney}" Spacing="10">

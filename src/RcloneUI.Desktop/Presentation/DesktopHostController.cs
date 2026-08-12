@@ -149,6 +149,15 @@ public sealed class DesktopHostController(IDesktopHostClient client, DesktopShel
         if (resultType == "file-deleted") { shell.BrowserDeleteConfirmation = string.Empty; await BrowseAsync(cancellationToken).ConfigureAwait(false); }
     }
 
+    public async ValueTask CancelSelectedCopyAsync(CancellationToken cancellationToken = default)
+    {
+        if (shell.SelectedCopyRun is not { } run || !shell.CanCancelSelectedCopy) { shell.ApplyAction("copy-cancel-not-running"); return; }
+        using var arguments = JsonDocument.Parse(JsonSerializer.Serialize(new { runId = run.Id }));
+        var result = await client.SendCommandAsync("cancel-copy", arguments.RootElement, cancellationToken).ConfigureAwait(false);
+        shell.ApplyAction(result.GetProperty("resultType").GetString() ?? "unknown-result");
+        await ReconnectAsync(cancellationToken).ConfigureAwait(false);
+    }
+
     private async ValueTask ToggleMountAsync(CancellationToken cancellationToken)
     {
         if (shell.CapabilityBinding is null) { shell.ApplyAction("rclone-unavailable"); return; }

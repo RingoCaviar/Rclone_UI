@@ -24,6 +24,7 @@ internal sealed class HostStateAuthority : IDisposable
     private readonly IWinFspDetector winFsp;
     private readonly SemaphoreSlim dispatchGate = new(1, 1);
     private readonly Dictionary<Guid, CopyRunState> copyRuns = [];
+    private readonly Dictionary<Guid, RcloneExecutionHandle> activeCopyHandles = [];
     private readonly StateEpoch epoch = new(Guid.NewGuid().ToString("N"));
     private ulong revision;
     private int activationCount;
@@ -125,6 +126,10 @@ internal sealed class HostStateAuthority : IDisposable
             else if (commandType == "start-copy")
             {
                 result = await StartCopyAsync(envelope.Body, cancellationToken).ConfigureAwait(false);
+            }
+            else if (commandType == "cancel-copy")
+            {
+                result = await CancelCopyAsync(envelope.Body, cancellationToken).ConfigureAwait(false);
             }
             else if (commandType == "browse-remote")
             {
@@ -236,9 +241,28 @@ internal sealed class HostStateAuthority : IDisposable
             revision = checked(revision + 1);
             state = new(id, "running", 0, 0, 0, null, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow);
             copyRuns.Add(id, state);
+            activeCopyHandles.Add(id, handle);
         }
         _ = ObserveCopyAsync(handle);
         return CreateResult("copy-accepted", new { runId = id }, Cursor, stateChanged: true);
+    }
+
+    private async ValueTask<HostCommandResult> CancelCopyAsync(JsonElement body, CancellationToken cancellationToken)
+    {
+        if (rclone is null) return CreateResult("copy-cancel-unavailable", new { }, Cursor);
+        if (!body.TryGetProperty("arguments", out var arguments) || ReadGuidArgument(arguments, "runId") is not { } runId) return CreateResult("copy-cancel-invalid", new { }, Cursor);
+        RcloneExecutionHandle? handle;
+        lock (sync)
+        {
+            handle = activeCopyHandles.GetValueOrDefault(runId);
+            if (handle is null || !copyRuns.TryGetValue(runId, out var run) || run.State != "running") return CreateResult("copy-cancel-not-running", new { }, new(epoch, revision));
+        }
+        try
+        {
+            await rclone.CancelAsync(handle, cancellationToken).ConfigureAwait(false);
+            return CreateResult("copy-cancel-requested", new { runId }, Cursor);
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException) { return CreateResult("copy-cancel-failed", new { code = exception.GetType().Name.ToLowerInvariant() }, Cursor); }
     }
 
     private async ValueTask<HostCommandResult> BrowseRemoteAsync(JsonElement body, CancellationToken cancellationToken)
@@ -518,6 +542,7 @@ internal sealed class HostStateAuthority : IDisposable
             {
                 revision = checked(revision + 1);
                 copyRuns[handle.ExecutionId] = copyRuns[handle.ExecutionId] with { State = result.Success ? "succeeded" : result.Cancelled ? "cancelled" : "failed", ErrorCode = result.ErrorCode, UpdatedUtc = DateTimeOffset.UtcNow };
+                activeCopyHandles.Remove(handle.ExecutionId);
             }
         }
         catch (Exception exception)
@@ -526,6 +551,7 @@ internal sealed class HostStateAuthority : IDisposable
             {
                 revision = checked(revision + 1);
                 copyRuns[handle.ExecutionId] = copyRuns[handle.ExecutionId] with { State = "failed", ErrorCode = exception.GetType().Name.ToLowerInvariant(), UpdatedUtc = DateTimeOffset.UtcNow };
+                activeCopyHandles.Remove(handle.ExecutionId);
             }
         }
     }

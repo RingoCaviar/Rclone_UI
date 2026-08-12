@@ -11,6 +11,10 @@ public enum DesktopTransferMode { Download, Upload, RemoteCopy }
 public enum DesktopActionNotificationKind { Success, Error, Information }
 public sealed record DesktopRemoteOption(Guid Id, string DisplayName);
 public sealed record DesktopSavedRemoteOption(Guid Id, ulong Revision, string DisplayName, string ProviderType, string Health);
+public sealed record DesktopCopyRunOption(Guid Id, string State, long Bytes, long TotalBytes)
+{
+    public string DisplayName => $"{State} · {Bytes}/{TotalBytes} bytes";
+}
 public sealed record DesktopChoice(string Key, string DisplayName);
 public sealed record DesktopMountProfileOption(Guid Id, ulong Revision, string DisplayName, Guid RemoteId, string Subpath, string PresentationMode, string DriveSelection, string DriveLetter, string? FixedDirectoryPath, string VolumeName, string CachePreset);
 public sealed record DesktopMountVfsStatus(bool Available, long? BytesUsed, int? ErroredFiles, int? UploadsInProgress, int? UploadsQueued, bool? OutOfSpace, int? QueueItems, DateTimeOffset? ObservedUtc);
@@ -69,6 +73,8 @@ public sealed class DesktopShellState : INotifyPropertyChanged
     private string newBrowserFolderName = string.Empty;
     private string browserDeleteConfirmation = string.Empty;
     private string[] activityRows = [];
+    private DesktopCopyRunOption[] copyRunOptions = [];
+    private DesktopCopyRunOption? selectedCopyRun;
 
     public DesktopShellState() => RefreshMountChoices();
 
@@ -164,6 +170,11 @@ public sealed class DesktopShellState : INotifyPropertyChanged
     public string SettingsRcloneStatus => rcloneVersion is null ? T("rclone 不可用", "rclone unavailable") : $"rclone {rcloneVersion}";
     public string SettingsWinFspStatus => MountPrerequisiteStatus;
     public IReadOnlyList<string> ActivityRows => activityRows;
+    public IReadOnlyList<DesktopCopyRunOption> CopyRunOptions => copyRunOptions;
+    public DesktopCopyRunOption? SelectedCopyRun { get => selectedCopyRun; set { if (selectedCopyRun?.Id == value?.Id) return; selectedCopyRun = value; ChangedAll(); } }
+    public bool CanCancelSelectedCopy => selectedCopyRun?.State == "running";
+    public string CopyRunHint => T("选择正在运行的传输", "Select a running transfer");
+    public string CancelCopyLabel => T("取消所选传输", "Cancel selected transfer");
     public string ActivityEmptyText => activityRows.Length == 0 ? T("尚无后台服务记录的传输或挂载活动。", "No transfer or Mount activity is currently recorded by the Background Host.") : string.Empty;
     public DesktopRemoteOption? BrowserRemote { get; set; }
     public string BrowserPath { get; set; } = string.Empty;
@@ -204,8 +215,8 @@ public sealed class DesktopShellState : INotifyPropertyChanged
     public bool HasActionNotification => !string.IsNullOrWhiteSpace(lastAction);
     public DesktopActionNotificationKind ActionNotificationKind => lastAction switch
     {
-        "remote-added" or "remote-deleted" or "folder-created" or "file-deleted" or "copy-accepted" or "mount-started" or "mount-stopped" or "mount-profile-saved" or "mount-profile-deleted" or "vault-unlocked" or "vault-lock-completed" or "shutdown-accepted" or "winfsp-install-complete" or "winfsp-install-complete:restart-required" => DesktopActionNotificationKind.Success,
-        "remote-input-invalid" or "remote-host-key-required" or "remote-test-failed" or "remote-delete-confirmation-required" or "remote-delete-blocked-profile" or "remote-delete-conflict" or "remote-delete-unavailable" or "remote-delete-invalid" or "folder-create-invalid" or "folder-create-failed" or "folder-create-unavailable" or "file-delete-confirmation-required" or "file-delete-invalid" or "file-delete-failed" or "file-delete-unavailable" or "vault-locked" or "host-unavailable" or "rclone-unavailable" or "mount-prerequisites-unavailable" or "mount-profile-required" or "mount-drain-not-proved" or "source-remote-required" or "destination-remote-required" or "download-folder-required" or "upload-folder-required" or "transfer-limits-invalid" or "shutdown-blocked-active-mount" or "winfsp-installer-unavailable" or "winfsp-installer-not-started" or "winfsp-download-failed" or "winfsp-hash-mismatch" or "winfsp-signature-invalid" or "winfsp-install-cancelled" or "winfsp-uac-cancelled" => DesktopActionNotificationKind.Error,
+        "remote-added" or "remote-deleted" or "folder-created" or "file-deleted" or "copy-accepted" or "copy-cancel-requested" or "mount-started" or "mount-stopped" or "mount-profile-saved" or "mount-profile-deleted" or "vault-unlocked" or "vault-lock-completed" or "shutdown-accepted" or "winfsp-install-complete" or "winfsp-install-complete:restart-required" => DesktopActionNotificationKind.Success,
+        "remote-input-invalid" or "remote-host-key-required" or "remote-test-failed" or "remote-delete-confirmation-required" or "remote-delete-blocked-profile" or "remote-delete-conflict" or "remote-delete-unavailable" or "remote-delete-invalid" or "folder-create-invalid" or "folder-create-failed" or "folder-create-unavailable" or "file-delete-confirmation-required" or "file-delete-invalid" or "file-delete-failed" or "file-delete-unavailable" or "copy-cancel-invalid" or "copy-cancel-not-running" or "copy-cancel-unavailable" or "copy-cancel-failed" or "vault-locked" or "host-unavailable" or "rclone-unavailable" or "mount-prerequisites-unavailable" or "mount-profile-required" or "mount-drain-not-proved" or "source-remote-required" or "destination-remote-required" or "download-folder-required" or "upload-folder-required" or "transfer-limits-invalid" or "shutdown-blocked-active-mount" or "winfsp-installer-unavailable" or "winfsp-installer-not-started" or "winfsp-download-failed" or "winfsp-hash-mismatch" or "winfsp-signature-invalid" or "winfsp-install-cancelled" or "winfsp-uac-cancelled" => DesktopActionNotificationKind.Error,
         var value when value.StartsWith("winfsp-installer-failed:", StringComparison.Ordinal) || value.StartsWith("winfsp-install-failed:", StringComparison.Ordinal) => DesktopActionNotificationKind.Error,
         _ => DesktopActionNotificationKind.Information
     };
@@ -227,6 +238,9 @@ public sealed class DesktopShellState : INotifyPropertyChanged
         "file-delete-confirmation-required" => T("请先输入所选文件的完整路径以确认删除。", "Type the selected file path to confirm deletion."),
         "file-delete-invalid" => T("只能删除当前目录中选定的单个文件。", "Only one selected file in the current folder can be deleted."),
         "file-delete-failed" => T("无法删除远程文件。请检查连接和写入权限后重试。", "Could not delete the remote file. Check the connection and write permission, then try again."),
+        "copy-cancel-requested" => T("已请求取消传输，正在等待后台服务确认最终状态。", "Cancellation was requested; waiting for the Background Host to confirm the final state."),
+        "copy-cancel-not-running" => T("该传输已结束或不再由后台服务管理。", "That transfer already ended or is no longer managed by the Background Host."),
+        "copy-cancel-failed" => T("无法取消传输；请稍后刷新活动状态。", "Could not cancel the transfer. Refresh Activity shortly."),
         "remote-delete-confirmation-required" => T("请先输入所选远程存储的完整名称以确认删除。", "Type the selected Remote's full name to confirm deletion."),
         "remote-delete-blocked-profile" => T("该远程存储仍被挂载配置引用；请先删除或改用其他远程存储。", "This Remote is still referenced by a Mount profile. Delete or change that profile first."),
         "remote-delete-conflict" => T("远程存储已被其他操作更改或删除；请刷新后重试。", "The Remote changed or was deleted elsewhere. Refresh and try again."),
@@ -522,7 +536,12 @@ public sealed class DesktopShellState : INotifyPropertyChanged
         else { mountProfiles = []; selectedMountProfile = null; }
         var activities = new List<string>();
         if (snapshot.Body.TryGetProperty("copyRuns", out var activityCopies) && activityCopies.ValueKind == JsonValueKind.Array)
+        {
+            copyRunOptions = activityCopies.EnumerateArray().Where(run => run.TryGetProperty("runId", out var runId) && runId.ValueKind == JsonValueKind.String && Guid.TryParse(runId.GetString(), out _)).Select(run => new DesktopCopyRunOption(run.GetProperty("runId").GetGuid(), run.GetProperty("state").GetString() ?? "unknown", run.GetProperty("bytes").GetInt64(), run.GetProperty("totalBytes").GetInt64())).ToArray();
+            selectedCopyRun = selectedCopyRun is null ? copyRunOptions.LastOrDefault(run => run.State == "running") : copyRunOptions.FirstOrDefault(run => run.Id == selectedCopyRun.Id);
             activities.AddRange(activityCopies.EnumerateArray().TakeLast(20).Select(run => $"Copy · {run.GetProperty("state").GetString() ?? "unknown"} · {run.GetProperty("bytes").GetInt64()}/{run.GetProperty("totalBytes").GetInt64()} bytes"));
+        }
+        else { copyRunOptions = []; selectedCopyRun = null; }
         if (snapshot.Body.TryGetProperty("mounts", out var activityMounts) && activityMounts.ValueKind == JsonValueKind.Array)
             activities.AddRange(activityMounts.EnumerateArray().TakeLast(20).Select(mount => $"Mount · {mount.GetProperty("state").GetString() ?? "unknown"} · {mount.GetProperty("mountPoint").GetString() ?? "?"}"));
         activityRows = activities.TakeLast(40).ToArray();

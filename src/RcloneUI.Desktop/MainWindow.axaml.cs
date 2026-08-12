@@ -36,6 +36,7 @@ public sealed partial class MainWindow : Window
     private async void OpenBrowserFolderClicked(object? sender, RoutedEventArgs args) { if (controller is not null) await controller.OpenBrowserFolderAsync(); }
     private async void CreateBrowserFolderClicked(object? sender, RoutedEventArgs args) { if (controller is not null) await controller.CreateBrowserFolderAsync(); }
     private async void DeleteBrowserFileClicked(object? sender, RoutedEventArgs args) { if (controller is not null) await controller.DeleteBrowserFileAsync(); }
+    private async void CancelSelectedCopyClicked(object? sender, RoutedEventArgs args) { if (controller is not null) await controller.CancelSelectedCopyAsync(); }
     private void UseBrowserSelectionClicked(object? sender, RoutedEventArgs args) => ((DesktopShellState)DataContext!).UseBrowserSelectionForTransfer();
     private async void PickDownloadFolderClicked(object? sender, RoutedEventArgs args)
     {

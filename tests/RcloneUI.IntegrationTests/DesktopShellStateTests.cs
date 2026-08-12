@@ -376,6 +376,21 @@ public sealed class DesktopShellStateTests
     }
 
     [Fact]
+    public async Task ActivityCancelsOnlyTheSelectedRunningHostCopy()
+    {
+        var runId = Guid.NewGuid();
+        using var document = JsonDocument.Parse(JsonSerializer.Serialize(new { session = "operational", copyRuns = new[] { new { runId, state = "running", bytes = 5, totalBytes = 10, bytesPerSecond = 1 } }, rclone = new { status = "ready", capabilityBinding = "caps" } }));
+        var client = new RecordingClient(); var shell = new DesktopShellState(); var controller = new DesktopHostController(client, shell);
+        shell.ApplySnapshot(new(new(new("activity"), 1), DateTimeOffset.UtcNow, document.RootElement.Clone()));
+
+        Assert.True(shell.CanCancelSelectedCopy);
+        await controller.CancelSelectedCopyAsync(TestContext.Current.CancellationToken);
+
+        Assert.Contains("cancel-copy", client.CommandTypes);
+        Assert.Equal(runId, client.Arguments.GetProperty("runId").GetGuid());
+    }
+
+    [Fact]
     public void HomeDashboardUsesRemoteAndTransferSnapshotSummaries()
     {
         using var document = JsonDocument.Parse("""{"session":"operational","remotes":[{"id":"11111111-1111-1111-1111-111111111111","displayName":"FTPS"}],"copyRuns":[{"state":"running","bytes":5,"totalBytes":10,"bytesPerSecond":1}]}""");
@@ -530,7 +545,7 @@ public sealed class DesktopShellStateTests
         public ValueTask<JsonElement> SendCommandAsync(string commandType, JsonElement arguments, CancellationToken cancellationToken)
         {
             CommandType = commandType; CommandTypes.Add(commandType); Arguments = arguments.Clone();
-            var resultType = commandType == "add-token-remote" ? "remote-added" : commandType == "add-connection-remote" ? connectionResultType : commandType == "delete-remote" ? "remote-deleted" : commandType == "create-remote-folder" ? "folder-created" : commandType == "delete-remote-file" ? "file-deleted" : commandType == "browse-remote" ? "browse-completed" : "copy-not-started";
+            var resultType = commandType == "add-token-remote" ? "remote-added" : commandType == "add-connection-remote" ? connectionResultType : commandType == "delete-remote" ? "remote-deleted" : commandType == "create-remote-folder" ? "folder-created" : commandType == "delete-remote-file" ? "file-deleted" : commandType == "cancel-copy" ? "copy-cancel-requested" : commandType == "browse-remote" ? "browse-completed" : "copy-not-started";
             using var document = JsonDocument.Parse(JsonSerializer.Serialize(new { resultType, items = commandType == "browse-remote" ? new[] { new { path = "readme.txt", isDirectory = false, size = 42L } } : null, result = new { code = "test" } }));
             return ValueTask.FromResult(document.RootElement.Clone());
         }

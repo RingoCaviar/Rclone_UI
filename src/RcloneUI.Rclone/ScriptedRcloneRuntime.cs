@@ -56,6 +56,8 @@ public sealed class ScriptedRcloneRuntime : IRcloneRuntime
             return new(false, true, "cancelled", EmptyBody());
         var step = active[handle.ExecutionId];
         if (step.Delay is not null) await Task.Delay(step.Delay.Value, cancellationToken).ConfigureAwait(false);
+        if (cancelled.TryRemove(handle.ExecutionId, out _))
+            return new(false, true, "cancelled", EmptyBody());
         active.TryRemove(handle.ExecutionId, out _);
         return step.Result;
     }

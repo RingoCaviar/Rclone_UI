@@ -250,6 +250,22 @@ public sealed class DesktopShellStateTests
     }
 
     [Fact]
+    public async Task TransferLimitsAreBoundedBeforeSendingTheHostCommand()
+    {
+        var client = new RecordingClient(); var shell = new DesktopShellState(); var controller = new DesktopHostController(client, shell);
+        await controller.ReconnectAsync(TestContext.Current.CancellationToken);
+        shell.Navigate("Transfers"); shell.CopySourcePath = "photos"; shell.DownloadDestinationPath = "C:\\Downloads"; shell.MaximumTransferMiB = "512"; shell.MaximumDurationMinutes = "30";
+
+        await controller.ActivatePrimaryAsync(TestContext.Current.CancellationToken);
+
+        Assert.Equal(512L * 1024 * 1024, client.Arguments.GetProperty("maximumTransferBytes").GetInt64());
+        Assert.Equal(30, client.Arguments.GetProperty("maximumDurationMinutes").GetDouble());
+        shell.MaximumDurationMinutes = "zero";
+        await controller.ActivatePrimaryAsync(TestContext.Current.CancellationToken);
+        Assert.Equal("transfer-limits-invalid", shell.LastAction);
+    }
+
+    [Fact]
     public async Task MountPrimaryActionSendsSelectedReadOnlyProfileToHost()
     {
         var client = new RecordingClient(); var shell = new DesktopShellState(); var controller = new DesktopHostController(client, shell);

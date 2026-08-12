@@ -136,7 +136,7 @@ public sealed class DesktopHostClientTests
             await using (var host = BackgroundHostShell.TryCreate(root, Guid.NewGuid(), runtime, new VaultHostRemoteProjection(store, new(root))))
             {
                 Assert.NotNull(host); host.Start(); var client = new NamedPipeDesktopHostClient(root);
-                using var arguments = JsonDocument.Parse(JsonSerializer.Serialize(new { sourceLocalPath = source, destinationRemoteId = store.Id, destinationPath = "backup", capabilityBinding = capabilities.Binding }));
+                using var arguments = JsonDocument.Parse(JsonSerializer.Serialize(new { sourceLocalPath = source, destinationRemoteId = store.Id, destinationPath = "backup", maximumTransferBytes = 512L * 1024 * 1024, maximumDurationMinutes = 30, capabilityBinding = capabilities.Binding }));
 
                 var accepted = await client.SendCommandAsync("start-copy", arguments.RootElement, cancellationToken);
 
@@ -145,6 +145,8 @@ public sealed class DesktopHostClientTests
                 Assert.Equal(source.Replace('\\', '/').TrimEnd('/') + "/", request.Source.FileSystem);
                 Assert.Equal(string.Empty, request.Source.Path);
                 Assert.Equal("backup", request.Destination?.Path);
+                Assert.Equal(512L * 1024 * 1024, request.MaximumTransferBytes);
+                Assert.Equal(TimeSpan.FromMinutes(30), request.MaximumDuration);
             }
         }
         finally { Directory.Delete(root, recursive: true); }

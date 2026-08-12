@@ -180,10 +180,12 @@ internal sealed class HostStateAuthority : IDisposable
         var sourceLocalPath = ReadArgument(arguments, "sourceLocalPath", 32767);
         var destinationRemoteId = ReadGuidArgument(arguments, "destinationRemoteId"); var destinationPath = ReadArgument(arguments, "destinationPath");
         var destinationLocalPath = ReadArgument(arguments, "destinationLocalPath", 32767);
+        var maximumTransferBytes = ReadOptionalPositiveInt64(arguments, "maximumTransferBytes", 1_099_511_627_776L);
+        var maximumDurationMinutes = ReadOptionalPositiveInt64(arguments, "maximumDurationMinutes", 10_080);
         var binding = ReadArgument(arguments, "capabilityBinding");
         var localDownload = destinationLocalPath is not null;
         var localUpload = sourceLocalPath is not null;
-        if (binding is null || localDownload && localUpload || (localDownload ? sourceRemoteId is null || sourcePath is null || destinationRemoteId is not null || destinationPath is not null : localUpload ? destinationRemoteId is null || destinationPath is null || sourceRemoteId is not null || sourcePath is not null : sourceRemoteId is null || sourcePath is null || destinationRemoteId is null || destinationPath is null)) return CreateResult("copy-invalid", new { code = "arguments-invalid" }, Cursor);
+        if (binding is null || maximumTransferBytes.Invalid || maximumDurationMinutes.Invalid || localDownload && localUpload || (localDownload ? sourceRemoteId is null || sourcePath is null || destinationRemoteId is not null || destinationPath is not null : localUpload ? destinationRemoteId is null || destinationPath is null || sourceRemoteId is not null || sourcePath is not null : sourceRemoteId is null || sourcePath is null || destinationRemoteId is null || destinationPath is null)) return CreateResult("copy-invalid", new { code = "arguments-invalid" }, Cursor);
         string? sourceFs; string? destinationFs;
         try
         {
@@ -210,7 +212,7 @@ internal sealed class HostStateAuthority : IDisposable
         RcloneExecutionHandle handle;
         try
         {
-            handle = await rclone.StartAsync(new(id, binding, RclonePrimitive.Copy, new(sourceFs, sourcePath ?? string.Empty), new(destinationFs, destinationPath!), $"copy/{id:N}"), cancellationToken).ConfigureAwait(false);
+            handle = await rclone.StartAsync(new(id, binding, RclonePrimitive.Copy, new(sourceFs, sourcePath ?? string.Empty), new(destinationFs, destinationPath!), $"copy/{id:N}", MaximumTransferBytes: maximumTransferBytes.Value, MaximumDuration: maximumDurationMinutes.Value is { } minutes ? TimeSpan.FromMinutes(minutes) : null), cancellationToken).ConfigureAwait(false);
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
@@ -470,6 +472,11 @@ internal sealed class HostStateAuthority : IDisposable
         if (!arguments.TryGetProperty(name, out var value) || value.ValueKind != JsonValueKind.String) return null;
         var text = value.GetString();
         return text is not null && text.Length <= maximumLength ? text : null;
+    }
+    private static (long? Value, bool Invalid) ReadOptionalPositiveInt64(JsonElement arguments, string name, long maximum)
+    {
+        if (!arguments.TryGetProperty(name, out var value) || value.ValueKind == JsonValueKind.Null) return (null, false);
+        return value.TryGetInt64(out var number) && number is > 0 && number <= maximum ? (number, false) : (null, true);
     }
     private static Guid? ReadGuidArgument(JsonElement arguments, string name) => arguments.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.String && Guid.TryParse(value.GetString(), out var parsed) && parsed != Guid.Empty ? parsed : null;
 

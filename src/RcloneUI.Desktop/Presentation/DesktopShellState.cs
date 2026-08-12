@@ -40,6 +40,8 @@ public sealed class DesktopShellState : INotifyPropertyChanged
     private DesktopTransferMode transferMode;
     private string downloadDestinationPath = string.Empty;
     private string uploadSourcePath = string.Empty;
+    private string maximumTransferMiB = string.Empty;
+    private string maximumDurationMinutes = string.Empty;
     private Guid? activeMountId;
     private string mountLifecycleState = "stopped";
     private Guid? mountLifecycleProfileId;
@@ -125,6 +127,8 @@ public sealed class DesktopShellState : INotifyPropertyChanged
     public string SourcePathHint => T("远程文件或文件夹路径（根目录可留空）", "Remote file or folder path (leave empty for root)");
     public string DownloadFolderHint => T("选择电脑上的下载目录", "Select a download folder on this computer");
     public string UploadFolderHint => T("选择电脑上要上传的文件夹", "Select a local folder to upload");
+    public string MaximumTransferMiBHint => T("最多传输 MiB（可选）", "Maximum MiB to transfer (optional)");
+    public string MaximumDurationMinutesHint => T("最多时长分钟（可选）", "Maximum minutes (optional)");
     public string PickFolderLabel => T("选择文件夹…", "Choose folder…");
     public string DestinationRemoteHint => T("选择目标 Remote", "Select destination Remote");
     public string DestinationPathHint => T("目标路径", "Destination path");
@@ -180,7 +184,7 @@ public sealed class DesktopShellState : INotifyPropertyChanged
     public DesktopActionNotificationKind ActionNotificationKind => lastAction switch
     {
         "remote-added" or "copy-accepted" or "mount-started" or "mount-stopped" or "mount-profile-saved" or "mount-profile-deleted" or "vault-unlocked" or "vault-lock-completed" or "shutdown-accepted" or "winfsp-install-complete" or "winfsp-install-complete:restart-required" => DesktopActionNotificationKind.Success,
-        "remote-input-invalid" or "remote-host-key-required" or "remote-test-failed" or "vault-locked" or "host-unavailable" or "rclone-unavailable" or "mount-prerequisites-unavailable" or "mount-profile-required" or "mount-drain-not-proved" or "source-remote-required" or "destination-remote-required" or "download-folder-required" or "upload-folder-required" or "shutdown-blocked-active-mount" or "winfsp-installer-unavailable" or "winfsp-installer-not-started" or "winfsp-download-failed" or "winfsp-hash-mismatch" or "winfsp-signature-invalid" or "winfsp-install-cancelled" or "winfsp-uac-cancelled" => DesktopActionNotificationKind.Error,
+        "remote-input-invalid" or "remote-host-key-required" or "remote-test-failed" or "vault-locked" or "host-unavailable" or "rclone-unavailable" or "mount-prerequisites-unavailable" or "mount-profile-required" or "mount-drain-not-proved" or "source-remote-required" or "destination-remote-required" or "download-folder-required" or "upload-folder-required" or "transfer-limits-invalid" or "shutdown-blocked-active-mount" or "winfsp-installer-unavailable" or "winfsp-installer-not-started" or "winfsp-download-failed" or "winfsp-hash-mismatch" or "winfsp-signature-invalid" or "winfsp-install-cancelled" or "winfsp-uac-cancelled" => DesktopActionNotificationKind.Error,
         var value when value.StartsWith("winfsp-installer-failed:", StringComparison.Ordinal) || value.StartsWith("winfsp-install-failed:", StringComparison.Ordinal) => DesktopActionNotificationKind.Error,
         _ => DesktopActionNotificationKind.Information
     };
@@ -208,6 +212,7 @@ public sealed class DesktopShellState : INotifyPropertyChanged
         "destination-remote-required" => T("请选择目标远程存储。", "Select a destination Remote."),
         "download-folder-required" => T("请选择本地下载文件夹。", "Select a local download folder."),
         "upload-folder-required" => T("请选择要上传的本地文件夹。", "Select a local folder to upload."),
+        "transfer-limits-invalid" => T("高级传输限制必须是有效的正整数，并且处于允许范围内。", "Advanced transfer limits must be positive whole numbers within the allowed range."),
         "shutdown-blocked-active-mount" => T("仍有正在使用的挂载，无法彻底退出。请先安全卸载。", "A Mount is still active, so the Host cannot stop. Safely unmount it first."),
         "winfsp-install-started" => T("正在下载 WinFsp，随后会请求管理员授权安装。请留意 Windows 的授权窗口。", "Downloading WinFsp, then Windows will request administrator approval. Watch for the UAC prompt."),
         "winfsp-install-complete" => T("WinFsp 已安装完成。正在重新检测挂载条件。", "WinFsp installation completed. Rechecking Mount prerequisites."),
@@ -234,6 +239,23 @@ public sealed class DesktopShellState : INotifyPropertyChanged
     public bool IsRemoteCopyMode => transferMode == DesktopTransferMode.RemoteCopy;
     public string DownloadDestinationPath { get => downloadDestinationPath; set { if (downloadDestinationPath == value) return; downloadDestinationPath = value; ChangedAll(); } }
     public string UploadSourcePath { get => uploadSourcePath; set { if (uploadSourcePath == value) return; uploadSourcePath = value; ChangedAll(); } }
+    public string MaximumTransferMiB { get => maximumTransferMiB; set { if (maximumTransferMiB == value) return; maximumTransferMiB = value; ChangedAll(); } }
+    public string MaximumDurationMinutes { get => maximumDurationMinutes; set { if (maximumDurationMinutes == value) return; maximumDurationMinutes = value; ChangedAll(); } }
+    public bool TryGetTransferLimits(out long? maximumTransferBytes, out TimeSpan? maximumDuration)
+    {
+        maximumTransferBytes = null; maximumDuration = null;
+        if (!string.IsNullOrWhiteSpace(maximumTransferMiB))
+        {
+            if (!long.TryParse(maximumTransferMiB, out var mib) || mib is < 1 or > 1_048_576) return false;
+            maximumTransferBytes = checked(mib * 1024 * 1024);
+        }
+        if (!string.IsNullOrWhiteSpace(maximumDurationMinutes))
+        {
+            if (!int.TryParse(maximumDurationMinutes, out var minutes) || minutes is < 1 or > 10_080) return false;
+            maximumDuration = TimeSpan.FromMinutes(minutes);
+        }
+        return true;
+    }
     public string CopyStatus => copyStatus;
     public string CopySourcePath { get; set; } = string.Empty;
     public string CopyDestinationPath { get; set; } = string.Empty;

@@ -138,6 +138,10 @@
                 <StackPanel IsVisible="{Binding IsTransferAdvancedVisible}" Spacing="6">
                   <TextBlock Text="{Binding TransferModeHeading}" FontWeight="SemiBold" />
                   <ComboBox ItemsSource="{Binding TransferModes}" SelectedItem="{Binding TransferMode}" AutomationProperties.Name="Transfer mode" />
+                  <Grid ColumnDefinitions="*,*" ColumnSpacing="10">
+                    <TextBox Grid.Column="0" Text="{Binding MaximumTransferMiB}" PlaceholderText="{Binding MaximumTransferMiBHint}" AutomationProperties.Name="Maximum transfer MiB" />
+                    <TextBox Grid.Column="1" Text="{Binding MaximumDurationMinutes}" PlaceholderText="{Binding MaximumDurationMinutesHint}" AutomationProperties.Name="Maximum duration minutes" />
+                  </Grid>
                 </StackPanel>
                 <Grid ColumnDefinitions="*,*" ColumnSpacing="10">
                   <ComboBox Grid.Column="0" ItemsSource="{Binding RemoteOptions}" SelectedItem="{Binding CopySourceRemote}" DisplayMemberBinding="{Binding DisplayName}" PlaceholderText="{Binding SourceRemoteHint}" AutomationProperties.Name="Copy source Remote" />

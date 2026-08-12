@@ -75,6 +75,7 @@ public sealed class DesktopHostController(IDesktopHostClient client, DesktopShel
         if (shell.TransferMode == DesktopTransferMode.Download && string.IsNullOrWhiteSpace(shell.DownloadDestinationPath)) { shell.ApplyAction("download-folder-required"); return; }
         if (shell.TransferMode == DesktopTransferMode.Upload && string.IsNullOrWhiteSpace(shell.UploadSourcePath)) { shell.ApplyAction("upload-folder-required"); return; }
         if ((shell.TransferMode is DesktopTransferMode.RemoteCopy or DesktopTransferMode.Upload) && shell.CopyDestinationRemote is null) { shell.ApplyAction("destination-remote-required"); return; }
+        if (!shell.TryGetTransferLimits(out var maximumTransferBytes, out var maximumDuration)) { shell.ApplyAction("transfer-limits-invalid"); return; }
         using var arguments = JsonDocument.Parse(JsonSerializer.Serialize(new
         {
             sourceRemoteId = shell.TransferMode == DesktopTransferMode.Upload ? null : shell.CopySourceRemote?.Id,
@@ -83,6 +84,8 @@ public sealed class DesktopHostController(IDesktopHostClient client, DesktopShel
             destinationRemoteId = shell.TransferMode is DesktopTransferMode.RemoteCopy or DesktopTransferMode.Upload ? shell.CopyDestinationRemote?.Id : null,
             destinationPath = shell.TransferMode is DesktopTransferMode.RemoteCopy or DesktopTransferMode.Upload ? shell.CopyDestinationPath : null,
             destinationLocalPath = shell.TransferMode == DesktopTransferMode.Download ? shell.DownloadDestinationPath : null,
+            maximumTransferBytes,
+            maximumDurationMinutes = maximumDuration?.TotalMinutes,
             capabilityBinding = shell.CapabilityBinding
         }));
         var result = await client.SendCommandAsync("start-copy", arguments.RootElement, cancellationToken);

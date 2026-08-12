@@ -12,6 +12,7 @@ public enum DesktopActionNotificationKind { Success, Error, Information }
 public sealed record DesktopRemoteOption(Guid Id, string DisplayName);
 public sealed record DesktopChoice(string Key, string DisplayName);
 public sealed record DesktopMountProfileOption(Guid Id, ulong Revision, string DisplayName, Guid RemoteId, string Subpath, string PresentationMode, string DriveSelection, string DriveLetter, string? FixedDirectoryPath, string VolumeName, string CachePreset);
+public sealed record DesktopMountVfsStatus(bool Available, long? BytesUsed, int? ErroredFiles, int? UploadsInProgress, int? UploadsQueued, bool? OutOfSpace, int? QueueItems, DateTimeOffset? ObservedUtc);
 
 public interface IDesktopHostClient
 {
@@ -41,6 +42,8 @@ public sealed class DesktopShellState : INotifyPropertyChanged
     private string mountLifecycleState = "stopped";
     private Guid? mountLifecycleProfileId;
     private string mountStatus = string.Empty;
+    private bool mountRequiresVfsDrain;
+    private DesktopMountVfsStatus? mountVfs;
     private string mountFixedDirectoryPath = string.Empty;
     private DesktopChoice[] mountPresentationOptions = [];
     private DesktopChoice[] driveSelectionOptions = [];
@@ -266,6 +269,19 @@ public sealed class DesktopShellState : INotifyPropertyChanged
     public bool MountRecoveryRequired => mountLifecycleState == "recovery-required";
     public bool MountNeedsRemount => mountLifecycleState == "needs-remount" && selectedMountProfile?.Id == mountLifecycleProfileId;
     public string MountStatus => mountStatus;
+    public string MountVfsHeading => T("读写缓存与上传状态", "Read/write cache and upload status");
+    public string MountVfsStatus => !HasActiveMount
+        ? T("尚未挂载。", "Not mounted.")
+        : !mountRequiresVfsDrain
+            ? T("只读挂载不会产生本地写入缓存。", "The read-only Mount has no local write-back cache.")
+            : mountVfs is not { Available: true } || !HasCompleteVfsObservation(mountVfs)
+                ? T("上传状态未知；安全卸载会保守地拒绝，以保护本地缓存中的写入。", "Upload state is unknown; safe unmount will conservatively refuse to protect cached writes.")
+                : mountVfs.ErroredFiles > 0 || mountVfs.OutOfSpace == true
+                    ? T($"检测到上传错误或空间压力（错误 {mountVfs.ErroredFiles}）；请先处理后再安全卸载。", $"Upload errors or space pressure detected (errors {mountVfs.ErroredFiles}); resolve them before safe unmount.")
+                    : mountVfs.UploadsInProgress > 0 || mountVfs.UploadsQueued > 0 || mountVfs.QueueItems > 0
+                        ? T($"正在上传或排队：上传中 {mountVfs.UploadsInProgress}，待上传 {mountVfs.UploadsQueued}，队列 {mountVfs.QueueItems}。", $"Uploads are active or queued: active {mountVfs.UploadsInProgress}, queued {mountVfs.UploadsQueued}, queue {mountVfs.QueueItems}.")
+                        : T($"当前观察到缓存 {FormatBytes(mountVfs.BytesUsed!.Value)}，上传队列为空。Host 会在卸载前再次核验。", $"Currently observed cache {FormatBytes(mountVfs.BytesUsed!.Value)} with an empty upload queue. The Host will verify again before unmount.");
+    public IBrush MountVfsStatusBrush => !HasActiveMount || !mountRequiresVfsDrain ? Brushes.Gray : mountVfs is not { Available: true } || !HasCompleteVfsObservation(mountVfs) || mountVfs.ErroredFiles > 0 || mountVfs.OutOfSpace == true ? Brushes.IndianRed : mountVfs.UploadsInProgress > 0 || mountVfs.UploadsQueued > 0 || mountVfs.QueueItems > 0 ? Brushes.DarkOrange : Brushes.MediumSeaGreen;
     public string MountRemoteHint => T("选择要挂载的 Remote", "Select a Remote to mount");
     public string MountSubpathHint => T("远程子目录（可留空）", "Remote subfolder (optional)");
     public string MountVolumeNameHint => T("磁盘名称", "Volume name");
@@ -360,6 +376,7 @@ public sealed class DesktopShellState : INotifyPropertyChanged
             mountLifecycleState = mount.GetProperty("state").GetString() ?? "unknown";
             mountLifecycleProfileId = mount.TryGetProperty("profileId", out var profileId) && profileId.ValueKind == JsonValueKind.String ? profileId.GetGuid() : null;
             activeMountId = mountLifecycleState == "ready" ? mount.GetProperty("instanceId").GetGuid() : null;
+            mountRequiresVfsDrain = mount.TryGetProperty("requiresVfsDrain", out var requiresVfsDrain) && requiresVfsDrain.ValueKind == JsonValueKind.True;
             var point = mount.GetProperty("mountPoint").GetString();
             var diagnostic = mount.TryGetProperty("diagnosticCode", out var code) && code.ValueKind == JsonValueKind.String ? code.GetString() : null;
             var startedUtc = mount.TryGetProperty("startedUtc", out var started) ? started.GetDateTimeOffset() : DateTimeOffset.UtcNow;
@@ -372,7 +389,14 @@ public sealed class DesktopShellState : INotifyPropertyChanged
                 _ => T($"{mountLifecycleState} · {point} · 已运行 {uptime:hh\\:mm\\:ss} · {components}", $"{mountLifecycleState} · {point} · uptime {uptime:hh\\:mm\\:ss} · {components}")
             };
         }
-        else { activeMountId = null; mountLifecycleState = "stopped"; mountLifecycleProfileId = null; mountStatus = T("尚未挂载", "Not mounted"); }
+        else { activeMountId = null; mountLifecycleState = "stopped"; mountLifecycleProfileId = null; mountRequiresVfsDrain = false; mountStatus = T("尚未挂载", "Not mounted"); }
+        mountVfs = null;
+        if (activeMountId is { } activeId && snapshot.Body.TryGetProperty("mountVfs", out var vfsEntries) && vfsEntries.ValueKind == JsonValueKind.Array)
+        {
+            var entry = vfsEntries.EnumerateArray().FirstOrDefault(item => item.TryGetProperty("instanceId", out var id) && id.GetGuid() == activeId);
+            if (entry.ValueKind == JsonValueKind.Object)
+                mountVfs = new(entry.TryGetProperty("available", out var available) && available.ValueKind == JsonValueKind.True, ReadNullableInt64(entry, "bytesUsed"), ReadNullableInt32(entry, "erroredFiles"), ReadNullableInt32(entry, "uploadsInProgress"), ReadNullableInt32(entry, "uploadsQueued"), ReadNullableBool(entry, "outOfSpace"), ReadNullableInt32(entry, "queueItems"), ReadNullableDateTimeOffset(entry, "observedUtc"));
+        }
         if (snapshot.Body.TryGetProperty("mountProfiles", out var profiles) && profiles.ValueKind == JsonValueKind.Array)
         {
             var selectedId = selectedMountProfile?.Id;
@@ -423,5 +447,11 @@ public sealed class DesktopShellState : INotifyPropertyChanged
     private static string ToPresentationKey(JsonElement value) => value.ValueKind == JsonValueKind.String ? value.GetString() switch { "NetworkDrive" => "network-drive", "FixedDrive" => "fixed-drive", "FixedDirectory" => "fixed-directory", _ => "network-drive" } : value.GetInt32() switch { 1 => "fixed-drive", 2 => "fixed-directory", _ => "network-drive" };
     private static string ToDriveSelectionKey(JsonElement value) => value.ValueKind == JsonValueKind.String ? value.GetString() == "Automatic" ? "automatic" : "preferred" : value.GetInt32() == 1 ? "automatic" : "preferred";
     private static string ToCachePresetKey(JsonElement value) => value.ValueKind == JsonValueKind.String ? value.GetString() == "StandardReadWrite" ? "standard-read-write" : "read-only" : value.GetInt32() == 1 ? "standard-read-write" : "read-only";
+    private static bool HasCompleteVfsObservation(DesktopMountVfsStatus value) => value.BytesUsed is not null && value.ErroredFiles is not null && value.UploadsInProgress is not null && value.UploadsQueued is not null && value.OutOfSpace is not null && value.QueueItems is not null;
+    private static long? ReadNullableInt64(JsonElement value, string property) => value.TryGetProperty(property, out var item) && item.ValueKind == JsonValueKind.Number && item.TryGetInt64(out var result) ? result : null;
+    private static int? ReadNullableInt32(JsonElement value, string property) => value.TryGetProperty(property, out var item) && item.ValueKind == JsonValueKind.Number && item.TryGetInt32(out var result) ? result : null;
+    private static bool? ReadNullableBool(JsonElement value, string property) => value.TryGetProperty(property, out var item) && (item.ValueKind == JsonValueKind.True || item.ValueKind == JsonValueKind.False) ? item.GetBoolean() : null;
+    private static DateTimeOffset? ReadNullableDateTimeOffset(JsonElement value, string property) => value.TryGetProperty(property, out var item) && item.ValueKind == JsonValueKind.String && item.TryGetDateTimeOffset(out var result) ? result : null;
+    private static string FormatBytes(long value) => value >= 1024L * 1024 * 1024 ? $"{value / (1024d * 1024 * 1024):F1} GiB" : value >= 1024L * 1024 ? $"{value / (1024d * 1024):F1} MiB" : $"{value} B";
     private void ChangedAll() { foreach (var property in GetType().GetProperties().Where(x => x.GetIndexParameters().Length == 0)) PropertyChanged?.Invoke(this, new(property.Name)); }
 }

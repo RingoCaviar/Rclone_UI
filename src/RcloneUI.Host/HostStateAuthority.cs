@@ -91,7 +91,17 @@ internal sealed class HostStateAuthority : IDisposable
                 }
                 var winFspStatus = winFsp.Inspect();
                 var rcloneMountAvailable = rclone is not null && rclone.Capabilities.Endpoints.Contains("mount/mount") && rclone.Capabilities.Endpoints.Contains("mount/unmount") && (rclone.Capabilities.MountTypes.Contains("mount") || rclone.Capabilities.MountTypes.Contains("cmount"));
-                lock (sync) result = CreateResult("snapshot", new { session = remotes?.SessionState ?? "locked", activationCount, remotes = summaries, mountProfiles, copyRuns = copyRuns.Values.OrderBy(x => x.CreatedUtc).ToArray(), mounts = mounts?.Snapshots ?? [], rclone = new { status = rclone is null ? "unavailable" : "ready", version = rclone?.Capabilities.Binary.Version, capabilityBinding = rclone?.Capabilities.Binding, mountAvailable = rcloneMountAvailable }, winFsp = winFspStatus, vault = new { kdfStatus = argon2 is null ? "unavailable" : "ready" } }, new(epoch, revision));
+                var mountSnapshots = mounts?.Snapshots ?? [];
+                var mountVfs = new List<object>();
+                if (mounts is not null && rclone is not null)
+                {
+                    foreach (var mount in mountSnapshots.Where(item => item.State == "ready" && item.RequiresVfsDrain))
+                    {
+                        var (observationType, status) = await mounts.ObserveVfsAsync(mount.InstanceId, rclone.Capabilities.Binding, cancellationToken).ConfigureAwait(false);
+                        mountVfs.Add(new { mount.InstanceId, available = observationType == "mount-vfs-observed" && status is not null, bytesUsed = status?.BytesUsed, erroredFiles = status?.ErroredFiles, uploadsInProgress = status?.UploadsInProgress, uploadsQueued = status?.UploadsQueued, outOfSpace = status?.OutOfSpace, queueItems = status?.QueueItems, observedUtc = status?.ObservedUtc });
+                    }
+                }
+                lock (sync) result = CreateResult("snapshot", new { session = remotes?.SessionState ?? "locked", activationCount, remotes = summaries, mountProfiles, copyRuns = copyRuns.Values.OrderBy(x => x.CreatedUtc).ToArray(), mounts = mountSnapshots, mountVfs, rclone = new { status = rclone is null ? "unavailable" : "ready", version = rclone?.Capabilities.Binary.Version, capabilityBinding = rclone?.Capabilities.Binding, mountAvailable = rcloneMountAvailable }, winFsp = winFspStatus, vault = new { kdfStatus = argon2 is null ? "unavailable" : "ready" } }, new(epoch, revision));
             }
             else if (commandType == "activate-ui")
             {

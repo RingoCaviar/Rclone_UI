@@ -161,6 +161,30 @@ public sealed class DesktopShellStateTests
     }
 
     [Fact]
+    public void WritableMountVfsStatusDistinguishesBlockedUnknownAndCleanObservations()
+    {
+        var shell = new DesktopShellState();
+        using var blocked = JsonDocument.Parse("""
+            {"session":"operational","mounts":[{"instanceId":"0a0a0a0a-0000-0000-0000-000000000000","state":"ready","profileId":null,"mountPoint":"R:","startedUtc":"2026-08-12T00:00:00Z","requiresVfsDrain":true}],"mountVfs":[{"instanceId":"0a0a0a0a-0000-0000-0000-000000000000","available":true,"bytesUsed":1024,"erroredFiles":0,"uploadsInProgress":1,"uploadsQueued":2,"outOfSpace":false,"queueItems":2}]}
+            """);
+        shell.ApplySnapshot(new(new(new("test"), 1), DateTimeOffset.UtcNow, blocked.RootElement.Clone()));
+        shell.ToggleLanguage();
+        Assert.Contains("active or queued", shell.MountVfsStatus, StringComparison.Ordinal);
+
+        using var clean = JsonDocument.Parse("""
+            {"session":"operational","mounts":[{"instanceId":"0a0a0a0a-0000-0000-0000-000000000000","state":"ready","profileId":null,"mountPoint":"R:","startedUtc":"2026-08-12T00:00:00Z","requiresVfsDrain":true}],"mountVfs":[{"instanceId":"0a0a0a0a-0000-0000-0000-000000000000","available":true,"bytesUsed":1073741824,"erroredFiles":0,"uploadsInProgress":0,"uploadsQueued":0,"outOfSpace":false,"queueItems":0}]}
+            """);
+        shell.ApplySnapshot(new(new(new("test"), 2), DateTimeOffset.UtcNow, clean.RootElement.Clone()));
+        Assert.Contains("verify again", shell.MountVfsStatus, StringComparison.Ordinal);
+
+        using var unknown = JsonDocument.Parse("""
+            {"session":"operational","mounts":[{"instanceId":"0a0a0a0a-0000-0000-0000-000000000000","state":"ready","profileId":null,"mountPoint":"R:","startedUtc":"2026-08-12T00:00:00Z","requiresVfsDrain":true}],"mountVfs":[{"instanceId":"0a0a0a0a-0000-0000-0000-000000000000","available":false}]}
+            """);
+        shell.ApplySnapshot(new(new(new("test"), 3), DateTimeOffset.UtcNow, unknown.RootElement.Clone()));
+        Assert.Contains("unknown", shell.MountVfsStatus, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void OfficialStableWinFspInstallerPinsOfficialStableRelease()
     {
         Assert.Equal("2.1.25156", OfficialStableWinFspInstaller.Version);

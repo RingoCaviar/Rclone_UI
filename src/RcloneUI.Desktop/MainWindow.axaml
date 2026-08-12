@@ -203,6 +203,12 @@
                 </Border>
                 <TextBlock Text="{Binding MountReadOnlyNotice}" TextWrapping="Wrap" Opacity="0.72" />
                 <TextBlock Text="{Binding MountStatus}" AutomationProperties.LiveSetting="Polite" />
+                <Border Classes="status" Background="{DynamicResource CardBrush}">
+                  <StackPanel Spacing="2">
+                    <TextBlock Text="{Binding MountVfsHeading}" FontWeight="SemiBold" />
+                    <TextBlock Text="{Binding MountVfsStatus}" Foreground="{Binding MountVfsStatusBrush}" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite" />
+                  </StackPanel>
+                </Border>
               </StackPanel>
               <TextBlock Text="{Binding RemoteSummary}" />
               <StackPanel Orientation="Horizontal" Spacing="10">

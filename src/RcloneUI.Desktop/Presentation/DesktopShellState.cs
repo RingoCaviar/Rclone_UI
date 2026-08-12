@@ -10,6 +10,7 @@ public enum DesktopConnectionState { Connecting, ConnectedLocked, ConnectedOpera
 public enum DesktopTransferMode { Download, Upload, RemoteCopy }
 public enum DesktopActionNotificationKind { Success, Error, Information }
 public sealed record DesktopRemoteOption(Guid Id, string DisplayName);
+public sealed record DesktopSavedRemoteOption(Guid Id, ulong Revision, string DisplayName, string ProviderType, string Health);
 public sealed record DesktopChoice(string Key, string DisplayName);
 public sealed record DesktopMountProfileOption(Guid Id, ulong Revision, string DisplayName, Guid RemoteId, string Subpath, string PresentationMode, string DriveSelection, string DriveLetter, string? FixedDirectoryPath, string VolumeName, string CachePreset);
 public sealed record DesktopMountVfsStatus(bool Available, long? BytesUsed, int? ErroredFiles, int? UploadsInProgress, int? UploadsQueued, bool? OutOfSpace, int? QueueItems, DateTimeOffset? ObservedUtc);
@@ -30,6 +31,9 @@ public sealed class DesktopShellState : INotifyPropertyChanged
     private string remoteSummary = string.Empty;
     private string[] remoteNames = [];
     private DesktopRemoteOption[] remoteOptions = [];
+    private DesktopSavedRemoteOption[] savedRemotes = [];
+    private DesktopSavedRemoteOption? selectedSavedRemote;
+    private string remoteDeleteConfirmation = string.Empty;
     private string copyStatus = string.Empty;
     private string? capabilityBinding;
     private string? rcloneVersion;
@@ -123,6 +127,9 @@ public sealed class DesktopShellState : INotifyPropertyChanged
     public string ConnectionSecureCertificate => T("验证服务器证书（推荐）", "Verify server certificate (recommended)");
     public string ConnectionInsecureCertificate => T("跳过证书验证（不安全）", "Skip certificate verification (insecure)");
     public string RemoteHelpText => T("支持 Google Drive、OneDrive 和 Dropbox。Host 会先测试连接，成功后才加密保存。", "Supports Google Drive, OneDrive, and Dropbox. The Host tests the connection before encrypted storage.");
+    public string SavedRemotesHeading => T("已保存的远程存储", "Saved Remotes");
+    public string RemoteDeleteConfirmationHint => T("输入所选名称以删除", "Type the selected name to delete");
+    public string DeleteRemoteLabel => T("删除远程存储", "Delete Remote");
     public string TransferFormHeading => T("下载、上传与远程复制", "Download, upload, and remote copy");
     public string SourceRemoteHint => T("选择来源 Remote", "Select source Remote");
     public string SourcePathHint => T("远程文件或文件夹路径（根目录可留空）", "Remote file or folder path (leave empty for root)");
@@ -187,8 +194,8 @@ public sealed class DesktopShellState : INotifyPropertyChanged
     public bool HasActionNotification => !string.IsNullOrWhiteSpace(lastAction);
     public DesktopActionNotificationKind ActionNotificationKind => lastAction switch
     {
-        "remote-added" or "copy-accepted" or "mount-started" or "mount-stopped" or "mount-profile-saved" or "mount-profile-deleted" or "vault-unlocked" or "vault-lock-completed" or "shutdown-accepted" or "winfsp-install-complete" or "winfsp-install-complete:restart-required" => DesktopActionNotificationKind.Success,
-        "remote-input-invalid" or "remote-host-key-required" or "remote-test-failed" or "vault-locked" or "host-unavailable" or "rclone-unavailable" or "mount-prerequisites-unavailable" or "mount-profile-required" or "mount-drain-not-proved" or "source-remote-required" or "destination-remote-required" or "download-folder-required" or "upload-folder-required" or "transfer-limits-invalid" or "shutdown-blocked-active-mount" or "winfsp-installer-unavailable" or "winfsp-installer-not-started" or "winfsp-download-failed" or "winfsp-hash-mismatch" or "winfsp-signature-invalid" or "winfsp-install-cancelled" or "winfsp-uac-cancelled" => DesktopActionNotificationKind.Error,
+        "remote-added" or "remote-deleted" or "copy-accepted" or "mount-started" or "mount-stopped" or "mount-profile-saved" or "mount-profile-deleted" or "vault-unlocked" or "vault-lock-completed" or "shutdown-accepted" or "winfsp-install-complete" or "winfsp-install-complete:restart-required" => DesktopActionNotificationKind.Success,
+        "remote-input-invalid" or "remote-host-key-required" or "remote-test-failed" or "remote-delete-confirmation-required" or "remote-delete-blocked-profile" or "remote-delete-conflict" or "remote-delete-unavailable" or "remote-delete-invalid" or "vault-locked" or "host-unavailable" or "rclone-unavailable" or "mount-prerequisites-unavailable" or "mount-profile-required" or "mount-drain-not-proved" or "source-remote-required" or "destination-remote-required" or "download-folder-required" or "upload-folder-required" or "transfer-limits-invalid" or "shutdown-blocked-active-mount" or "winfsp-installer-unavailable" or "winfsp-installer-not-started" or "winfsp-download-failed" or "winfsp-hash-mismatch" or "winfsp-signature-invalid" or "winfsp-install-cancelled" or "winfsp-uac-cancelled" => DesktopActionNotificationKind.Error,
         var value when value.StartsWith("winfsp-installer-failed:", StringComparison.Ordinal) || value.StartsWith("winfsp-install-failed:", StringComparison.Ordinal) => DesktopActionNotificationKind.Error,
         _ => DesktopActionNotificationKind.Information
     };
@@ -202,6 +209,10 @@ public sealed class DesktopShellState : INotifyPropertyChanged
     public string ActionNotificationMessage => lastAction switch
     {
         "remote-added" => T("远程存储已添加，并已验证连接。", "Remote added and its connection was verified."),
+        "remote-deleted" => T("远程存储已删除。", "The Remote was deleted."),
+        "remote-delete-confirmation-required" => T("请先输入所选远程存储的完整名称以确认删除。", "Type the selected Remote's full name to confirm deletion."),
+        "remote-delete-blocked-profile" => T("该远程存储仍被挂载配置引用；请先删除或改用其他远程存储。", "This Remote is still referenced by a Mount profile. Delete or change that profile first."),
+        "remote-delete-conflict" => T("远程存储已被其他操作更改或删除；请刷新后重试。", "The Remote changed or was deleted elsewhere. Refresh and try again."),
         "vault-lock-completed" => T("保险库已锁定。", "The Vault is now locked."),
         "remote-input-invalid" => T($"请填写：{MissingRemoteSetupFields}。", $"Enter: {MissingRemoteSetupFields}."),
         "remote-host-key-required" => T("SFTP 必须填写服务器主机密钥指纹，不能跳过此验证。", "SFTP requires the server host-key fingerprint; this verification cannot be skipped."),
@@ -236,6 +247,10 @@ public sealed class DesktopShellState : INotifyPropertyChanged
     public DesktopRemoteOption? CopySourceRemote { get; set; }
     public DesktopRemoteOption? CopyDestinationRemote { get; set; }
     public DesktopRemoteOption? MountRemote { get; set; }
+    public IReadOnlyList<DesktopSavedRemoteOption> SavedRemotes => savedRemotes;
+    public DesktopSavedRemoteOption? SelectedSavedRemote { get => selectedSavedRemote; set { if (selectedSavedRemote?.Id == value?.Id) return; selectedSavedRemote = value; remoteDeleteConfirmation = string.Empty; ChangedAll(); } }
+    public string RemoteDeleteConfirmation { get => remoteDeleteConfirmation; set { if (remoteDeleteConfirmation == value) return; remoteDeleteConfirmation = value; ChangedAll(); } }
+    public bool CanDeleteSelectedRemote => selectedSavedRemote is not null && StringComparer.Ordinal.Equals(remoteDeleteConfirmation, selectedSavedRemote.DisplayName);
     public IReadOnlyList<DesktopChoice> TransferModeOptions { get; private set; } = [];
     public DesktopChoice TransferModeChoice
     {
@@ -423,14 +438,16 @@ public sealed class DesktopShellState : INotifyPropertyChanged
         if (snapshot.Body.TryGetProperty("remotes", out var remotes) && remotes.ValueKind == JsonValueKind.Array)
         {
             remoteNames = remotes.EnumerateArray().Select(item => item.TryGetProperty("displayName", out var name) ? name.GetString() : null).Where(name => !string.IsNullOrWhiteSpace(name)).Select(name => name!).ToArray();
-            remoteOptions = remotes.EnumerateArray().Select(item => new DesktopRemoteOption(item.GetProperty("id").GetGuid(), item.GetProperty("displayName").GetString()!)).ToArray();
+            savedRemotes = remotes.EnumerateArray().Select(item => new DesktopSavedRemoteOption(item.GetProperty("id").GetGuid(), item.TryGetProperty("revision", out var remoteRevision) && remoteRevision.TryGetUInt64(out var parsedRevision) ? parsedRevision : 0, item.GetProperty("displayName").GetString()!, item.TryGetProperty("providerType", out var provider) ? provider.GetString() ?? "unknown" : "unknown", item.TryGetProperty("health", out var health) ? health.GetString() ?? "Unknown" : "Unknown")).ToArray();
+            selectedSavedRemote = selectedSavedRemote is null ? savedRemotes.FirstOrDefault() : savedRemotes.FirstOrDefault(item => item.Id == selectedSavedRemote.Id);
+            remoteOptions = savedRemotes.Select(item => new DesktopRemoteOption(item.Id, item.DisplayName)).ToArray();
             CopySourceRemote = KeepSelection(CopySourceRemote, remoteOptions) ?? remoteOptions.FirstOrDefault();
             CopyDestinationRemote = KeepSelection(CopyDestinationRemote, remoteOptions) ?? remoteOptions.Skip(1).FirstOrDefault() ?? remoteOptions.FirstOrDefault();
             MountRemote = KeepSelection(MountRemote, remoteOptions) ?? remoteOptions.FirstOrDefault();
             BrowserRemote = KeepSelection(BrowserRemote, remoteOptions) ?? remoteOptions.FirstOrDefault();
             remoteSummary = remoteNames.Length == 0 ? T("尚未添加远程存储", "No Remotes added") : string.Join(" · ", remoteNames);
         }
-        else { remoteNames = []; remoteOptions = []; CopySourceRemote = null; CopyDestinationRemote = null; MountRemote = null; remoteSummary = T("远程存储状态未知", "Remote state unknown"); }
+        else { remoteNames = []; remoteOptions = []; savedRemotes = []; selectedSavedRemote = null; CopySourceRemote = null; CopyDestinationRemote = null; MountRemote = null; remoteSummary = T("远程存储状态未知", "Remote state unknown"); }
         capabilityBinding = snapshot.Body.TryGetProperty("rclone", out var rclone) && rclone.TryGetProperty("status", out var status) && status.GetString() == "ready" && rclone.TryGetProperty("capabilityBinding", out var binding) ? binding.GetString() : null;
         rcloneVersion = rclone.ValueKind == JsonValueKind.Object && rclone.TryGetProperty("version", out var rcloneVersionValue) && rcloneVersionValue.ValueKind == JsonValueKind.String ? rcloneVersionValue.GetString() : null;
         rcloneMountAvailable = snapshot.Body.TryGetProperty("rclone", out rclone) && rclone.TryGetProperty("mountAvailable", out var mountAvailable) && mountAvailable.GetBoolean();

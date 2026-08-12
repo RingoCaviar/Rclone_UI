@@ -158,6 +158,10 @@ internal sealed class HostStateAuthority : IDisposable
             {
                 result = await AddConnectionRemoteAsync(envelope.Body, cancellationToken).ConfigureAwait(false);
             }
+            else if (commandType == "delete-remote")
+            {
+                result = await DeleteRemoteAsync(envelope.Body, cancellationToken).ConfigureAwait(false);
+            }
             else
             {
                 lock (sync) result = CreateResult("unknown-command", new { }, new(epoch, revision));
@@ -436,6 +440,19 @@ internal sealed class HostStateAuthority : IDisposable
         var values = config.EnumerateObject().Where(item => item.Value.ValueKind == JsonValueKind.String).ToDictionary(item => item.Name, item => item.Value.GetString() ?? string.Empty, StringComparer.Ordinal);
         var resultType = await manager.AddConnectionRemoteAsync(name, provider, values, rclone, cancellationToken).ConfigureAwait(false);
         lock (sync) { if (resultType == "remote-added") revision = checked(revision + 1); return CreateResult(resultType, new { }, new(epoch, revision), resultType == "remote-added"); }
+    }
+
+    private async ValueTask<HostCommandResult> DeleteRemoteAsync(JsonElement body, CancellationToken cancellationToken)
+    {
+        if (remotes is not IHostRemoteManager manager || remotes is not IHostMountProfileManager profiles) return CreateResult("remote-delete-unavailable", new { }, Cursor);
+        if (!body.TryGetProperty("arguments", out var arguments) || ReadGuidArgument(arguments, "remoteId") is not { } remoteId || !arguments.TryGetProperty("expectedRevision", out var revisionValue) || !revisionValue.TryGetUInt64(out var expectedRevision)) return CreateResult("remote-delete-invalid", new { }, Cursor);
+        if ((await profiles.ListMountProfilesAsync(cancellationToken).ConfigureAwait(false)).Any(profile => profile.RemoteId == remoteId)) return CreateResult("remote-delete-blocked-profile", new { }, Cursor);
+        var resultType = await manager.DeleteRemoteAsync(remoteId, expectedRevision, cancellationToken).ConfigureAwait(false);
+        lock (sync)
+        {
+            if (resultType == "remote-deleted") revision = checked(revision + 1);
+            return CreateResult(resultType, new { }, new(epoch, revision), resultType == "remote-deleted");
+        }
     }
 
     private async Task ObserveCopyAsync(RcloneExecutionHandle handle)

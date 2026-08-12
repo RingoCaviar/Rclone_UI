@@ -259,5 +259,11 @@ public sealed class DesktopHostClientTests
             return "remote-added";
         }
         public ValueTask<string> AddConnectionRemoteAsync(string displayName, string providerType, IReadOnlyDictionary<string, string> configuration, IRcloneRuntime rclone, CancellationToken cancellationToken) => AddTokenRemoteAsync(displayName, providerType, string.Empty, rclone, cancellationToken);
+        public ValueTask<string> DeleteRemoteAsync(Guid remoteId, ulong expectedRevision, CancellationToken cancellationToken)
+        {
+            if (remote?.Id != remoteId || remote.Revision != expectedRevision) return ValueTask.FromResult("remote-delete-conflict");
+            remote = null;
+            return ValueTask.FromResult("remote-deleted");
+        }
     }
 }

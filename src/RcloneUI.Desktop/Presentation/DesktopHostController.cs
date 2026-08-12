@@ -169,6 +169,15 @@ public sealed class DesktopHostController(IDesktopHostClient client, DesktopShel
         await ReconnectAsync(cancellationToken);
     }
 
+    public async ValueTask DeleteRemoteAsync(CancellationToken cancellationToken = default)
+    {
+        if (shell.SelectedSavedRemote is not { } remote || !shell.CanDeleteSelectedRemote) { shell.ApplyAction("remote-delete-confirmation-required"); return; }
+        using var arguments = JsonDocument.Parse(JsonSerializer.Serialize(new { remoteId = remote.Id, expectedRevision = remote.Revision }));
+        var result = await client.SendCommandAsync("delete-remote", arguments.RootElement, cancellationToken);
+        shell.ApplyAction(result.GetProperty("resultType").GetString() ?? "unknown-result");
+        await ReconnectAsync(cancellationToken);
+    }
+
     private async ValueTask AddRemoteAsync(CancellationToken cancellationToken)
     {
         if (shell.IsConnectionRemoteSetup) { await AddConnectionRemoteAsync(cancellationToken); return; }

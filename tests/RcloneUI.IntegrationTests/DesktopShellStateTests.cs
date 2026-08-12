@@ -465,6 +465,21 @@ public sealed class DesktopShellStateTests
         Assert.Equal("Use as transfer source", shell.BrowserUseAsTransferSourceLabel);
     }
 
+    [Fact]
+    public async Task RemoteDeletionRequiresTypedNameAndUsesSnapshotRevision()
+    {
+        var client = new RecordingClient(); var shell = new DesktopShellState(); var controller = new DesktopHostController(client, shell);
+        await controller.ReconnectAsync(TestContext.Current.CancellationToken);
+
+        await controller.DeleteRemoteAsync(TestContext.Current.CancellationToken);
+        Assert.Equal("remote-delete-confirmation-required", shell.LastAction);
+        shell.RemoteDeleteConfirmation = shell.SelectedSavedRemote!.DisplayName;
+        await controller.DeleteRemoteAsync(TestContext.Current.CancellationToken);
+
+        Assert.Equal("delete-remote", client.CommandType);
+        Assert.Equal(1UL, client.Arguments.GetProperty("expectedRevision").GetUInt64());
+    }
+
     private sealed class RecordingClient : IDesktopHostClient
     {
         private readonly string connectionResultType;
@@ -476,13 +491,13 @@ public sealed class DesktopShellStateTests
         public JsonElement Arguments { get; private set; }
         public ValueTask<HostSnapshot> GetSnapshotAsync(CancellationToken cancellationToken)
         {
-            using var document = JsonDocument.Parse(JsonSerializer.Serialize(new { session = "operational", remotes = new[] { new { id = SourceId, displayName = "Source" }, new { id = DestinationId, displayName = "Destination" } }, mountProfiles = new[] { new { id = new { value = ProfileId }, revision = 1UL, displayName = "Photos", remoteId = SourceId, subpath = "photos", presentationMode = 0, driveLetterSelection = 0, preferredDriveLetter = 'R', fixedDirectoryPath = (string?)null, volumeName = "Cloud", cachePreset = 0, autoMount = false } }, copyRuns = Array.Empty<object>(), mounts = Array.Empty<object>(), rclone = new { status = "ready", capabilityBinding = "caps", mountAvailable = true }, winFsp = new { status = "ready", version = "2.1-test" } }));
+            using var document = JsonDocument.Parse(JsonSerializer.Serialize(new { session = "operational", remotes = new[] { new { id = SourceId, revision = 1UL, displayName = "Source" }, new { id = DestinationId, revision = 1UL, displayName = "Destination" } }, mountProfiles = new[] { new { id = new { value = ProfileId }, revision = 1UL, displayName = "Photos", remoteId = SourceId, subpath = "photos", presentationMode = 0, driveLetterSelection = 0, preferredDriveLetter = 'R', fixedDirectoryPath = (string?)null, volumeName = "Cloud", cachePreset = 0, autoMount = false } }, copyRuns = Array.Empty<object>(), mounts = Array.Empty<object>(), rclone = new { status = "ready", capabilityBinding = "caps", mountAvailable = true }, winFsp = new { status = "ready", version = "2.1-test" } }));
             return ValueTask.FromResult(new HostSnapshot(new(new("epoch"), 1), DateTimeOffset.UtcNow, document.RootElement.Clone()));
         }
         public ValueTask<JsonElement> SendCommandAsync(string commandType, JsonElement arguments, CancellationToken cancellationToken)
         {
             CommandType = commandType; Arguments = arguments.Clone();
-            var resultType = commandType == "add-token-remote" ? "remote-added" : commandType == "add-connection-remote" ? connectionResultType : commandType == "browse-remote" ? "browse-completed" : "copy-not-started";
+            var resultType = commandType == "add-token-remote" ? "remote-added" : commandType == "add-connection-remote" ? connectionResultType : commandType == "delete-remote" ? "remote-deleted" : commandType == "browse-remote" ? "browse-completed" : "copy-not-started";
             using var document = JsonDocument.Parse(JsonSerializer.Serialize(new { resultType, items = commandType == "browse-remote" ? new[] { new { path = "readme.txt", isDirectory = false, size = 42L } } : null, result = new { code = "test" } }));
             return ValueTask.FromResult(document.RootElement.Clone());
         }

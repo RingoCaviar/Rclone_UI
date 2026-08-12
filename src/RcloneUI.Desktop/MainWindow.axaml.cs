@@ -29,6 +29,7 @@ public sealed partial class MainWindow : Window
     private async void InstallWinFspClicked(object? sender, RoutedEventArgs args) { if (controller is not null) await controller.InstallWinFspAsync(); }
     private async void SaveMountProfileClicked(object? sender, RoutedEventArgs args) { if (controller is not null) await controller.SaveMountProfileAsync(); }
     private async void DeleteMountProfileClicked(object? sender, RoutedEventArgs args) { if (controller is not null) await controller.DeleteMountProfileAsync(); }
+    private async void DeleteRemoteClicked(object? sender, RoutedEventArgs args) { if (controller is not null) await controller.DeleteRemoteAsync(); }
     private void NewMountProfileClicked(object? sender, RoutedEventArgs args) => shell.BeginNewMountProfile();
     private async void JourneyPrimaryClicked(object? sender, RoutedEventArgs args) { if (controller is not null) await controller.ActivatePrimaryAsync(); }
     private async void BrowseParentClicked(object? sender, RoutedEventArgs args) { if (controller is not null) await controller.BrowseParentAsync(); }

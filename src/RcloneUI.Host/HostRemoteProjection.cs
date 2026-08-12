@@ -27,6 +27,7 @@ internal interface IHostRemoteManager : IHostRemoteProjection
 {
     ValueTask<string> AddTokenRemoteAsync(string displayName, string providerType, string token, IRcloneRuntime rclone, CancellationToken cancellationToken);
     ValueTask<string> AddConnectionRemoteAsync(string displayName, string providerType, IReadOnlyDictionary<string, string> configuration, IRcloneRuntime rclone, CancellationToken cancellationToken);
+    ValueTask<string> DeleteRemoteAsync(Guid remoteId, ulong expectedRevision, CancellationToken cancellationToken);
 }
 
 internal interface IHostMountProfileManager

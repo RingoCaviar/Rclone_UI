@@ -191,6 +191,22 @@ internal sealed class HostVaultSession : IHostVaultSession, IHostRemoteResolver,
         finally { gate.Release(); }
     }
 
+    public async ValueTask<string> DeleteRemoteAsync(Guid remoteId, ulong expectedRevision, CancellationToken cancellationToken)
+    {
+        await gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            if (sessionState != "operational" || store is null) return "vault-locked";
+            var current = await store.ReadAsync(new(remoteId), cancellationToken).ConfigureAwait(false);
+            if (current is null || current.Revision != expectedRevision) return "remote-delete-conflict";
+            await configWriter.UnbindAsync(remoteId, cancellationToken).ConfigureAwait(false);
+            if (await store.DeleteAsync(current.Id, expectedRevision, cancellationToken).ConfigureAwait(false)) return "remote-deleted";
+            await configWriter.BindAsync(current, CancellationToken.None).ConfigureAwait(false);
+            return "remote-delete-conflict";
+        }
+        finally { gate.Release(); }
+    }
+
     public async ValueTask<SavedMountProfile?> ReadMountProfileAsync(MountProfileId id, CancellationToken cancellationToken)
     {
         await gate.WaitAsync(cancellationToken).ConfigureAwait(false);

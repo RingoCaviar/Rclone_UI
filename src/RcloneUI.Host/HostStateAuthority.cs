@@ -209,7 +209,7 @@ internal sealed class HostStateAuthority : IDisposable
         if (mounts is null) return CreateResult("mount-unavailable", new { code = "mount-engine-unavailable" }, Cursor);
         if (!body.TryGetProperty("arguments", out var arguments)
             || ReadGuidArgument(arguments, "remoteId") is not { } remoteId
-            || ReadArgument(arguments, "subpath") is not { } subpath
+            || ReadPathArgument(arguments, "subpath") is not { } subpath
             || ReadArgument(arguments, "presentationMode") is not { } presentationValue
             || ReadArgument(arguments, "driveSelection") is not { } driveSelectionValue
             || ReadArgument(arguments, "driveLetter", 1) is not { Length: 1 } driveLetter
@@ -264,7 +264,7 @@ internal sealed class HostStateAuthority : IDisposable
             || ReadGuidArgument(arguments, "profileId") is not { } profileId
             || ReadArgument(arguments, "displayName", 80) is not { } displayName
             || ReadGuidArgument(arguments, "remoteId") is not { } remoteId
-            || ReadArgument(arguments, "subpath") is not { } subpath
+            || ReadPathArgument(arguments, "subpath") is not { } subpath
             || ReadArgument(arguments, "presentationMode") is not { } presentationValue
             || ReadArgument(arguments, "driveSelection") is not { } driveSelectionValue
             || ReadArgument(arguments, "driveLetter", 1) is not { Length: 1 } driveLetter

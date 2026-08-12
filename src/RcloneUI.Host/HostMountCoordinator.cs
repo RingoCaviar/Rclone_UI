@@ -5,7 +5,7 @@ using RcloneUI.Rclone;
 
 namespace RcloneUI.Host;
 
-internal sealed record HostMountSnapshot(Guid InstanceId, Guid? ProfileId, Guid RemoteId, string Subpath, string MountPoint, string VolumeName, MountPresentationMode PresentationMode, string State, string? DiagnosticCode, DateTimeOffset StartedUtc, DateTimeOffset UpdatedUtc);
+internal sealed record HostMountSnapshot(Guid InstanceId, Guid? ProfileId, Guid RemoteId, string Subpath, string MountPoint, string VolumeName, MountPresentationMode PresentationMode, string State, string? DiagnosticCode, DateTimeOffset StartedUtc, DateTimeOffset UpdatedUtc, string? VfsFileSystem = null);
 
 internal interface IWindowsMountNamespace
 {
@@ -62,6 +62,15 @@ internal sealed class HostMountCoordinator
 
     internal IReadOnlyList<HostMountSnapshot> Snapshots => [.. mounts.Values.OrderBy(value => value.UpdatedUtc)];
 
+    internal async ValueTask<(string ResultType, RcloneVfsStatus? Status)> ObserveVfsAsync(Guid instanceId, string capabilityBinding, CancellationToken cancellationToken)
+    {
+        if (!mounts.TryGetValue(instanceId, out var current)) return ("mount-not-found", null);
+        if (current.State != "ready" || string.IsNullOrWhiteSpace(current.VfsFileSystem)) return ("mount-vfs-unavailable", null);
+        if (!StringComparer.Ordinal.Equals(capabilityBinding, rclone.Capabilities.Binding)) return ("mount-vfs-unavailable", null);
+        try { return ("mount-vfs-observed", await rclone.GetVfsStatusAsync(current.VfsFileSystem, cancellationToken).ConfigureAwait(false)); }
+        catch (Exception exception) when (exception is NotSupportedException or InvalidDataException or HttpRequestException) { return ("mount-vfs-unavailable", null); }
+    }
+
     internal async ValueTask<(string ResultType, HostMountSnapshot? Snapshot)> StartReadOnlyAsync(Guid remoteId, string subpath, MountPresentationMode presentationMode, DriveLetterSelection driveSelection, char driveLetter, string? fixedDirectoryPath, string volumeName, string capabilityBinding, CancellationToken cancellationToken, Guid? profileId = null)
     {
         if (journalCorrupt) return ("mount-recovery-required", Failed(remoteId, subpath, string.Empty, volumeName, presentationMode, "mount-lifecycle-journal-corrupt"));
@@ -116,7 +125,7 @@ internal sealed class HostMountCoordinator
                 return ("mount-not-ready", Failed(remoteId, subpath, mountPoint, volumeName, presentationMode, "mount-namespace-not-presented"));
             }
             var now = DateTimeOffset.UtcNow;
-            var snapshot = new HostMountSnapshot(id, profileId, remoteId, subpath, mountPoint, volumeName.Trim(), presentationMode, "ready", null, started, now);
+            var snapshot = new HostMountSnapshot(id, profileId, remoteId, subpath, mountPoint, volumeName.Trim(), presentationMode, "ready", null, started, now, fileSystem + subpath);
             mounts[id] = snapshot;
             Persist();
             return ("mount-ready", snapshot);

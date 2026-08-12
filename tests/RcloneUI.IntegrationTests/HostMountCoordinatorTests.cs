@@ -39,6 +39,21 @@ public sealed class HostMountCoordinatorTests
     }
 
     [Fact]
+    public async Task ActiveMountExposesTypedVfsObservationFromItsResolvedFileSystem()
+    {
+        var capabilities = new RcloneCapabilitySnapshot(new("test", new string('A', 64), 1), new string('B', 64), new string('C', 64), ImmutableSortedSet.Create("mount/mount", "mount/unmount", "vfs/stats", "vfs/queue"), ImmutableSortedSet.Create("mount"), DateTimeOffset.UtcNow);
+        var observed = new RcloneVfsStatus(1024, 0, 0, 0, false, 0, 0, DateTimeOffset.UtcNow);
+        var runtime = new ScriptedRcloneRuntime(capabilities, [new(RclonePrimitive.Mount, Stats(), ScriptedRcloneRuntime.Success())]) { VfsStatus = observed };
+        var coordinator = new HostMountCoordinator(runtime, new FakeResolver(), new FakeNamespace(), new FakeWinFsp());
+        var (_, mounted) = await coordinator.StartReadOnlyAsync(Guid.NewGuid(), "photos", MountPresentationMode.NetworkDrive, DriveLetterSelection.Preferred, 'R', null, "Cloud", capabilities.Binding, TestContext.Current.CancellationToken);
+
+        var (resultType, status) = await coordinator.ObserveVfsAsync(mounted!.InstanceId, capabilities.Binding, TestContext.Current.CancellationToken);
+
+        Assert.Equal("mount-vfs-observed", resultType);
+        Assert.Equal(observed, status);
+    }
+
+    [Fact]
     public async Task OccupiedDriveLetterFailsBeforeRcloneExecution()
     {
         var capabilities = Capabilities();

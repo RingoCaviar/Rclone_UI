@@ -1,0 +1,52 @@
+using System.Collections.Immutable;
+using System.Text.Json;
+using RcloneUI.Contracts.HostProtocol.V1;
+using RcloneUI.Host;
+using RcloneUI.Rclone;
+
+namespace RcloneUI.IntegrationTests;
+
+public sealed class HostBrowseProtocolTests
+{
+    [Fact]
+    public async Task BrowseProjectsNestedRcloneOutputIntoBoundedDesktopItems()
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"rcloneui-browse-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(root);
+        try
+        {
+            var capabilities = new RcloneCapabilitySnapshot(new("test", new string('A', 64), 1), new string('B', 64), new string('C', 64), ImmutableSortedSet.Create("operations/list"), ImmutableSortedSet<string>.Empty, DateTimeOffset.UtcNow);
+            var runtime = new ScriptedRcloneRuntime(capabilities, [new(RclonePrimitive.List, new(0, 0, 0, 0, 0, TimeSpan.Zero, true), Success("""{"output":{"list":[{"Path":"notes","IsDir":true,"Size":999,"Hashes":{"sha1":"secret"}},{"Path":"readme.txt","Size":42,"MimeType":"text/plain"}]}}"""))]);
+            var remoteId = Guid.NewGuid();
+            using var authority = new HostStateAuthority(root, runtime, new BrowseProjection(remoteId));
+
+            var result = await authority.DispatchAsync(Command(new { remoteId, path = "docs", capabilityBinding = capabilities.Binding }), TestContext.Current.CancellationToken);
+
+            Assert.Equal("browse-completed", result.ResultType);
+            var items = result.Body.GetProperty("items");
+            Assert.Equal(2, items.GetArrayLength());
+            Assert.Equal("notes", items[0].GetProperty("path").GetString());
+            Assert.True(items[0].GetProperty("isDirectory").GetBoolean());
+            Assert.Equal(999, items[0].GetProperty("size").GetInt64());
+            Assert.Equal("readme.txt", items[1].GetProperty("path").GetString());
+            Assert.DoesNotContain("secret", result.Body.GetRawText(), StringComparison.Ordinal);
+            Assert.DoesNotContain("MimeType", result.Body.GetRawText(), StringComparison.Ordinal);
+        }
+        finally { Directory.Delete(root, recursive: true); }
+    }
+
+    private static ProtocolEnvelope Command(object arguments) => ProtocolEnvelope.CreateRequest(MessageType.Command, new("browse-request"), 1, new(new("client"), 0), new(new("browse-key"), new("browse-cancel"), DateTimeOffset.UtcNow.AddMinutes(1)), JsonSerializer.SerializeToUtf8Bytes(new { commandType = "browse-remote", arguments }));
+
+    private static RcloneExecutionResult Success(string json)
+    {
+        using var document = JsonDocument.Parse(json);
+        return new(true, false, null, document.RootElement.Clone());
+    }
+
+    private sealed class BrowseProjection(Guid id) : IHostRemoteResolver
+    {
+        public string SessionState => "operational";
+        public ValueTask<IReadOnlyList<HostRemoteSummary>> ListAsync(CancellationToken cancellationToken) => ValueTask.FromResult<IReadOnlyList<HostRemoteSummary>>([]);
+        public ValueTask<string?> ResolveFileSystemAsync(Guid remoteId, CancellationToken cancellationToken) => ValueTask.FromResult<string?>(remoteId == id ? "remote-abc" : null);
+    }
+}

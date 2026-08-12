@@ -426,7 +426,7 @@ public sealed class DesktopShellStateTests
         {
             CommandType = commandType; Arguments = arguments.Clone();
             var resultType = commandType == "add-token-remote" ? "remote-added" : commandType == "add-connection-remote" ? connectionResultType : commandType == "browse-remote" ? "browse-completed" : "copy-not-started";
-            using var document = JsonDocument.Parse(JsonSerializer.Serialize(new { resultType, output = commandType == "browse-remote" ? new { list = new[] { new { Path = "readme.txt" } } } : null, result = new { code = "test" } }));
+            using var document = JsonDocument.Parse(JsonSerializer.Serialize(new { resultType, items = commandType == "browse-remote" ? new[] { new { path = "readme.txt", isDirectory = false, size = 42L } } : null, result = new { code = "test" } }));
             return ValueTask.FromResult(document.RootElement.Clone());
         }
     }

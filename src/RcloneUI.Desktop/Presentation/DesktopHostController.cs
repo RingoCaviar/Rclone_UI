@@ -98,14 +98,13 @@ public sealed class DesktopHostController(IDesktopHostClient client, DesktopShel
         var result = await client.SendCommandAsync("browse-remote", arguments.RootElement, cancellationToken).ConfigureAwait(false);
         var resultType = result.GetProperty("resultType").GetString() ?? "unknown-result";
         shell.ApplyAction(resultType);
-        if (resultType == "browse-completed" && result.TryGetProperty("output", out var output))
+        if (resultType == "browse-completed" && result.TryGetProperty("items", out var items))
         {
-            var root = output.TryGetProperty("list", out var list) ? list : output;
-            shell.ApplyBrowserItems(root.ValueKind == JsonValueKind.Array ? root.EnumerateArray().Select(item =>
+            shell.ApplyBrowserItems(items.ValueKind == JsonValueKind.Array ? items.EnumerateArray().Select(item =>
             {
-                var path = item.TryGetProperty("Path", out var pathValue) ? pathValue.GetString() : item.TryGetProperty("Name", out var name) ? name.GetString() : null;
-                var isDirectory = item.TryGetProperty("IsDir", out var directory) && directory.ValueKind == JsonValueKind.True;
-                var size = item.TryGetProperty("Size", out var sizeValue) && sizeValue.TryGetInt64(out var parsed) ? parsed : (long?)null;
+                var path = item.TryGetProperty("path", out var pathValue) ? pathValue.GetString() : null;
+                var isDirectory = item.TryGetProperty("isDirectory", out var directory) && directory.ValueKind == JsonValueKind.True;
+                var size = item.TryGetProperty("size", out var sizeValue) && sizeValue.TryGetInt64(out var parsed) ? parsed : (long?)null;
                 return string.IsNullOrWhiteSpace(path) ? null : new DesktopBrowserItem(path!, isDirectory, size);
             }).Where(item => item is not null).Select(item => item!) : []);
         }

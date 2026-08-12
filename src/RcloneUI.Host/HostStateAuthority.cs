@@ -9,9 +9,11 @@ using RcloneUI.Rclone;
 namespace RcloneUI.Host;
 
 internal sealed record HostCommandResult(string ResultType, JsonElement Body, StateCursor State, bool StateChanged = false);
+internal sealed record HostBrowseItem(string Path, bool IsDirectory, long? Size);
 
 internal sealed class HostStateAuthority : IDisposable
 {
+    private const int MaximumBrowseItems = 2_000;
     private static readonly JsonSerializerOptions WireJson = new(JsonSerializerDefaults.Web);
     private readonly object sync = new();
     private readonly DurableIdempotencyStore idempotency;
@@ -232,10 +234,35 @@ internal sealed class HostStateAuthority : IDisposable
             var handle = await rclone.StartAsync(new(id, binding, RclonePrimitive.List, new(fileSystem, path), null, $"browse/{id:N}"), cancellationToken).ConfigureAwait(false);
             var listed = await rclone.WaitAsync(handle, cancellationToken).ConfigureAwait(false);
             if (!listed.Success) return CreateResult("browse-failed", new { code = listed.ErrorCode ?? "rclone-list-failed" }, Cursor);
-            return CreateResult("browse-completed", new { output = listed.Body }, Cursor);
+            var items = ProjectBrowseItems(listed.Body, out var truncated);
+            return CreateResult("browse-completed", new { items, truncated }, Cursor);
         }
         catch (Exception exception) when (exception is not OperationCanceledException) { return CreateResult("browse-failed", new { code = exception.GetType().Name.ToLowerInvariant() }, Cursor); }
     }
+
+    private static List<HostBrowseItem> ProjectBrowseItems(JsonElement response, out bool truncated)
+    {
+        var output = response.TryGetProperty("output", out var nestedOutput) ? nestedOutput : response;
+        var list = output.TryGetProperty("list", out var nestedList) ? nestedList : output;
+        if (list.ValueKind != JsonValueKind.Array) { truncated = false; return []; }
+
+        var items = new List<HostBrowseItem>();
+        truncated = false;
+        foreach (var entry in list.EnumerateArray())
+        {
+            if (items.Count == MaximumBrowseItems) { truncated = true; break; }
+            var path = ReadBrowseString(entry, "Path") ?? ReadBrowseString(entry, "path") ?? ReadBrowseString(entry, "Name") ?? ReadBrowseString(entry, "name");
+            if (string.IsNullOrWhiteSpace(path)) continue;
+            var isDirectory = ReadBrowseBoolean(entry, "IsDir") || ReadBrowseBoolean(entry, "isDir");
+            var size = ReadBrowseInt64(entry, "Size") ?? ReadBrowseInt64(entry, "size");
+            items.Add(new(path, isDirectory, size));
+        }
+        return items;
+    }
+
+    private static string? ReadBrowseString(JsonElement entry, string name) => entry.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.String ? value.GetString() : null;
+    private static bool ReadBrowseBoolean(JsonElement entry, string name) => entry.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.True;
+    private static long? ReadBrowseInt64(JsonElement entry, string name) => entry.TryGetProperty(name, out var value) && value.TryGetInt64(out var number) ? number : null;
 
     private async ValueTask<HostCommandResult> StartMountAsync(JsonElement body, CancellationToken cancellationToken)
     {

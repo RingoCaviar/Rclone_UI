@@ -203,6 +203,9 @@ public sealed class DesktopShellState : INotifyPropertyChanged
     public bool CanCreateBrowserFolder => BrowserRemote is not null && !string.IsNullOrWhiteSpace(newBrowserFolderName);
     public bool CanDeleteBrowserFile => SelectedBrowserItem is { IsDirectory: false } item && StringComparer.Ordinal.Equals(browserDeleteConfirmation, SelectedBrowserPath(item));
     public bool CanRenameBrowserFile => CanDeleteBrowserFile && !string.IsNullOrWhiteSpace(browserRenameNewName) && !StringComparer.Ordinal.Equals(browserRenameNewName, SelectedBrowserItem!.Path);
+    public bool HasBrowserSelection => SelectedBrowserItem is not null;
+    public string BrowserSelectionHeading => T("所选项目", "Selected item");
+    public string BrowserSelectionDetails => SelectedBrowserItem is not { } item ? T("未选择文件或文件夹。", "No file or folder selected.") : T($"路径：{SelectedBrowserPath(item)}\n类型：{(item.IsDirectory ? "文件夹" : "文件")}\n大小：{(item.Size is null ? "未知" : FormatBytes(item.Size.Value))}", $"Path: {SelectedBrowserPath(item)}\nType: {(item.IsDirectory ? "Folder" : "File")}\nSize: {(item.Size is null ? "Unknown" : FormatBytes(item.Size.Value))}");
     public string BrowserRemoteHint => T("选择要浏览的 Remote", "Select a Remote to browse");
     public string BrowserPathHint => T("目录路径（根目录可留空）", "Folder path (leave empty for root)");
     public string BrowserFilterHint => T("筛选当前目录中的名称", "Filter names in this folder");

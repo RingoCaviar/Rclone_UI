@@ -463,6 +463,21 @@ public sealed class DesktopShellStateTests
     }
 
     [Fact]
+    public void BrowserSelectionDetailsUseOnlyListedMetadataAndRelocalize()
+    {
+        var shell = new DesktopShellState { BrowserPath = "docs" };
+        shell.ApplyBrowserItems([new("report.pdf", false, 1536), new("photos", true, null)]);
+        shell.SelectedBrowserItem = shell.BrowserItems.Single(item => item.Path == "report.pdf");
+
+        Assert.Contains("docs/report.pdf", shell.BrowserSelectionDetails, StringComparison.Ordinal);
+        Assert.Contains("1536 B", shell.BrowserSelectionDetails, StringComparison.Ordinal);
+        shell.ToggleLanguage();
+        Assert.Contains("Type: File", shell.BrowserSelectionDetails, StringComparison.Ordinal);
+        shell.SelectedBrowserItem = shell.BrowserItems.Single(item => item.Path == "photos");
+        Assert.Contains("Size: Unknown", shell.BrowserSelectionDetails, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void TransferActionLabelsMatchTheSubmittedMode()
     {
         var shell = new DesktopShellState();

@@ -188,6 +188,12 @@
                   <ListBox ItemsSource="{Binding BrowserItems}" SelectedItem="{Binding SelectedBrowserItem}" DisplayMemberBinding="{Binding DisplayName}" AutomationProperties.Name="Remote files" />
                   <Button Grid.Column="1" VerticalAlignment="Top" IsEnabled="{Binding CanOpenBrowserFolder}" Content="{Binding BrowserOpenLabel}" Click="OpenBrowserFolderClicked" AutomationProperties.Name="Open selected folder" />
                 </Grid>
+                <Border Classes="status" Background="{DynamicResource CardBrush}">
+                  <StackPanel Spacing="2">
+                    <TextBlock Text="{Binding BrowserSelectionHeading}" FontWeight="SemiBold" />
+                    <TextBlock Text="{Binding BrowserSelectionDetails}" TextWrapping="Wrap" />
+                  </StackPanel>
+                </Border>
                 <Button IsEnabled="{Binding CanUseBrowserSelectionForTransfer}" Content="{Binding BrowserUseAsTransferSourceLabel}" Click="UseBrowserSelectionClicked" AutomationProperties.Name="Use selected item as transfer source" />
                 <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
                   <TextBox Text="{Binding BrowserDeleteConfirmation}" PlaceholderText="{Binding BrowserDeleteConfirmationHint}" AutomationProperties.Name="Remote file delete confirmation" />

@@ -162,6 +162,10 @@
                 <TextBlock Text="{Binding BrowserEmptyText}" IsVisible="{Binding BrowserEmptyText}" Opacity="0.72" />
                 <ListBox ItemsSource="{Binding BrowserItems}" DisplayMemberBinding="{Binding DisplayName}" AutomationProperties.Name="Remote files" />
               </StackPanel>
+              <StackPanel IsVisible="{Binding IsActivityJourney}" Spacing="10">
+                <TextBlock Text="{Binding ActivityEmptyText}" IsVisible="{Binding ActivityEmptyText}" Opacity="0.72" />
+                <ListBox ItemsSource="{Binding ActivityRows}" AutomationProperties.Name="Recent activity" />
+              </StackPanel>
               <StackPanel IsVisible="{Binding IsMountJourney}" Spacing="10">
                 <Border Classes="status" Background="{DynamicResource CardBrush}">
                   <Grid ColumnDefinitions="*,Auto,Auto">

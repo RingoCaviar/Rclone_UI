@@ -331,6 +331,18 @@ public sealed class DesktopShellStateTests
         Assert.Contains(shell.BrowserItems, item => item.Path == "readme.txt");
     }
 
+    [Fact]
+    public void ActivityRouteShowsRedactedCopyAndMountStates()
+    {
+        using var document = JsonDocument.Parse("""{"session":"operational","copyRuns":[{"state":"running","bytes":5,"totalBytes":10,"bytesPerSecond":1}],"mounts":[{"instanceId":"0a0a0a0a-0000-0000-0000-000000000000","state":"ready","mountPoint":"R:","startedUtc":"2026-08-12T00:00:00Z"}]}""");
+        var shell = new DesktopShellState();
+        shell.ApplySnapshot(new(new(new("activity"), 1), DateTimeOffset.UtcNow, document.RootElement.Clone()));
+        shell.ToggleLanguage();
+
+        Assert.Contains(shell.ActivityRows, row => row.Contains("Copy · running · 5/10 bytes", StringComparison.Ordinal));
+        Assert.Contains(shell.ActivityRows, row => row.Contains("Mount · ready · R:", StringComparison.Ordinal));
+    }
+
     private sealed class RecordingClient : IDesktopHostClient
     {
         private readonly string connectionResultType;

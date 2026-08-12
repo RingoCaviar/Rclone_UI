@@ -58,6 +58,7 @@ public sealed class DesktopShellState : INotifyPropertyChanged
     private DesktopMountProfileOption[] mountProfiles = [];
     private DesktopMountProfileOption? selectedMountProfile;
     private DesktopBrowserItem[] browserItems = [];
+    private string[] activityRows = [];
 
     public DesktopShellState() => RefreshMountChoices();
 
@@ -137,6 +138,9 @@ public sealed class DesktopShellState : INotifyPropertyChanged
     public bool IsRemoteJourney => route == "Remotes";
     public bool IsMountJourney => route == "Mounts";
     public bool IsBrowserJourney => route == "Browser";
+    public bool IsActivityJourney => route == "Activity";
+    public IReadOnlyList<string> ActivityRows => activityRows;
+    public string ActivityEmptyText => activityRows.Length == 0 ? T("尚无后台服务记录的传输或挂载活动。", "No transfer or Mount activity is currently recorded by the Background Host.") : string.Empty;
     public DesktopRemoteOption? BrowserRemote { get; set; }
     public string BrowserPath { get; set; } = string.Empty;
     public IReadOnlyList<DesktopBrowserItem> BrowserItems => browserItems;
@@ -419,6 +423,12 @@ public sealed class DesktopShellState : INotifyPropertyChanged
             if (selectedMountProfile is not null) ApplyMountProfile(selectedMountProfile);
         }
         else { mountProfiles = []; selectedMountProfile = null; }
+        var activities = new List<string>();
+        if (snapshot.Body.TryGetProperty("copyRuns", out var activityCopies) && activityCopies.ValueKind == JsonValueKind.Array)
+            activities.AddRange(activityCopies.EnumerateArray().TakeLast(20).Select(run => $"Copy · {run.GetProperty("state").GetString() ?? "unknown"} · {run.GetProperty("bytes").GetInt64()}/{run.GetProperty("totalBytes").GetInt64()} bytes"));
+        if (snapshot.Body.TryGetProperty("mounts", out var activityMounts) && activityMounts.ValueKind == JsonValueKind.Array)
+            activities.AddRange(activityMounts.EnumerateArray().TakeLast(20).Select(mount => $"Mount · {mount.GetProperty("state").GetString() ?? "unknown"} · {mount.GetProperty("mountPoint").GetString() ?? "?"}"));
+        activityRows = activities.TakeLast(40).ToArray();
         ChangedAll();
     }
     private string T(string zh, string en) => english ? en : zh;

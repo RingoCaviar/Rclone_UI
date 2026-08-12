@@ -35,14 +35,17 @@ internal static class ManagedRcloneBootstrap
         var executable = RequireChild(componentRoot, manifest.Executable);
         var binary = BundledRcloneDiscovery.RequireVerified(executable, manifest.Sha256, manifest.Version);
         var configuration = RcloneDaemonConfiguration.Create(ReserveLoopbackPort());
-        var configPath = Path.Combine(Path.GetFullPath(dataRootPath), "runtime", "rclone.conf");
+        var normalizedDataRoot = Path.GetFullPath(dataRootPath);
+        var configPath = Path.Combine(normalizedDataRoot, "runtime", "rclone.conf");
+        var cacheDirectory = Path.Combine(normalizedDataRoot, "cache", "rclone");
         Directory.CreateDirectory(Path.GetDirectoryName(configPath)!);
+        Directory.CreateDirectory(cacheDirectory);
         File.WriteAllText(configPath, string.Empty);
         var job = new RcloneJob();
         ContainedRcloneProcess? process = null;
         try
         {
-            process = job.Launch(binary, configuration.BuildArguments(configPath));
+            process = job.Launch(binary, configuration.BuildArguments(configPath, cacheDirectory));
             var deadline = DateTimeOffset.UtcNow.AddSeconds(10);
             Exception? last = null;
             while (DateTimeOffset.UtcNow < deadline)

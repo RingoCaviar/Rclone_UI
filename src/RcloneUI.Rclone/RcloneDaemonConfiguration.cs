@@ -12,7 +12,7 @@ public sealed record RcloneDaemonConfiguration(Uri Address, string UserName, str
         return new(new($"http://127.0.0.1:{port}/"), "host", Convert.ToBase64String(RandomNumberGenerator.GetBytes(32)));
     }
 
-    public IReadOnlyList<string> BuildArguments(string? configurationPath = null)
+    public IReadOnlyList<string> BuildArguments(string? configurationPath = null, string? cacheDirectory = null)
     {
         var arguments = new List<string>
         {
@@ -24,6 +24,7 @@ public sealed record RcloneDaemonConfiguration(Uri Address, string UserName, str
             "--log-format=date,time,microseconds,UTC",
         };
         if (configurationPath is not null) arguments.Add($"--config={Path.GetFullPath(configurationPath)}");
+        if (cacheDirectory is not null) arguments.Add($"--cache-dir={Path.GetFullPath(cacheDirectory)}");
         return arguments;
     }
 

@@ -9,6 +9,18 @@ namespace RcloneUI.IntegrationTests;
 public sealed class RcloneRuntimeTests
 {
     [Fact]
+    public void DaemonArgumentsKeepTheVfsCacheInsideThePortableDataRoot()
+    {
+        var configuration = RcloneDaemonConfiguration.Create(5572);
+        var dataRoot = Path.Combine(Path.GetPathRoot(Environment.SystemDirectory)!, "RcloneUI-Portable-Test", Guid.NewGuid().ToString("N"));
+
+        var arguments = configuration.BuildArguments(Path.Combine(dataRoot, "runtime", "rclone.conf"), Path.Combine(dataRoot, "cache", "rclone"));
+
+        Assert.Contains($"--cache-dir={Path.GetFullPath(Path.Combine(dataRoot, "cache", "rclone"))}", arguments);
+        Assert.DoesNotContain(arguments, argument => argument.StartsWith("--cache-dir=" + Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
     public async Task RuntimeConfiguresRemoteBeforeUsingItsNamedFileSystem()
     {
         var runtime = new ScriptedRcloneRuntime(CreateCapabilities("config/create", "config/delete", "operations/list"), []);

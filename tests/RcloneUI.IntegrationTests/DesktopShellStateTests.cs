@@ -96,6 +96,21 @@ public sealed class DesktopShellStateTests
     }
 
     [Fact]
+    public void MountWritePresetsAreVisibleButTruthfullyUnavailable()
+    {
+        var shell = new DesktopShellState();
+
+        Assert.Contains("暂不可用", shell.MountStandardPresetLabel, StringComparison.Ordinal);
+        Assert.Contains("上传队列", shell.MountWritePresetExplanation, StringComparison.Ordinal);
+
+        shell.ToggleLanguage();
+
+        Assert.Equal("Read-only browsing (available)", shell.MountReadOnlyPresetLabel);
+        Assert.Contains("not yet available", shell.MountMaximumPresetLabel, StringComparison.Ordinal);
+        Assert.Contains("clean drain", shell.MountWritePresetExplanation, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task TransferPrimaryActionUsesSnapshotCapabilityAndTypedFields()
     {
         var cancellationToken = TestContext.Current.CancellationToken;

@@ -161,6 +161,20 @@
                   <TextBox Text="{Binding MountFixedDirectoryPath}" IsReadOnly="True" PlaceholderText="{Binding MountFixedDirectoryHint}" AutomationProperties.Name="Mount fixed directory" />
                   <Button Grid.Column="1" Content="{Binding PickMountDirectoryLabel}" Click="PickMountDirectoryClicked" />
                 </Grid>
+                <TextBlock Text="{Binding MountCachePresetHeading}" FontWeight="SemiBold" />
+                <Border Classes="status" Background="{DynamicResource CardBrush}">
+                  <StackPanel Spacing="2">
+                    <TextBlock Text="{Binding MountReadOnlyPresetLabel}" Foreground="MediumSeaGreen" />
+                    <TextBlock Text="{Binding MountReadOnlyPresetDescription}" TextWrapping="Wrap" Opacity="0.72" />
+                  </StackPanel>
+                </Border>
+                <Border Classes="status" Background="{DynamicResource CardBrush}" Opacity="0.68">
+                  <StackPanel Spacing="4">
+                    <TextBlock Text="{Binding MountStandardPresetLabel}" Foreground="DarkOrange" />
+                    <TextBlock Text="{Binding MountMaximumPresetLabel}" Foreground="DarkOrange" />
+                    <TextBlock Text="{Binding MountWritePresetExplanation}" TextWrapping="Wrap" Opacity="0.78" />
+                  </StackPanel>
+                </Border>
                 <TextBlock Text="{Binding MountReadOnlyNotice}" TextWrapping="Wrap" Opacity="0.72" />
                 <TextBlock Text="{Binding MountStatus}" AutomationProperties.LiveSetting="Polite" />
               </StackPanel>

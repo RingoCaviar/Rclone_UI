@@ -172,6 +172,12 @@ public sealed class DesktopShellState : INotifyPropertyChanged
     public string MountFixedDirectoryHint => T("选择一个现有的空文件夹", "Choose an existing empty folder");
     public string PickMountDirectoryLabel => T("选择目录…", "Choose directory…");
     public string MountReadOnlyNotice => T("当前安全预设为只读浏览，不会向云端写入文件。", "The current safe preset is read-only browsing and cannot write to the cloud.");
+    public string MountCachePresetHeading => T("缓存与写入预设", "Cache and write presets");
+    public string MountReadOnlyPresetLabel => T("只读浏览（可用）", "Read-only browsing (available)");
+    public string MountReadOnlyPresetDescription => T("不写入云端，不需要本地写入缓存。", "Does not write to the Remote and needs no local write cache.");
+    public string MountStandardPresetLabel => T("标准读写（暂不可用）", "Standard read/write (not yet available)");
+    public string MountMaximumPresetLabel => T("最大兼容性（暂不可用）", "Maximum compatibility (not yet available)");
+    public string MountWritePresetExplanation => T("读写预设将在后台服务能持续观察上传队列、完成安全排空、保留异常缓存并提供恢复证据后开放。", "Write presets will be enabled only after the Background Host can observe upload queues, prove a clean drain, preserve interrupted cache, and provide recovery evidence.");
     public bool MountPrerequisitesReady => winFspStatus == "ready" && rcloneMountAvailable;
     public bool IsJourneyPrimaryEnabled => connection == DesktopConnectionState.ConnectedOperational && (route != "Mounts" || !MountRecoveryRequired && (HasActiveMount || MountPrerequisitesReady && selectedMountProfile is not null));
     public string MountPrerequisiteHeading => T("挂载运行环境", "Mount prerequisites");

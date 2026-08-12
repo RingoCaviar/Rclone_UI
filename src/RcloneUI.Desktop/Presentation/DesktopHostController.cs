@@ -42,8 +42,16 @@ public sealed class DesktopHostController(IDesktopHostClient client, DesktopShel
     public async ValueTask InstallWinFspAsync(CancellationToken cancellationToken = default)
     {
         if (winFspInstaller is null) { shell.ApplyAction("winfsp-installer-unavailable"); return; }
-        var result = await winFspInstaller.InstallAsync(cancellationToken).ConfigureAwait(false);
-        shell.ApplyAction(result.Detail is null ? result.ResultType : $"{result.ResultType}:{result.Detail}");
+        shell.ApplyAction("winfsp-install-started");
+        try
+        {
+            var result = await winFspInstaller.InstallAsync(cancellationToken).ConfigureAwait(false);
+            shell.ApplyAction(result.Detail is null ? result.ResultType : $"{result.ResultType}:{result.Detail}");
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            shell.ApplyAction($"winfsp-install-failed:{exception.GetType().Name}");
+        }
         await ReconnectAsync(cancellationToken).ConfigureAwait(false);
     }
 

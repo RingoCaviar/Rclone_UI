@@ -148,8 +148,9 @@ public sealed class DesktopShellState : INotifyPropertyChanged
     public bool HasActionNotification => !string.IsNullOrWhiteSpace(lastAction);
     public DesktopActionNotificationKind ActionNotificationKind => lastAction switch
     {
-        "remote-added" or "copy-accepted" or "mount-started" or "mount-stopped" or "mount-profile-saved" or "mount-profile-deleted" or "vault-unlocked" or "vault-lock-completed" or "shutdown-accepted" => DesktopActionNotificationKind.Success,
-        "remote-input-invalid" or "remote-host-key-required" or "remote-test-failed" or "vault-locked" or "host-unavailable" or "rclone-unavailable" or "mount-prerequisites-unavailable" or "mount-profile-required" or "source-remote-required" or "destination-remote-required" or "download-folder-required" or "shutdown-blocked-active-mount" => DesktopActionNotificationKind.Error,
+        "remote-added" or "copy-accepted" or "mount-started" or "mount-stopped" or "mount-profile-saved" or "mount-profile-deleted" or "vault-unlocked" or "vault-lock-completed" or "shutdown-accepted" or "winfsp-install-complete" or "winfsp-install-complete:restart-required" => DesktopActionNotificationKind.Success,
+        "remote-input-invalid" or "remote-host-key-required" or "remote-test-failed" or "vault-locked" or "host-unavailable" or "rclone-unavailable" or "mount-prerequisites-unavailable" or "mount-profile-required" or "source-remote-required" or "destination-remote-required" or "download-folder-required" or "shutdown-blocked-active-mount" or "winfsp-installer-unavailable" or "winfsp-installer-not-started" or "winfsp-download-failed" or "winfsp-hash-mismatch" or "winfsp-signature-invalid" or "winfsp-install-cancelled" or "winfsp-uac-cancelled" => DesktopActionNotificationKind.Error,
+        var value when value.StartsWith("winfsp-installer-failed:", StringComparison.Ordinal) || value.StartsWith("winfsp-install-failed:", StringComparison.Ordinal) => DesktopActionNotificationKind.Error,
         _ => DesktopActionNotificationKind.Information
     };
     public IBrush ActionNotificationBrush => ActionNotificationKind switch { DesktopActionNotificationKind.Success => Brushes.MediumSeaGreen, DesktopActionNotificationKind.Error => Brushes.IndianRed, _ => Brushes.DarkOrange };
@@ -175,6 +176,16 @@ public sealed class DesktopShellState : INotifyPropertyChanged
         "destination-remote-required" => T("请选择目标远程存储。", "Select a destination Remote."),
         "download-folder-required" => T("请选择本地下载文件夹。", "Select a local download folder."),
         "shutdown-blocked-active-mount" => T("仍有正在使用的挂载，无法彻底退出。请先安全卸载。", "A Mount is still active, so the Host cannot stop. Safely unmount it first."),
+        "winfsp-install-started" => T("正在下载 WinFsp，随后会请求管理员授权安装。请留意 Windows 的授权窗口。", "Downloading WinFsp, then Windows will request administrator approval. Watch for the UAC prompt."),
+        "winfsp-install-complete" => T("WinFsp 已安装完成。正在重新检测挂载条件。", "WinFsp installation completed. Rechecking Mount prerequisites."),
+        "winfsp-install-complete:restart-required" => T("WinFsp 已安装完成，需要重启 Windows 后才能使用挂载。", "WinFsp installation completed. Restart Windows before using Mounts."),
+        "winfsp-uac-cancelled" => T("你取消了 Windows 管理员授权，WinFsp 未安装。", "Windows administrator approval was cancelled; WinFsp was not installed."),
+        "winfsp-download-failed" => T("无法下载 WinFsp。请检查网络后重试。", "WinFsp could not be downloaded. Check the network and retry."),
+        "winfsp-hash-mismatch" => T("下载的 WinFsp 校验失败，已拒绝安装。", "The downloaded WinFsp hash did not match, so installation was refused."),
+        "winfsp-signature-invalid" => T("WinFsp 数字签名验证失败，已拒绝安装。", "WinFsp signature verification failed, so installation was refused."),
+        "winfsp-installer-unavailable" => T("此启动方式无法安装 WinFsp。请使用完整便携包中的 Rclone UI.exe 启动。", "This launch mode cannot install WinFsp. Start from Rclone UI.exe in the full portable package."),
+        var value when value.StartsWith("winfsp-installer-failed:", StringComparison.Ordinal) => T("WinFsp 安装器失败，Windows 返回代码：" + value["winfsp-installer-failed:".Length], "WinFsp installer failed with Windows exit code: " + value["winfsp-installer-failed:".Length]),
+        var value when value.StartsWith("winfsp-install-failed:", StringComparison.Ordinal) => T("WinFsp 安装准备失败：" + value["winfsp-install-failed:".Length], "WinFsp installation preparation failed: " + value["winfsp-install-failed:".Length]),
         _ => T($"后台服务返回：{lastAction}", $"Background Host result: {lastAction}")
     };
     public string RemoteSummary => remoteSummary;

@@ -68,6 +68,19 @@ public sealed class DesktopShellStateTests
     }
 
     [Fact]
+    public async Task WinFspInstallImmediatelyReportsProgressAndThenCompletion()
+    {
+        var shell = new DesktopShellState();
+        var controller = new DesktopHostController(new RecordingClient(), shell, new DelayedWinFspInstaller());
+
+        var install = controller.InstallWinFspAsync(TestContext.Current.CancellationToken).AsTask();
+
+        Assert.Equal("winfsp-install-started", shell.LastAction);
+        await install;
+        Assert.Equal("winfsp-install-complete", shell.LastAction);
+    }
+
+    [Fact]
     public void ConnectionSetupShowsOnlyProtocolRelevantRequiredFields()
     {
         var shell = new DesktopShellState();
@@ -151,6 +164,18 @@ public sealed class DesktopShellStateTests
         Assert.Equal("2.1.25156", OfficialStableWinFspInstaller.Version);
         Assert.Equal("073A70E00F77423E34BED98B86E600DEF93393BA5822204FAC57A29324DB9F7A", OfficialStableWinFspInstaller.Sha256);
         Assert.Equal("https://github.com/winfsp/winfsp/releases/download/v2.1/winfsp-2.1.25156.msi", OfficialStableWinFspInstaller.DownloadUri.AbsoluteUri);
+    }
+
+    [Fact]
+    public void AuthenticodeVerifierRejectsAnUnsignedMsiFile()
+    {
+        var path = Path.Combine(Path.GetTempPath(), $"rcloneui-{Guid.NewGuid():N}.msi");
+        try
+        {
+            File.WriteAllBytes(path, [0x4D, 0x53, 0x49]);
+            Assert.False(WindowsAuthenticodeVerifier.IsTrusted(path));
+        }
+        finally { File.Delete(path); }
     }
 
     [Fact]
@@ -285,6 +310,15 @@ public sealed class DesktopShellStateTests
             var resultType = commandType == "add-token-remote" ? "remote-added" : commandType == "add-connection-remote" ? connectionResultType : "copy-not-started";
             using var document = JsonDocument.Parse(JsonSerializer.Serialize(new { resultType, result = new { code = "test" } }));
             return ValueTask.FromResult(document.RootElement.Clone());
+        }
+    }
+
+    private sealed class DelayedWinFspInstaller : IWinFspInstaller
+    {
+        public async ValueTask<WinFspInstallResult> InstallAsync(CancellationToken cancellationToken = default)
+        {
+            await Task.Delay(10, cancellationToken);
+            return new("winfsp-install-complete");
         }
     }
 }

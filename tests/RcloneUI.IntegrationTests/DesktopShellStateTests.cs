@@ -225,6 +225,19 @@ public sealed class DesktopShellStateTests
     }
 
     [Fact]
+    public async Task ConnectionFailureKeepsPasswordForRetry()
+    {
+        var client = new RecordingClient(connectionResultType: "remote-test-failed"); var shell = new DesktopShellState(); var controller = new DesktopHostController(client, shell);
+        await controller.ReconnectAsync(TestContext.Current.CancellationToken);
+        shell.Navigate("Remotes"); shell.RemoteDisplayName = "FTPS"; shell.ConnectionHost = "files.example.test"; shell.ConnectionPort = "21"; shell.ConnectionUser = "alice"; shell.ConnectionPassword = "secret";
+
+        await controller.ActivatePrimaryAsync(TestContext.Current.CancellationToken);
+
+        Assert.Equal("remote-test-failed", shell.LastAction);
+        Assert.Equal("secret", shell.ConnectionPassword);
+    }
+
+    [Fact]
     public async Task IncompleteConnectionRemoteShowsInputNotificationWithoutSendingOAuthCommand()
     {
         var client = new RecordingClient(); var shell = new DesktopShellState(); var controller = new DesktopHostController(client, shell);
@@ -254,6 +267,8 @@ public sealed class DesktopShellStateTests
 
     private sealed class RecordingClient : IDesktopHostClient
     {
+        private readonly string connectionResultType;
+        public RecordingClient(string connectionResultType = "remote-added") => this.connectionResultType = connectionResultType;
         internal static readonly Guid SourceId = Guid.Parse("11111111-1111-1111-1111-111111111111");
         internal static readonly Guid DestinationId = Guid.Parse("22222222-2222-2222-2222-222222222222");
         internal static readonly Guid ProfileId = Guid.Parse("33333333-3333-3333-3333-333333333333");
@@ -267,7 +282,8 @@ public sealed class DesktopShellStateTests
         public ValueTask<JsonElement> SendCommandAsync(string commandType, JsonElement arguments, CancellationToken cancellationToken)
         {
             CommandType = commandType; Arguments = arguments.Clone();
-            using var document = JsonDocument.Parse(commandType == "add-token-remote" ? """{"resultType":"remote-added","result":{}}""" : """{"resultType":"copy-not-started","result":{"code":"test"}}""");
+            var resultType = commandType == "add-token-remote" ? "remote-added" : commandType == "add-connection-remote" ? connectionResultType : "copy-not-started";
+            using var document = JsonDocument.Parse(JsonSerializer.Serialize(new { resultType, result = new { code = "test" } }));
             return ValueTask.FromResult(document.RootElement.Clone());
         }
     }

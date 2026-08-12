@@ -143,6 +143,7 @@ public sealed class DesktopHostController(IDesktopHostClient client, DesktopShel
     {
         if (!int.TryParse(shell.ConnectionPort, out var port) || port is < 1 or > 65535 || string.IsNullOrWhiteSpace(shell.RemoteDisplayName) || string.IsNullOrWhiteSpace(shell.ConnectionHost) || string.IsNullOrWhiteSpace(shell.ConnectionUser) || string.IsNullOrWhiteSpace(shell.ConnectionPassword)) { shell.ApplyAction("remote-input-invalid"); return; }
         var password = Encoding.UTF8.GetBytes(shell.ConnectionPassword);
+        var added = false;
         try
         {
             var protocol = shell.ConnectionProtocol.Key;
@@ -155,9 +156,9 @@ public sealed class DesktopHostController(IDesktopHostClient client, DesktopShel
             using var arguments = JsonDocument.Parse(JsonSerializer.Serialize(new { displayName = shell.RemoteDisplayName, providerType = provider, configuration }));
             var result = await client.SendCommandAsync("add-connection-remote", arguments.RootElement, cancellationToken).ConfigureAwait(false);
             var type = result.GetProperty("resultType").GetString() ?? "unknown-result"; shell.ApplyAction(type);
-            if (type == "remote-added") { shell.RemoteDisplayName = string.Empty; shell.ConnectionHost = string.Empty; shell.ConnectionUser = string.Empty; shell.ConnectionHostKeyFingerprint = string.Empty; shell.ConnectionPort = "21"; }
+            if (type == "remote-added") { added = true; shell.RemoteDisplayName = string.Empty; shell.ConnectionHost = string.Empty; shell.ConnectionUser = string.Empty; shell.ConnectionHostKeyFingerprint = string.Empty; shell.ConnectionPort = "21"; }
         }
-        finally { CryptographicOperations.ZeroMemory(password); shell.ConnectionPassword = string.Empty; }
+        finally { CryptographicOperations.ZeroMemory(password); if (added) shell.ConnectionPassword = string.Empty; }
         await ReconnectAsync(cancellationToken).ConfigureAwait(false);
     }
 

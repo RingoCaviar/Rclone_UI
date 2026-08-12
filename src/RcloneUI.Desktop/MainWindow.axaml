@@ -112,20 +112,26 @@
               </Border>
               <StackPanel IsVisible="{Binding IsRemoteAdvancedVisible}" Spacing="10">
                 <TextBlock Text="{Binding QuickAddHeading}" FontWeight="SemiBold" />
-                <TextBox PlaceholderText="{Binding RemoteDisplayNameHint}" Text="{Binding RemoteDisplayName}" AutomationProperties.Name="Remote display name" />
-                <ComboBox ItemsSource="{Binding TokenProviderTypes}" SelectedItem="{Binding RemoteProviderType}" AutomationProperties.Name="Remote provider" />
-                <TextBox PlaceholderText="{Binding RemoteTokenHint}" Text="{Binding RemoteToken}" PasswordChar="●" MaxLength="16384" AutomationProperties.Name="Remote token" />
-                <TextBlock Text="{Binding ConnectionRemoteHeading}" FontWeight="SemiBold" Margin="0,12,0,0" />
-                <ComboBox ItemsSource="{Binding ConnectionProtocols}" SelectedItem="{Binding ConnectionProtocol}" DisplayMemberBinding="{Binding DisplayName}" PlaceholderText="{Binding ConnectionProtocolHint}" AutomationProperties.Name="Connection protocol" />
-                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
-                  <TextBox PlaceholderText="{Binding ConnectionHostHint}" Text="{Binding ConnectionHost}" AutomationProperties.Name="Connection host" />
-                  <TextBox Grid.Column="1" Width="90" PlaceholderText="{Binding ConnectionPortHint}" Text="{Binding ConnectionPort}" AutomationProperties.Name="Connection port" />
-                </Grid>
-                <TextBox PlaceholderText="{Binding ConnectionUserHint}" Text="{Binding ConnectionUser}" AutomationProperties.Name="Connection username" />
-                <TextBox PlaceholderText="{Binding ConnectionPasswordHint}" Text="{Binding ConnectionPassword}" PasswordChar="●" MaxLength="16384" AutomationProperties.Name="Connection password" />
-                <TextBox PlaceholderText="{Binding ConnectionHostKeyHint}" Text="{Binding ConnectionHostKeyFingerprint}" MaxLength="1024" AutomationProperties.Name="SFTP host key fingerprint" />
-                <CheckBox Content="{Binding ConnectionInsecureCertificate}" IsChecked="{Binding ConnectionSkipCertificateVerification}" />
-                <TextBlock Text="{Binding RemoteHelpText}" TextWrapping="Wrap" Opacity="0.7" />
+                <ComboBox ItemsSource="{Binding RemoteSetupKinds}" SelectedItem="{Binding RemoteSetupKind}" DisplayMemberBinding="{Binding DisplayName}" PlaceholderText="{Binding RemoteSetupKindHint}" AutomationProperties.Name="Remote setup method" />
+                <StackPanel IsVisible="{Binding IsTokenRemoteSetup}" Spacing="10">
+                  <TextBox PlaceholderText="{Binding RemoteDisplayNameHint}" Text="{Binding RemoteDisplayName}" AutomationProperties.Name="Remote display name" />
+                  <ComboBox ItemsSource="{Binding TokenProviderTypes}" SelectedItem="{Binding RemoteProviderType}" AutomationProperties.Name="Remote provider" />
+                  <TextBox PlaceholderText="{Binding RemoteTokenHint}" Text="{Binding RemoteToken}" PasswordChar="●" MaxLength="16384" AutomationProperties.Name="Remote token" />
+                </StackPanel>
+                <StackPanel IsVisible="{Binding IsConnectionRemoteSetup}" Spacing="10">
+                  <TextBlock Text="{Binding ConnectionRemoteHeading}" FontWeight="SemiBold" />
+                  <TextBox PlaceholderText="{Binding RemoteDisplayNameHint}" Text="{Binding RemoteDisplayName}" AutomationProperties.Name="Remote display name" />
+                  <ComboBox ItemsSource="{Binding ConnectionProtocols}" SelectedItem="{Binding ConnectionProtocol}" DisplayMemberBinding="{Binding DisplayName}" PlaceholderText="{Binding ConnectionProtocolHint}" AutomationProperties.Name="Connection protocol" />
+                  <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
+                    <TextBox PlaceholderText="{Binding ConnectionHostHint}" Text="{Binding ConnectionHost}" AutomationProperties.Name="Connection host" />
+                    <TextBox Grid.Column="1" Width="90" PlaceholderText="{Binding ConnectionPortHint}" Text="{Binding ConnectionPort}" AutomationProperties.Name="Connection port" />
+                  </Grid>
+                  <TextBox PlaceholderText="{Binding ConnectionUserHint}" Text="{Binding ConnectionUser}" AutomationProperties.Name="Connection username" />
+                  <TextBox PlaceholderText="{Binding ConnectionPasswordHint}" Text="{Binding ConnectionPassword}" PasswordChar="●" MaxLength="16384" AutomationProperties.Name="Connection password" />
+                  <TextBox IsVisible="{Binding IsSftpHostKeyVisible}" PlaceholderText="{Binding ConnectionHostKeyHint}" Text="{Binding ConnectionHostKeyFingerprint}" MaxLength="1024" AutomationProperties.Name="SFTP host key fingerprint" />
+                  <CheckBox IsVisible="{Binding IsFtpsConnection}" Content="{Binding ConnectionInsecureCertificate}" IsChecked="{Binding ConnectionSkipCertificateVerification}" />
+                </StackPanel>
+                <TextBlock Text="{Binding RemoteSetupHelpText}" TextWrapping="Wrap" Opacity="0.7" />
               </StackPanel>
               <StackPanel IsVisible="{Binding IsTransferJourney}" Spacing="10">
                 <TextBlock Text="{Binding TransferFormHeading}" FontWeight="SemiBold" />

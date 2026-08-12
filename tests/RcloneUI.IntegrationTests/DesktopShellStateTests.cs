@@ -68,6 +68,25 @@ public sealed class DesktopShellStateTests
     }
 
     [Fact]
+    public void ConnectionSetupShowsOnlyProtocolRelevantRequiredFields()
+    {
+        var shell = new DesktopShellState();
+
+        Assert.True(shell.IsConnectionRemoteSetup);
+        Assert.False(shell.IsTokenRemoteSetup);
+        Assert.False(shell.IsSftpConnection);
+        Assert.False(shell.IsFtpsConnection);
+        Assert.Contains("名称", shell.RemoteSetupRequiredFields, StringComparison.Ordinal);
+        Assert.DoesNotContain("主机密钥", shell.RemoteSetupRequiredFields, StringComparison.Ordinal);
+
+        shell.ConnectionProtocol = shell.ConnectionProtocols.Single(protocol => protocol.Key == "sftp");
+
+        Assert.True(shell.IsSftpConnection);
+        Assert.True(shell.IsSftpHostKeyVisible);
+        Assert.Contains("主机密钥", shell.RemoteSetupRequiredFields, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void AdvancedOptionsAreShownOnlyForImplementedJourneysAndResetOnNavigation()
     {
         var shell = new DesktopShellState();
@@ -182,7 +201,7 @@ public sealed class DesktopShellStateTests
         var cancellationToken = TestContext.Current.CancellationToken;
         var client = new RecordingClient(); var shell = new DesktopShellState(); var controller = new DesktopHostController(client, shell);
         await controller.ReconnectAsync(cancellationToken);
-        shell.Navigate("Remotes"); shell.RemoteDisplayName = "Personal"; shell.RemoteProviderType = "drive"; shell.RemoteToken = "secret";
+        shell.Navigate("Remotes"); shell.RemoteSetupKind = shell.RemoteSetupKinds.Single(kind => kind.Key == "token"); shell.RemoteDisplayName = "Personal"; shell.RemoteProviderType = "drive"; shell.RemoteToken = "secret";
         await controller.ActivatePrimaryAsync(cancellationToken);
         Assert.Equal("add-token-remote", client.CommandType);
         Assert.Equal("Personal", client.Arguments.GetProperty("displayName").GetString());

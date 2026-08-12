@@ -33,6 +33,8 @@ public sealed class DesktopShellState : INotifyPropertyChanged
     private string? rcloneVersion;
     private string masterPassword = string.Empty;
     private bool advancedOptionsExpanded;
+    private DesktopChoice remoteSetupKind = new("connection", "");
+    private DesktopChoice connectionProtocol = new("ftp", "FTP");
     private DesktopTransferMode transferMode;
     private string downloadDestinationPath = string.Empty;
     private Guid? activeMountId;
@@ -90,6 +92,9 @@ public sealed class DesktopShellState : INotifyPropertyChanged
     public string NoRemoteText => T("尚未添加远程存储", "No Remotes added");
     public string OpenRemoteWizardLabel => T("打开三步设置向导", "Open three-step setup");
     public string QuickAddHeading => T("快速添加（高级）", "Quick add (advanced)");
+    public string RemoteSetupKindHint => T("添加方式", "Setup method");
+    public string ConnectionSetupLabel => T("服务器连接（FTP / FTPS / SFTP）", "Server connection (FTP / FTPS / SFTP)");
+    public string TokenSetupLabel => T("云端 OAuth 令牌", "Cloud OAuth token");
     public string RemoteDisplayNameHint => T("显示名称", "Display name");
     public string RemoteTokenHint => T("rclone OAuth 令牌", "rclone OAuth token");
     public string ConnectionRemoteHeading => T("FTP / FTPS / SFTP", "FTP / FTPS / SFTP");
@@ -158,7 +163,7 @@ public sealed class DesktopShellState : INotifyPropertyChanged
     {
         "remote-added" => T("远程存储已添加，并已验证连接。", "Remote added and its connection was verified."),
         "vault-lock-completed" => T("保险库已锁定。", "The Vault is now locked."),
-        "remote-input-invalid" => T("请填写远程存储名称、服务器地址、有效端口、用户名和密码；SFTP 还需要主机密钥指纹。", "Enter a Remote name, server address, valid port, username, and password. SFTP also requires a host-key fingerprint."),
+        "remote-input-invalid" => T($"请填写：{MissingRemoteSetupFields}。", $"Enter: {MissingRemoteSetupFields}."),
         "remote-host-key-required" => T("SFTP 必须填写服务器主机密钥指纹，不能跳过此验证。", "SFTP requires the server host-key fingerprint; this verification cannot be skipped."),
         "remote-test-failed" => T("无法连接到服务器。请检查地址、端口、协议、账号密码和证书设置。", "Could not connect to the server. Check the address, port, protocol, credentials, and certificate settings."),
         "host-unavailable" => T("无法连接到后台服务。请等待它启动后重试。", "Cannot connect to the Background Host. Wait for it to start, then try again."),
@@ -187,12 +192,41 @@ public sealed class DesktopShellState : INotifyPropertyChanged
     public string CopySourcePath { get; set; } = string.Empty;
     public string CopyDestinationPath { get; set; } = string.Empty;
     public string? CapabilityBinding => capabilityBinding;
+    public IReadOnlyList<DesktopChoice> RemoteSetupKinds => [new("connection", ConnectionSetupLabel), new("token", TokenSetupLabel)];
+    public DesktopChoice RemoteSetupKind { get => remoteSetupKind; set { if (value is null || remoteSetupKind.Key == value.Key) return; remoteSetupKind = value; ChangedAll(); } }
+    public bool IsConnectionRemoteSetup => remoteSetupKind.Key == "connection";
+    public bool IsTokenRemoteSetup => remoteSetupKind.Key == "token";
+    public string RemoteSetupRequiredFields => IsTokenRemoteSetup
+        ? T("远程存储名称、OAuth 令牌", "Remote name and OAuth token")
+        : IsSftpConnection
+            ? T("远程存储名称、服务器地址、端口、用户名、密码、SFTP 主机密钥指纹", "Remote name, server address, port, username, password, and SFTP host-key fingerprint")
+            : T("远程存储名称、服务器地址、端口、用户名、密码", "Remote name, server address, port, username, and password");
+    private string MissingRemoteSetupFields => IsTokenRemoteSetup
+        ? string.Join("、", new[] { string.IsNullOrWhiteSpace(RemoteDisplayName) ? T("远程存储名称", "Remote name") : null, string.IsNullOrWhiteSpace(RemoteToken) ? T("OAuth 令牌", "OAuth token") : null }.Where(value => value is not null))
+        : string.Join("、", new[] { string.IsNullOrWhiteSpace(RemoteDisplayName) ? T("远程存储名称", "Remote name") : null, string.IsNullOrWhiteSpace(ConnectionHost) ? T("服务器地址", "server address") : null, !int.TryParse(ConnectionPort, out var port) || port is < 1 or > 65535 ? T("有效端口", "valid port") : null, string.IsNullOrWhiteSpace(ConnectionUser) ? T("用户名", "username") : null, string.IsNullOrWhiteSpace(ConnectionPassword) ? T("密码", "password") : null, IsSftpConnection && string.IsNullOrWhiteSpace(ConnectionHostKeyFingerprint) ? T("SFTP 主机密钥指纹", "SFTP host-key fingerprint") : null }.Where(value => value is not null));
+    public bool IsSftpConnection => IsConnectionRemoteSetup && connectionProtocol.Key == "sftp";
+    public bool IsFtpsConnection => IsConnectionRemoteSetup && connectionProtocol.Key is "ftps-explicit" or "ftps-implicit";
+    public bool IsSftpHostKeyVisible => IsSftpConnection;
+    public string RemoteSetupHelpText => IsTokenRemoteSetup
+        ? T("适用于 Google Drive、OneDrive 和 Dropbox。请粘贴 rclone OAuth 令牌。", "For Google Drive, OneDrive, and Dropbox. Paste an rclone OAuth token.")
+        : T("仅需填写标记为必填的字段。FTPS 默认验证服务器证书；SFTP 必须验证主机密钥。", "Only fields marked required are needed. FTPS verifies the server certificate by default; SFTP must verify its host key.");
     public IReadOnlyList<string> TokenProviderTypes { get; } = ["drive", "onedrive", "dropbox"];
     public string RemoteDisplayName { get; set; } = string.Empty;
     public string RemoteProviderType { get; set; } = "drive";
     public string RemoteToken { get; set; } = string.Empty;
     public IReadOnlyList<DesktopChoice> ConnectionProtocols { get; } = [new("ftp", "FTP"), new("ftps-explicit", "FTPS (Explicit TLS)"), new("ftps-implicit", "FTPS (Implicit TLS)"), new("sftp", "SFTP")];
-    public DesktopChoice ConnectionProtocol { get; set; } = new("ftp", "FTP");
+    public DesktopChoice ConnectionProtocol
+    {
+        get => connectionProtocol;
+        set
+        {
+            if (value is null || connectionProtocol.Key == value.Key) return;
+            var oldPort = connectionProtocol.Key == "sftp" ? "22" : connectionProtocol.Key == "ftps-implicit" ? "990" : "21";
+            connectionProtocol = value;
+            if (ConnectionPort == oldPort) ConnectionPort = value.Key == "sftp" ? "22" : value.Key == "ftps-implicit" ? "990" : "21";
+            ChangedAll();
+        }
+    }
     public string ConnectionHost { get; set; } = string.Empty;
     public string ConnectionPort { get; set; } = "21";
     public string ConnectionUser { get; set; } = string.Empty;

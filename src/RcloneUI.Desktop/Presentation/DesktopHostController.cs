@@ -125,7 +125,7 @@ public sealed class DesktopHostController(IDesktopHostClient client, DesktopShel
 
     private async ValueTask AddRemoteAsync(CancellationToken cancellationToken)
     {
-        if (!string.IsNullOrWhiteSpace(shell.ConnectionHost) || !string.IsNullOrWhiteSpace(shell.ConnectionUser) || !string.IsNullOrWhiteSpace(shell.ConnectionPassword) || !string.IsNullOrWhiteSpace(shell.ConnectionHostKeyFingerprint)) { await AddConnectionRemoteAsync(cancellationToken); return; }
+        if (shell.IsConnectionRemoteSetup) { await AddConnectionRemoteAsync(cancellationToken); return; }
         var token = Encoding.UTF8.GetBytes(shell.RemoteToken);
         try
         {

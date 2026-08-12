@@ -124,6 +124,10 @@ internal sealed class HostStateAuthority : IDisposable
             {
                 result = await StartCopyAsync(envelope.Body, cancellationToken).ConfigureAwait(false);
             }
+            else if (commandType == "browse-remote")
+            {
+                result = await BrowseRemoteAsync(envelope.Body, cancellationToken).ConfigureAwait(false);
+            }
             else if (commandType == "start-read-only-mount")
             {
                 result = await StartMountAsync(envelope.Body, cancellationToken).ConfigureAwait(false);
@@ -211,6 +215,26 @@ internal sealed class HostStateAuthority : IDisposable
         }
         _ = ObserveCopyAsync(handle);
         return CreateResult("copy-accepted", new { runId = id }, Cursor, stateChanged: true);
+    }
+
+    private async ValueTask<HostCommandResult> BrowseRemoteAsync(JsonElement body, CancellationToken cancellationToken)
+    {
+        if (remotes?.SessionState != "operational") return CreateResult("vault-locked", new { }, Cursor);
+        if (rclone is null || remotes is not IHostRemoteResolver resolver) return CreateResult("browse-unavailable", new { }, Cursor);
+        if (!body.TryGetProperty("arguments", out var arguments) || ReadGuidArgument(arguments, "remoteId") is not { } remoteId || ReadPathArgument(arguments, "path") is not { } path || ReadArgument(arguments, "capabilityBinding") is not { } binding) return CreateResult("browse-invalid", new { code = "arguments-invalid" }, Cursor);
+        string? fileSystem;
+        try { fileSystem = await resolver.ResolveFileSystemAsync(remoteId, cancellationToken).ConfigureAwait(false); }
+        catch (Exception exception) when (exception is not OperationCanceledException) { return CreateResult("browse-invalid", new { code = "remote-configuration-invalid" }, Cursor); }
+        if (fileSystem is null) return CreateResult("browse-invalid", new { code = "remote-not-found" }, Cursor);
+        try
+        {
+            var id = Guid.NewGuid();
+            var handle = await rclone.StartAsync(new(id, binding, RclonePrimitive.List, new(fileSystem, path), null, $"browse/{id:N}"), cancellationToken).ConfigureAwait(false);
+            var listed = await rclone.WaitAsync(handle, cancellationToken).ConfigureAwait(false);
+            if (!listed.Success) return CreateResult("browse-failed", new { code = listed.ErrorCode ?? "rclone-list-failed" }, Cursor);
+            return CreateResult("browse-completed", new { output = listed.Body }, Cursor);
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException) { return CreateResult("browse-failed", new { code = exception.GetType().Name.ToLowerInvariant() }, Cursor); }
     }
 
     private async ValueTask<HostCommandResult> StartMountAsync(JsonElement body, CancellationToken cancellationToken)

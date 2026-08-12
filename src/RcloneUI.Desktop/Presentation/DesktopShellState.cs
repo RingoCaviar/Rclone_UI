@@ -56,6 +56,7 @@ public sealed class DesktopShellState : INotifyPropertyChanged
     private bool rcloneMountAvailable;
     private DesktopMountProfileOption[] mountProfiles = [];
     private DesktopMountProfileOption? selectedMountProfile;
+    private string[] browserItems = [];
 
     public DesktopShellState() => RefreshMountChoices();
 
@@ -134,6 +135,13 @@ public sealed class DesktopShellState : INotifyPropertyChanged
     public bool IsTransferJourney => route == "Transfers";
     public bool IsRemoteJourney => route == "Remotes";
     public bool IsMountJourney => route == "Mounts";
+    public bool IsBrowserJourney => route == "Browser";
+    public DesktopRemoteOption? BrowserRemote { get; set; }
+    public string BrowserPath { get; set; } = string.Empty;
+    public IReadOnlyList<string> BrowserItems => browserItems;
+    public string BrowserRemoteHint => T("选择要浏览的 Remote", "Select a Remote to browse");
+    public string BrowserPathHint => T("目录路径（根目录可留空）", "Folder path (leave empty for root)");
+    public string BrowserEmptyText => browserItems.Length == 0 ? T("尚未读取目录或目录为空。", "No listing yet, or this folder is empty.") : string.Empty;
     public string CurrentRoute => route;
     public string ConnectionLabel => connection switch { DesktopConnectionState.Connecting => T("正在连接…", "Connecting…"), DesktopConnectionState.ConnectedLocked or DesktopConnectionState.ConnectedOperational => T("已自动连接", "Auto-connected"), DesktopConnectionState.ReadOnlyRecovery => T("已连接（恢复模式）", "Connected (recovery)"), _ => T("连接已中断", "Disconnected") };
     public string SessionLabel => connection switch { DesktopConnectionState.ConnectedOperational => T("数据保险库已解锁", "Vault unlocked"), DesktopConnectionState.ConnectedLocked => T("需要解锁数据保险库", "Vault unlock required"), DesktopConnectionState.ReadOnlyRecovery => T("写入已停用，数据保持原状", "Writes disabled; data preserved"), _ => T("后台任务状态可能不是最新", "Background state may be stale") };
@@ -328,7 +336,7 @@ public sealed class DesktopShellState : INotifyPropertyChanged
     public string JourneyDescription => route switch { "Remotes" => T("通过三步向导添加云端账号；凭据只发送给后台服务并写入加密保险库。", "Add cloud accounts in three guided steps. Credentials go only to the Host and encrypted Vault."), "Transfers" => T("复制、移动或单向镜像。执行前必须接受预览，涉及删除时需要明确确认。", "Copy, move, or one-way mirror. Accept a preview before execution; deletion requires explicit confirmation."), "Mounts" => T("创建稳定盘符的挂载配置。Ready 与安全卸载均需要完整证据。", "Create stable drive profiles. Ready and safe unmount require complete evidence."), "Activity" => T("查看真实结果、部分完成、未知状态和可脱敏导出的诊断信息。", "Review truthful outcomes, partial results, unknown states, and redacted diagnostics."), _ => T("此功能通过后台服务快照和命令工作；界面不直接操作 rclone 或保险库。", "This journey uses Host snapshots and commands; the UI never operates rclone or the Vault directly.") };
     public string JourneyStatus => connection == DesktopConnectionState.ConnectedOperational ? T("可以开始", "Ready") : T("当前不可执行", "Action unavailable");
     public string JourneyActionHint => connection == DesktopConnectionState.ConnectedOperational ? T("普通用户默认值已启用，高级选项按需展开。", "Ordinary-user defaults are active; advanced options remain available on demand.") : AttentionDetail;
-    public string JourneyPrimaryAction => route switch { "Remotes" => T("添加远程存储", "Add Remote"), "Transfers" => T("创建并预览", "Create & Preview"), "Mounts" when HasActiveMount => T("安全卸载", "Safe unmount"), "Mounts" when MountNeedsRemount => T("重新挂载", "Remount"), "Mounts" when MountRecoveryRequired => T("需要人工恢复", "Manual recovery required"), "Mounts" when mountCachePreset.Key == "standard-read-write" => T("读写挂载", "Mount read/write"), "Mounts" => T("只读挂载", "Mount read-only"), "Activity" => T("导出脱敏诊断", "Export Redacted Diagnostics"), _ => T("继续", "Continue") };
+    public string JourneyPrimaryAction => route switch { "Remotes" => T("添加远程存储", "Add Remote"), "Browser" => T("读取目录", "List folder"), "Transfers" => T("创建并预览", "Create & Preview"), "Mounts" when HasActiveMount => T("安全卸载", "Safe unmount"), "Mounts" when MountNeedsRemount => T("重新挂载", "Remount"), "Mounts" when MountRecoveryRequired => T("需要人工恢复", "Manual recovery required"), "Mounts" when mountCachePreset.Key == "standard-read-write" => T("读写挂载", "Mount read/write"), "Mounts" => T("只读挂载", "Mount read-only"), "Activity" => T("导出脱敏诊断", "Export Redacted Diagnostics"), _ => T("继续", "Continue") };
 
     public void Navigate(string value) { route = value; advancedOptionsExpanded = false; ChangedAll(); }
     public void ToggleLanguage() { english = !english; RefreshMountChoices(); ChangedAll(); }
@@ -350,6 +358,7 @@ public sealed class DesktopShellState : INotifyPropertyChanged
             CopySourceRemote = KeepSelection(CopySourceRemote, remoteOptions) ?? remoteOptions.FirstOrDefault();
             CopyDestinationRemote = KeepSelection(CopyDestinationRemote, remoteOptions) ?? remoteOptions.Skip(1).FirstOrDefault() ?? remoteOptions.FirstOrDefault();
             MountRemote = KeepSelection(MountRemote, remoteOptions) ?? remoteOptions.FirstOrDefault();
+            BrowserRemote = KeepSelection(BrowserRemote, remoteOptions) ?? remoteOptions.FirstOrDefault();
             remoteSummary = remoteNames.Length == 0 ? T("尚未添加远程存储", "No Remotes added") : string.Join(" · ", remoteNames);
         }
         else { remoteNames = []; remoteOptions = []; CopySourceRemote = null; CopyDestinationRemote = null; MountRemote = null; remoteSummary = T("远程存储状态未知", "Remote state unknown"); }
@@ -453,5 +462,6 @@ public sealed class DesktopShellState : INotifyPropertyChanged
     private static bool? ReadNullableBool(JsonElement value, string property) => value.TryGetProperty(property, out var item) && (item.ValueKind == JsonValueKind.True || item.ValueKind == JsonValueKind.False) ? item.GetBoolean() : null;
     private static DateTimeOffset? ReadNullableDateTimeOffset(JsonElement value, string property) => value.TryGetProperty(property, out var item) && item.ValueKind == JsonValueKind.String && item.TryGetDateTimeOffset(out var result) ? result : null;
     private static string FormatBytes(long value) => value >= 1024L * 1024 * 1024 ? $"{value / (1024d * 1024 * 1024):F1} GiB" : value >= 1024L * 1024 ? $"{value / (1024d * 1024):F1} MiB" : $"{value} B";
+    public void ApplyBrowserItems(IEnumerable<string> items) { browserItems = items.Order(StringComparer.OrdinalIgnoreCase).ToArray(); ChangedAll(); }
     private void ChangedAll() { foreach (var property in GetType().GetProperties().Where(x => x.GetIndexParameters().Length == 0)) PropertyChanged?.Invoke(this, new(property.Name)); }
 }

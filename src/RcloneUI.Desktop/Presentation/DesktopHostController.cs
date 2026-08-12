@@ -67,6 +67,7 @@ public sealed class DesktopHostController(IDesktopHostClient client, DesktopShel
     public async ValueTask ActivatePrimaryAsync(CancellationToken cancellationToken = default)
     {
         if (shell.CurrentRoute == "Remotes") { await AddRemoteAsync(cancellationToken); return; }
+        if (shell.CurrentRoute == "Browser") { await BrowseAsync(cancellationToken); return; }
         if (shell.CurrentRoute == "Mounts") { await ToggleMountAsync(cancellationToken); return; }
         if (shell.CurrentRoute != "Transfers") { await ReconnectAsync(cancellationToken); return; }
         if (shell.CapabilityBinding is null) { shell.ApplyAction("rclone-unavailable"); return; }
@@ -87,6 +88,21 @@ public sealed class DesktopHostController(IDesktopHostClient client, DesktopShel
         shell.ApplyAction(resultType);
         await ReconnectAsync(cancellationToken);
         if (resultType == "copy-accepted") _ = ObserveCopyAsync(cancellationToken);
+    }
+
+    private async ValueTask BrowseAsync(CancellationToken cancellationToken)
+    {
+        if (shell.CapabilityBinding is null) { shell.ApplyAction("rclone-unavailable"); return; }
+        if (shell.BrowserRemote is null) { shell.ApplyAction("source-remote-required"); return; }
+        using var arguments = JsonDocument.Parse(JsonSerializer.Serialize(new { remoteId = shell.BrowserRemote.Id, path = shell.BrowserPath, capabilityBinding = shell.CapabilityBinding }));
+        var result = await client.SendCommandAsync("browse-remote", arguments.RootElement, cancellationToken).ConfigureAwait(false);
+        var resultType = result.GetProperty("resultType").GetString() ?? "unknown-result";
+        shell.ApplyAction(resultType);
+        if (resultType == "browse-completed" && result.TryGetProperty("output", out var output))
+        {
+            var root = output.TryGetProperty("list", out var list) ? list : output;
+            shell.ApplyBrowserItems(root.ValueKind == JsonValueKind.Array ? root.EnumerateArray().Select(item => item.TryGetProperty("Path", out var path) ? path.GetString() : item.TryGetProperty("Name", out var name) ? name.GetString() : null).Where(value => !string.IsNullOrWhiteSpace(value)).Select(value => value!) : []);
+        }
     }
 
     private async ValueTask ToggleMountAsync(CancellationToken cancellationToken)

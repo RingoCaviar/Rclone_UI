@@ -316,6 +316,21 @@ public sealed class DesktopShellStateTests
         Assert.Equal("lock-vault", client.CommandType);
     }
 
+    [Fact]
+    public async Task BrowserListsSelectedRemoteThroughHost()
+    {
+        var client = new RecordingClient(); var shell = new DesktopShellState(); var controller = new DesktopHostController(client, shell);
+        await controller.ReconnectAsync(TestContext.Current.CancellationToken);
+        shell.Navigate("Browser"); shell.BrowserPath = "docs";
+
+        await controller.ActivatePrimaryAsync(TestContext.Current.CancellationToken);
+
+        Assert.Equal("browse-remote", client.CommandType);
+        Assert.Equal(RecordingClient.SourceId, client.Arguments.GetProperty("remoteId").GetGuid());
+        Assert.Equal("docs", client.Arguments.GetProperty("path").GetString());
+        Assert.Contains("readme.txt", shell.BrowserItems);
+    }
+
     private sealed class RecordingClient : IDesktopHostClient
     {
         private readonly string connectionResultType;
@@ -333,8 +348,8 @@ public sealed class DesktopShellStateTests
         public ValueTask<JsonElement> SendCommandAsync(string commandType, JsonElement arguments, CancellationToken cancellationToken)
         {
             CommandType = commandType; Arguments = arguments.Clone();
-            var resultType = commandType == "add-token-remote" ? "remote-added" : commandType == "add-connection-remote" ? connectionResultType : "copy-not-started";
-            using var document = JsonDocument.Parse(JsonSerializer.Serialize(new { resultType, result = new { code = "test" } }));
+            var resultType = commandType == "add-token-remote" ? "remote-added" : commandType == "add-connection-remote" ? connectionResultType : commandType == "browse-remote" ? "browse-completed" : "copy-not-started";
+            using var document = JsonDocument.Parse(JsonSerializer.Serialize(new { resultType, output = commandType == "browse-remote" ? new { list = new[] { new { Path = "readme.txt" } } } : null, result = new { code = "test" } }));
             return ValueTask.FromResult(document.RootElement.Clone());
         }
     }

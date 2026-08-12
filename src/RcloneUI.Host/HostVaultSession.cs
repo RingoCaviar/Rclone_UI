@@ -133,6 +133,27 @@ internal sealed class HostVaultSession : IHostVaultSession, IHostRemoteResolver,
         finally { gate.Release(); }
     }
 
+    public async ValueTask<string> AddConnectionRemoteAsync(string displayName, string providerType, IReadOnlyDictionary<string, string> configuration, IRcloneRuntime rclone, CancellationToken cancellationToken)
+    {
+        if (providerType is not ("ftp" or "sftp") || string.IsNullOrWhiteSpace(displayName) || configuration.Count == 0) return "remote-input-invalid";
+        if (!configuration.TryGetValue("host", out var host) || string.IsNullOrWhiteSpace(host) || host.Length > 255 || !configuration.TryGetValue("user", out var user) || string.IsNullOrWhiteSpace(user) || !configuration.TryGetValue("pass", out var password) || string.IsNullOrWhiteSpace(password) || !configuration.TryGetValue("port", out var portValue) || !int.TryParse(portValue, System.Globalization.CultureInfo.InvariantCulture, out var port) || port is < 1 or > 65535) return "remote-input-invalid";
+        if (providerType == "ftp" && configuration.ContainsKey("tls") && configuration.ContainsKey("explicit_tls")) return "remote-input-invalid";
+        if (providerType == "sftp" && (!configuration.TryGetValue("host_key_fingerprint", out var fingerprint) || string.IsNullOrWhiteSpace(fingerprint))) return "remote-host-key-required";
+        if (configuration.Any(item => string.IsNullOrWhiteSpace(item.Key) || item.Value.Length > 16 * 1024 || item.Value.IndexOfAny(['\r', '\n', '\0']) >= 0)) return "remote-input-invalid";
+        await gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            if (sessionState != "operational" || store is null) return "vault-locked";
+            var secured = new Dictionary<string, string>(configuration, StringComparer.Ordinal);
+            if (secured.TryGetValue("pass", out var clearPassword)) secured["pass"] = await rclone.ObscureAsync(clearPassword, cancellationToken).ConfigureAwait(false);
+            var candidate = new StoredRemote(RemoteId.New(), displayName.Trim(), providerType, 0, secured, new(RemoteHealthKind.Unknown, DateTimeOffset.UtcNow, null, null));
+            var fileSystem = await configWriter.BindAsync(candidate, cancellationToken).ConfigureAwait(false); var committed = false;
+            try { var handle = await rclone.StartAsync(new(Guid.NewGuid(), rclone.Capabilities.Binding, RclonePrimitive.List, new(fileSystem, string.Empty), null, $"remote-test/{candidate.Id.Value:N}"), cancellationToken).ConfigureAwait(false); if (!(await rclone.WaitAsync(handle, cancellationToken).ConfigureAwait(false)).Success) return "remote-test-failed"; await store.UpsertAsync(candidate with { Health = new(RemoteHealthKind.Healthy, DateTimeOffset.UtcNow, rclone.Capabilities.Binding, null) }, 0, cancellationToken).ConfigureAwait(false); committed = true; return "remote-added"; }
+            finally { if (!committed) await configWriter.UnbindAsync(candidate.Id.Value, CancellationToken.None).ConfigureAwait(false); }
+        }
+        finally { gate.Release(); }
+    }
+
     public async ValueTask<IReadOnlyList<SavedMountProfile>> ListMountProfilesAsync(CancellationToken cancellationToken)
     {
         await gate.WaitAsync(cancellationToken).ConfigureAwait(false);

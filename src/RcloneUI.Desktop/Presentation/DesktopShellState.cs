@@ -91,6 +91,17 @@ public sealed class DesktopShellState : INotifyPropertyChanged
     public string QuickAddHeading => T("快速添加（高级）", "Quick add (advanced)");
     public string RemoteDisplayNameHint => T("显示名称", "Display name");
     public string RemoteTokenHint => T("rclone OAuth 令牌", "rclone OAuth token");
+    public string ConnectionRemoteHeading => T("FTP / FTPS / SFTP", "FTP / FTPS / SFTP");
+    public string ConnectionProtocolHint => T("协议", "Protocol");
+    public string ConnectionHostHint => T("服务器地址或 IP", "Server address or IP");
+    public string ConnectionPortHint => T("端口", "Port");
+    public string ConnectionUserHint => T("用户名", "Username");
+    public string ConnectionPasswordHint => T("密码", "Password");
+    public string ConnectionTlsModeHint => T("FTPS 加密方式", "FTPS mode");
+    public string ConnectionCertificateHint => T("证书安全", "Certificate security");
+    public string ConnectionHostKeyHint => T("SFTP 主机密钥指纹（必填）", "SFTP host-key fingerprint (required)");
+    public string ConnectionSecureCertificate => T("验证服务器证书（推荐）", "Verify server certificate (recommended)");
+    public string ConnectionInsecureCertificate => T("跳过证书验证（不安全）", "Skip certificate verification (insecure)");
     public string RemoteHelpText => T("支持 Google Drive、OneDrive 和 Dropbox。Host 会先测试连接，成功后才加密保存。", "Supports Google Drive, OneDrive, and Dropbox. The Host tests the connection before encrypted storage.");
     public string TransferFormHeading => T("下载与复制", "Download and copy");
     public string SourceRemoteHint => T("选择来源 Remote", "Select source Remote");
@@ -147,6 +158,14 @@ public sealed class DesktopShellState : INotifyPropertyChanged
     public string RemoteDisplayName { get; set; } = string.Empty;
     public string RemoteProviderType { get; set; } = "drive";
     public string RemoteToken { get; set; } = string.Empty;
+    public IReadOnlyList<DesktopChoice> ConnectionProtocols { get; } = [new("ftp", "FTP"), new("ftps-explicit", "FTPS (Explicit TLS)"), new("ftps-implicit", "FTPS (Implicit TLS)"), new("sftp", "SFTP")];
+    public DesktopChoice ConnectionProtocol { get; set; } = new("ftp", "FTP");
+    public string ConnectionHost { get; set; } = string.Empty;
+    public string ConnectionPort { get; set; } = "21";
+    public string ConnectionUser { get; set; } = string.Empty;
+    public string ConnectionPassword { get; set; } = string.Empty;
+    public string ConnectionHostKeyFingerprint { get; set; } = string.Empty;
+    public bool ConnectionSkipCertificateVerification { get; set; }
     public IReadOnlyList<string> MountDriveLetters { get; } = Enumerable.Range('D', 'Z' - 'D' + 1).Select(value => ((char)value).ToString()).ToArray();
     public string MountDriveLetter { get; set; } = "R";
     public string MountSubpath { get; set; } = string.Empty;

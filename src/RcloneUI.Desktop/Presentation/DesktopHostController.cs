@@ -125,6 +125,7 @@ public sealed class DesktopHostController(IDesktopHostClient client, DesktopShel
 
     private async ValueTask AddRemoteAsync(CancellationToken cancellationToken)
     {
+        if (!string.IsNullOrWhiteSpace(shell.ConnectionHost)) { await AddConnectionRemoteAsync(cancellationToken); return; }
         var token = Encoding.UTF8.GetBytes(shell.RemoteToken);
         try
         {
@@ -136,6 +137,28 @@ public sealed class DesktopHostController(IDesktopHostClient client, DesktopShel
         }
         finally { CryptographicOperations.ZeroMemory(token); shell.RemoteToken = string.Empty; }
         await ReconnectAsync(cancellationToken);
+    }
+
+    private async ValueTask AddConnectionRemoteAsync(CancellationToken cancellationToken)
+    {
+        if (!int.TryParse(shell.ConnectionPort, out var port) || port is < 1 or > 65535 || string.IsNullOrWhiteSpace(shell.RemoteDisplayName) || string.IsNullOrWhiteSpace(shell.ConnectionUser) || string.IsNullOrWhiteSpace(shell.ConnectionPassword)) { shell.ApplyAction("remote-input-invalid"); return; }
+        var password = Encoding.UTF8.GetBytes(shell.ConnectionPassword);
+        try
+        {
+            var protocol = shell.ConnectionProtocol.Key;
+            var configuration = new Dictionary<string, string> { ["host"] = shell.ConnectionHost.Trim(), ["port"] = port.ToString(System.Globalization.CultureInfo.InvariantCulture), ["user"] = shell.ConnectionUser.Trim(), ["pass"] = Encoding.UTF8.GetString(password) };
+            var provider = protocol == "sftp" ? "sftp" : "ftp";
+            if (protocol == "ftps-explicit") configuration["explicit_tls"] = "true";
+            if (protocol == "ftps-implicit") { configuration["tls"] = "true"; if (port == 21) configuration["port"] = "990"; }
+            if (provider == "ftp" && shell.ConnectionSkipCertificateVerification) configuration["no_check_certificate"] = "true";
+            if (provider == "sftp") configuration["host_key_fingerprint"] = shell.ConnectionHostKeyFingerprint.Trim();
+            using var arguments = JsonDocument.Parse(JsonSerializer.Serialize(new { displayName = shell.RemoteDisplayName, providerType = provider, configuration }));
+            var result = await client.SendCommandAsync("add-connection-remote", arguments.RootElement, cancellationToken).ConfigureAwait(false);
+            var type = result.GetProperty("resultType").GetString() ?? "unknown-result"; shell.ApplyAction(type);
+            if (type == "remote-added") { shell.RemoteDisplayName = string.Empty; shell.ConnectionHost = string.Empty; shell.ConnectionUser = string.Empty; shell.ConnectionHostKeyFingerprint = string.Empty; shell.ConnectionPort = "21"; }
+        }
+        finally { CryptographicOperations.ZeroMemory(password); shell.ConnectionPassword = string.Empty; }
+        await ReconnectAsync(cancellationToken).ConfigureAwait(false);
     }
 
     public async ValueTask UnlockAsync(CancellationToken cancellationToken = default)

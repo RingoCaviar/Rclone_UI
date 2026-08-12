@@ -63,6 +63,7 @@ public sealed class ScriptedRcloneRuntime : IRcloneRuntime
         if (active.TryRemove(handle.ExecutionId, out _)) cancelled[handle.ExecutionId] = 0;
         return ValueTask.CompletedTask;
     }
+    public ValueTask<string> ObscureAsync(string clearText, CancellationToken cancellationToken) => ValueTask.FromResult(clearText);
 
     public static RcloneExecutionResult Success() => new(true, false, null, EmptyBody());
 

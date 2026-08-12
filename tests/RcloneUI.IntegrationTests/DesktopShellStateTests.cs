@@ -175,6 +175,21 @@ public sealed class DesktopShellStateTests
     }
 
     [Fact]
+    public async Task ConnectionRemoteSubmitsFtpsParametersAndClearsPassword()
+    {
+        var client = new RecordingClient(); var shell = new DesktopShellState(); var controller = new DesktopHostController(client, shell);
+        await controller.ReconnectAsync(TestContext.Current.CancellationToken);
+        shell.Navigate("Remotes"); shell.RemoteDisplayName = "FTPS"; shell.ConnectionHost = "files.example.test"; shell.ConnectionPort = "21"; shell.ConnectionUser = "alice"; shell.ConnectionPassword = "secret"; shell.ConnectionProtocol = shell.ConnectionProtocols.Single(value => value.Key == "ftps-explicit");
+
+        await controller.ActivatePrimaryAsync(TestContext.Current.CancellationToken);
+
+        Assert.Equal("add-connection-remote", client.CommandType);
+        Assert.Equal("ftp", client.Arguments.GetProperty("providerType").GetString());
+        Assert.Equal("true", client.Arguments.GetProperty("configuration").GetProperty("explicit_tls").GetString());
+        Assert.Empty(shell.ConnectionPassword);
+    }
+
+    [Fact]
     public async Task NewDesktopSessionLocksVaultBeforePresentingSnapshot()
     {
         var client = new RecordingClient();

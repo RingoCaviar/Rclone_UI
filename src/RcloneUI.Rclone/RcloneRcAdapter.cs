@@ -63,6 +63,14 @@ public sealed class RcloneRcAdapter : IRcloneRuntime, IDisposable
         return new(request.ExecutionId, value, request.Group);
     }
 
+    public async ValueTask<string> ObscureAsync(string clearText, CancellationToken cancellationToken)
+    {
+        if (!Capabilities.Endpoints.Contains("core/obscure")) throw new NotSupportedException("The managed rclone does not expose 'core/obscure'.");
+        using var response = await client.PostAsJsonAsync("core/obscure", new { clear = clearText }, cancellationToken).ConfigureAwait(false);
+        using var result = await ReadSuccessAsync(response, cancellationToken).ConfigureAwait(false);
+        return result.RootElement.TryGetProperty("obscured", out var obscured) && obscured.ValueKind == JsonValueKind.String ? obscured.GetString()! : throw new InvalidDataException("rclone did not return an obscured secret.");
+    }
+
     public async ValueTask<RcloneTransferStats> GetStatsAsync(RcloneExecutionHandle handle, CancellationToken cancellationToken)
     {
         using var response = await client.PostAsJsonAsync("core/stats", new { group = handle.Group }, cancellationToken).ConfigureAwait(false);

@@ -138,12 +138,16 @@ internal sealed class HostStateAuthority : IDisposable
             {
                 result = await AddTokenRemoteAsync(envelope.Body, cancellationToken).ConfigureAwait(false);
             }
+            else if (commandType == "add-connection-remote")
+            {
+                result = await AddConnectionRemoteAsync(envelope.Body, cancellationToken).ConfigureAwait(false);
+            }
             else
             {
                 lock (sync) result = CreateResult("unknown-command", new { }, new(epoch, revision));
             }
 
-            if (commandType is not ("get-snapshot" or "unlock-vault" or "lock-vault" or "add-token-remote"))
+            if (commandType is not ("get-snapshot" or "unlock-vault" or "lock-vault" or "add-token-remote" or "add-connection-remote"))
                 lock (sync) idempotency.Record(new(envelope.Request.IdempotencyKey.Value, semanticHash, result.ResultType, result.Body.GetRawText(), result.State.Revision));
             return result;
         }
@@ -347,6 +351,16 @@ internal sealed class HostStateAuthority : IDisposable
             }
         }
         finally { CryptographicOperations.ZeroMemory(tokenBytes); }
+    }
+
+    private async ValueTask<HostCommandResult> AddConnectionRemoteAsync(JsonElement body, CancellationToken cancellationToken)
+    {
+        if (remotes is not IHostRemoteManager manager || rclone is null || !body.TryGetProperty("arguments", out var arguments)
+            || ReadArgument(arguments, "displayName") is not { } name || ReadArgument(arguments, "providerType") is not { } provider
+            || !arguments.TryGetProperty("configuration", out var config) || config.ValueKind != JsonValueKind.Object) return CreateResult("remote-input-invalid", new { }, Cursor);
+        var values = config.EnumerateObject().Where(item => item.Value.ValueKind == JsonValueKind.String).ToDictionary(item => item.Name, item => item.Value.GetString() ?? string.Empty, StringComparer.Ordinal);
+        var resultType = await manager.AddConnectionRemoteAsync(name, provider, values, rclone, cancellationToken).ConfigureAwait(false);
+        lock (sync) { if (resultType == "remote-added") revision = checked(revision + 1); return CreateResult(resultType, new { }, new(epoch, revision), resultType == "remote-added"); }
     }
 
     private async Task ObserveCopyAsync(RcloneExecutionHandle handle)

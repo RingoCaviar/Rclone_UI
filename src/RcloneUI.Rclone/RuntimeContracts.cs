@@ -73,6 +73,7 @@ public interface IRcloneRuntime
     ValueTask<RcloneTransferStats> GetStatsAsync(RcloneExecutionHandle handle, CancellationToken cancellationToken);
     ValueTask<RcloneExecutionResult> WaitAsync(RcloneExecutionHandle handle, CancellationToken cancellationToken);
     ValueTask CancelAsync(RcloneExecutionHandle handle, CancellationToken cancellationToken);
+    ValueTask<string> ObscureAsync(string clearText, CancellationToken cancellationToken);
 }
 
 public sealed class RcloneCapabilityChangedException(string expected, string actual)

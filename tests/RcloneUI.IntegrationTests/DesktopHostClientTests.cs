@@ -227,5 +227,6 @@ public sealed class DesktopHostClientTests
             remote = new(Guid.NewGuid(), displayName, providerType, 1, "Healthy", null);
             return "remote-added";
         }
+        public ValueTask<string> AddConnectionRemoteAsync(string displayName, string providerType, IReadOnlyDictionary<string, string> configuration, IRcloneRuntime rclone, CancellationToken cancellationToken) => AddTokenRemoteAsync(displayName, providerType, string.Empty, rclone, cancellationToken);
     }
 }

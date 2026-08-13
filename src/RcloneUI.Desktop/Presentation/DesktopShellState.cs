@@ -55,6 +55,7 @@ public sealed class DesktopShellState : INotifyPropertyChanged
     private string mountLifecycleState = "stopped";
     private Guid? mountLifecycleProfileId;
     private string mountStatus = string.Empty;
+    private string? activeMountLocation;
     private bool mountRequiresVfsDrain;
     private DesktopMountVfsStatus? mountVfs;
     private string mountFixedDirectoryPath = string.Empty;
@@ -309,6 +310,7 @@ public sealed class DesktopShellState : INotifyPropertyChanged
         "mount-prerequisites-unavailable" => T("挂载条件未满足。请确认 WinFsp 已安装且 rclone 挂载能力可用。", "Mount prerequisites are not met. Confirm WinFsp is installed and rclone Mount capability is available."),
         "mount-profile-required" => T("请先保存或选择一个挂载配置。", "Save or select a Mount Profile first."),
         "mount-profile-already-saved" => T("当前配置已保存；如需挂载，请点击下方“读写挂载”或“只读挂载”。", "This profile is already saved. Use the Mount read/write or Mount read-only action below to start it."),
+        "mount-location-open-failed" => T("无法在资源管理器中打开挂载位置；请确认挂载仍处于就绪状态后重试。", "Could not open the Mount location in Explorer. Confirm that the Mount is still ready, then try again."),
         "mount-profile-input-invalid" => MountProfileValidationMessage,
         "mount-drain-not-proved" => T("读写挂载仍有上传、错误、空间压力或未知遥测；为避免丢失本地缓存的写入，暂不卸载。", "The writable Mount still has uploads, errors, space pressure, or unknown telemetry, so it remains mounted to avoid losing cached writes."),
         "source-remote-required" => T("请选择来源远程存储。", "Select a source Remote."),
@@ -446,9 +448,12 @@ public sealed class DesktopShellState : INotifyPropertyChanged
     public bool IsFixedDirectoryMount => mountPresentation.Key == "fixed-directory";
     public Guid? ActiveMountId => activeMountId;
     public bool HasActiveMount => activeMountId is not null;
+    public string? ActiveMountLocation => activeMountLocation;
+    public bool CanOpenActiveMount => activeMountId is not null && activeMountLocation is not null;
     public bool MountRecoveryRequired => mountLifecycleState == "recovery-required";
     public bool MountNeedsRemount => mountLifecycleState == "needs-remount" && selectedMountProfile?.Id == mountLifecycleProfileId;
     public string MountStatus => mountStatus;
+    public string OpenMountLocationLabel => T("打开挂载位置", "Open Mount location");
     public string MountVfsHeading => T("读写缓存与上传状态", "Read/write cache and upload status");
     public string MountVfsStatus => !HasActiveMount
         ? T("尚未挂载。", "Not mounted.")
@@ -582,6 +587,7 @@ public sealed class DesktopShellState : INotifyPropertyChanged
             activeMountId = mountLifecycleState == "ready" ? mount.GetProperty("instanceId").GetGuid() : null;
             mountRequiresVfsDrain = mount.TryGetProperty("requiresVfsDrain", out var requiresVfsDrain) && requiresVfsDrain.ValueKind == JsonValueKind.True;
             var point = mount.GetProperty("mountPoint").GetString();
+            activeMountLocation = activeMountId is null ? null : NormalizeMountLocation(point);
             var diagnostic = mount.TryGetProperty("diagnosticCode", out var code) && code.ValueKind == JsonValueKind.String ? code.GetString() : null;
             var startedUtc = mount.TryGetProperty("startedUtc", out var started) ? started.GetDateTimeOffset() : DateTimeOffset.UtcNow;
             var uptime = DateTimeOffset.UtcNow - startedUtc;
@@ -593,7 +599,7 @@ public sealed class DesktopShellState : INotifyPropertyChanged
                 _ => T($"{mountLifecycleState} · {point} · 已运行 {uptime:hh\\:mm\\:ss} · {components}", $"{mountLifecycleState} · {point} · uptime {uptime:hh\\:mm\\:ss} · {components}")
             };
         }
-        else { activeMountId = null; mountLifecycleState = "stopped"; mountLifecycleProfileId = null; mountRequiresVfsDrain = false; mountStatus = T("尚未挂载", "Not mounted"); }
+        else { activeMountId = null; activeMountLocation = null; mountLifecycleState = "stopped"; mountLifecycleProfileId = null; mountRequiresVfsDrain = false; mountStatus = T("尚未挂载", "Not mounted"); }
         mountVfs = null;
         if (activeMountId is { } activeId && snapshot.Body.TryGetProperty("mountVfs", out var vfsEntries) && vfsEntries.ValueKind == JsonValueKind.Array)
         {
@@ -676,6 +682,13 @@ public sealed class DesktopShellState : INotifyPropertyChanged
     private static string ToPresentationKey(JsonElement value) => value.ValueKind == JsonValueKind.String ? value.GetString() switch { "NetworkDrive" => "network-drive", "FixedDrive" => "fixed-drive", "FixedDirectory" => "fixed-directory", _ => "network-drive" } : value.GetInt32() switch { 1 => "fixed-drive", 2 => "fixed-directory", _ => "network-drive" };
     private static string ToDriveSelectionKey(JsonElement value) => value.ValueKind == JsonValueKind.String ? value.GetString() == "Automatic" ? "automatic" : "preferred" : value.GetInt32() == 1 ? "automatic" : "preferred";
     private static string ToCachePresetKey(JsonElement value) => value.ValueKind == JsonValueKind.String ? value.GetString() == "StandardReadWrite" ? "standard-read-write" : "read-only" : value.GetInt32() == 1 ? "standard-read-write" : "read-only";
+    private static string? NormalizeMountLocation(string? location)
+    {
+        if (string.IsNullOrWhiteSpace(location)) return null;
+        var value = location.Trim();
+        if (value.Length == 2 && char.IsAsciiLetter(value[0]) && value[1] == ':') return value + "\\";
+        return Path.IsPathFullyQualified(value) ? value : null;
+    }
     private static bool HasCompleteVfsObservation(DesktopMountVfsStatus value) => value.BytesUsed is not null && value.ErroredFiles is not null && value.UploadsInProgress is not null && value.UploadsQueued is not null && value.OutOfSpace is not null && value.QueueItems is not null;
     private static long? ReadNullableInt64(JsonElement value, string property) => value.TryGetProperty(property, out var item) && item.ValueKind == JsonValueKind.Number && item.TryGetInt64(out var result) ? result : null;
     private static int? ReadNullableInt32(JsonElement value, string property) => value.TryGetProperty(property, out var item) && item.ValueKind == JsonValueKind.Number && item.TryGetInt32(out var result) ? result : null;

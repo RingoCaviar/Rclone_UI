@@ -465,6 +465,19 @@ public sealed class DesktopShellStateTests
     }
 
     [Fact]
+    public void ReadyDriveMountExposesAWindowsExplorerLocation()
+    {
+        var mountId = Guid.NewGuid();
+        using var document = JsonDocument.Parse(JsonSerializer.Serialize(new { session = "operational", mounts = new[] { new { instanceId = mountId, state = "ready", mountPoint = "R:", startedUtc = DateTimeOffset.UtcNow } }, rclone = new { status = "ready", capabilityBinding = "caps", mountAvailable = true }, winFsp = new { status = "ready" } }));
+        var shell = new DesktopShellState();
+
+        shell.ApplySnapshot(new(new(new("mount"), 1), DateTimeOffset.UtcNow, document.RootElement.Clone()));
+
+        Assert.True(shell.CanOpenActiveMount);
+        Assert.Equal("R:\\", shell.ActiveMountLocation);
+    }
+
+    [Fact]
     public void ActivityPrimaryActionTruthfullyDescribesTheSnapshotRefresh()
     {
         var shell = new DesktopShellState();

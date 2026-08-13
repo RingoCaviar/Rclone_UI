@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Avalonia.Platform.Storage;
@@ -44,6 +45,12 @@ public sealed partial class MainWindow : Window
     private void MountBrowserFolderClicked(object? sender, RoutedEventArgs args) => ((DesktopShellState)DataContext!).PrepareBrowserFolderForMount();
     private async void RefreshBrowserClicked(object? sender, RoutedEventArgs args) { if (controller is not null) await controller.RefreshBrowserAsync(); }
     private async void SaveAndMountClicked(object? sender, RoutedEventArgs args) { if (controller is not null) await controller.SaveAndStartMountProfileAsync(); }
+    private void OpenMountLocationClicked(object? sender, RoutedEventArgs args)
+    {
+        if (shell.ActiveMountLocation is not { } location) return;
+        try { Process.Start(new ProcessStartInfo { FileName = location, UseShellExecute = true }); }
+        catch (Exception) { shell.ApplyAction("mount-location-open-failed"); }
+    }
     private async void PickDownloadFolderClicked(object? sender, RoutedEventArgs args)
     {
         var folders = await StorageProvider.OpenFolderPickerAsync(new() { Title = "Select download folder", AllowMultiple = false });

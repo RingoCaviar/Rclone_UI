@@ -274,7 +274,10 @@
                   </StackPanel>
                 </Border>
                 <TextBlock Text="{Binding MountReadOnlyNotice}" TextWrapping="Wrap" Opacity="0.72" />
-                <TextBlock Text="{Binding MountStatus}" AutomationProperties.LiveSetting="Polite" />
+                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
+                  <TextBlock Text="{Binding MountStatus}" AutomationProperties.LiveSetting="Polite" TextWrapping="Wrap" />
+                  <Button Grid.Column="1" IsEnabled="{Binding CanOpenActiveMount}" Content="{Binding OpenMountLocationLabel}" Click="OpenMountLocationClicked" AutomationProperties.Name="Open active Mount location" />
+                </Grid>
                 <Border Classes="status" Background="{DynamicResource CardBrush}">
                   <StackPanel Spacing="2">
                     <TextBlock Text="{Binding MountVfsHeading}" FontWeight="SemiBold" />

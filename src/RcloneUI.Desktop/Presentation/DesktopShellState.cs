@@ -308,6 +308,7 @@ public sealed class DesktopShellState : INotifyPropertyChanged
         "rclone-unavailable" => T("rclone 当前不可用。请在设置中检测或更新组件后重试。", "rclone is unavailable. Detect or update the component in Settings, then try again."),
         "mount-prerequisites-unavailable" => T("挂载条件未满足。请确认 WinFsp 已安装且 rclone 挂载能力可用。", "Mount prerequisites are not met. Confirm WinFsp is installed and rclone Mount capability is available."),
         "mount-profile-required" => T("请先保存或选择一个挂载配置。", "Save or select a Mount Profile first."),
+        "mount-profile-already-saved" => T("当前配置已保存；如需挂载，请点击下方“读写挂载”或“只读挂载”。", "This profile is already saved. Use the Mount read/write or Mount read-only action below to start it."),
         "mount-profile-input-invalid" => MountProfileValidationMessage,
         "mount-drain-not-proved" => T("读写挂载仍有上传、错误、空间压力或未知遥测；为避免丢失本地缓存的写入，暂不卸载。", "The writable Mount still has uploads, errors, space pressure, or unknown telemetry, so it remains mounted to avoid losing cached writes."),
         "source-remote-required" => T("请选择来源远程存储。", "Select a source Remote."),

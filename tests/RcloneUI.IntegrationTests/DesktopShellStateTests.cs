@@ -308,6 +308,20 @@ public sealed class DesktopShellStateTests
     }
 
     [Fact]
+    public async Task SaveAndMountRefusesAnAlreadySavedProfileWithoutSendingCommands()
+    {
+        var client = new RecordingClient(); var shell = new DesktopShellState(); var controller = new DesktopHostController(client, shell);
+        await controller.ReconnectAsync(TestContext.Current.CancellationToken);
+
+        await controller.SaveAndStartMountProfileAsync(TestContext.Current.CancellationToken);
+
+        Assert.Null(client.CommandType);
+        Assert.Equal("mount-profile-already-saved", shell.LastAction);
+        shell.ToggleLanguage();
+        Assert.Contains("already saved", shell.ActionNotificationMessage, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public void MountProfileSelectionCanReturnToTheExactSavedProfileAfterRefresh()
     {
         var targetId = Guid.Parse("44444444-4444-4444-4444-444444444444");

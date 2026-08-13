@@ -209,6 +209,7 @@ public sealed class DesktopHostController(IDesktopHostClient client, DesktopShel
 
     public async ValueTask SaveAndStartMountProfileAsync(CancellationToken cancellationToken = default)
     {
+        if (shell.SelectedMountProfile is not null) { shell.ApplyAction("mount-profile-already-saved"); return; }
         if (!shell.IsMountProfileInputComplete || shell.MountRemote is null) { shell.ApplyAction("mount-profile-input-invalid"); return; }
         if (shell.CapabilityBinding is null) { shell.ApplyAction("rclone-unavailable"); return; }
         if (!shell.MountPrerequisitesReady) { shell.ApplyAction("mount-prerequisites-unavailable"); return; }

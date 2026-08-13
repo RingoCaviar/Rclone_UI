@@ -223,6 +223,7 @@ public sealed class DesktopShellState : INotifyPropertyChanged
     public bool CanUseBrowserSelectionForTransfer => BrowserRemote is not null && SelectedBrowserItem is not null;
     public bool CanDownloadBrowserSelection => BrowserRemote is not null && SelectedBrowserItem is not null;
     public bool CanUploadIntoBrowserFolder => BrowserRemote is not null;
+    public bool CanMountBrowserFolder => BrowserRemote is not null;
     public bool CanBrowseParent => !string.IsNullOrWhiteSpace(BrowserPath);
     public bool CanCreateBrowserFolder => BrowserRemote is not null && !string.IsNullOrWhiteSpace(newBrowserFolderName);
     public bool CanDeleteBrowserFile => SelectedBrowserItem is { IsDirectory: false } item && StringComparer.Ordinal.Equals(browserDeleteConfirmation, SelectedBrowserPath(item));
@@ -238,6 +239,7 @@ public sealed class DesktopShellState : INotifyPropertyChanged
     public string BrowserUseAsTransferSourceLabel => T("用作传输来源", "Use as transfer source");
     public string BrowserDownloadSelectedLabel => T("下载所选项目", "Download selected item");
     public string BrowserUploadHereLabel => T("上传到当前文件夹", "Upload to current folder");
+    public string BrowserMountHereLabel => T("挂载当前文件夹", "Mount current folder");
     public string NewBrowserFolderHint => T("新文件夹名称", "New folder name");
     public string CreateBrowserFolderLabel => T("新建文件夹", "Create folder");
     public string BrowserDeleteConfirmationHint => T("输入所选文件的完整路径以删除", "Type the selected file path to delete");
@@ -695,6 +697,15 @@ public sealed class DesktopShellState : INotifyPropertyChanged
         UploadSourcePath = string.Empty;
         TransferMode = DesktopTransferMode.Upload;
         Navigate("Transfers");
+    }
+    public void PrepareBrowserFolderForMount()
+    {
+        if (BrowserRemote is null) return;
+        BeginNewMountProfile();
+        MountRemote = BrowserRemote;
+        MountSubpath = BrowserPath.Trim('/');
+        MountProfileName = string.IsNullOrWhiteSpace(MountSubpath) ? $"{BrowserRemote.DisplayName} root" : $"{BrowserRemote.DisplayName} — {MountSubpath}";
+        Navigate("Mounts");
     }
     public string SelectedBrowserPath(DesktopBrowserItem item) => string.Join('/', new[] { BrowserPath.Trim('/'), item.Path.Trim('/') }.Where(value => value.Length > 0));
     public void ApplyBrowserItems(IEnumerable<DesktopBrowserItem> items)

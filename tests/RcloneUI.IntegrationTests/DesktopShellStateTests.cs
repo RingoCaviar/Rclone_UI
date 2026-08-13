@@ -508,6 +508,23 @@ public sealed class DesktopShellStateTests
     }
 
     [Fact]
+    public void BrowserFolderPreparesANewMountProfile()
+    {
+        var remote = new DesktopRemoteOption(Guid.NewGuid(), "FTPS");
+        var shell = new DesktopShellState { BrowserRemote = remote, BrowserPath = "docs/releases/" };
+
+        shell.PrepareBrowserFolderForMount();
+
+        Assert.Equal("Mounts", shell.CurrentRoute);
+        Assert.Null(shell.SelectedMountProfile);
+        Assert.Equal(remote, shell.MountRemote);
+        Assert.Equal("docs/releases", shell.MountSubpath);
+        Assert.Equal("FTPS — docs/releases", shell.MountProfileName);
+        Assert.Equal("network-drive", shell.MountPresentation.Key);
+        Assert.Equal("read-only", shell.MountCachePreset.Key);
+    }
+
+    [Fact]
     public void BrowserFilterStaysLocalAndClearsAHiddenSelection()
     {
         var shell = new DesktopShellState();

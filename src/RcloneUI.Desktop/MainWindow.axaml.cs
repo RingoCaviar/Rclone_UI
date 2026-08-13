@@ -42,6 +42,7 @@ public sealed partial class MainWindow : Window
     private void UseBrowserSelectionClicked(object? sender, RoutedEventArgs args) => ((DesktopShellState)DataContext!).UseBrowserSelectionForTransfer();
     private void DownloadBrowserSelectionClicked(object? sender, RoutedEventArgs args) => ((DesktopShellState)DataContext!).PrepareBrowserSelectionForDownload();
     private void UploadToBrowserFolderClicked(object? sender, RoutedEventArgs args) => ((DesktopShellState)DataContext!).PrepareBrowserFolderForUpload();
+    private void CopyToBrowserFolderClicked(object? sender, RoutedEventArgs args) => ((DesktopShellState)DataContext!).PrepareBrowserFolderForRemoteCopy();
     private void MountBrowserFolderClicked(object? sender, RoutedEventArgs args) => ((DesktopShellState)DataContext!).PrepareBrowserFolderForMount();
     private async void RefreshBrowserClicked(object? sender, RoutedEventArgs args) { if (controller is not null) await controller.RefreshBrowserAsync(); }
     private async void SaveAndMountClicked(object? sender, RoutedEventArgs args) { if (controller is not null) await controller.SaveAndStartMountProfileAsync(); }

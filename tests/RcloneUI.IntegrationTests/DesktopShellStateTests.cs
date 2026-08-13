@@ -643,6 +643,23 @@ public sealed class DesktopShellStateTests
     }
 
     [Fact]
+    public void BrowserFolderPreparesRemoteCopyDestinationWithoutChangingTheSource()
+    {
+        var source = new DesktopRemoteOption(Guid.NewGuid(), "Source");
+        var destination = new DesktopRemoteOption(Guid.NewGuid(), "Destination");
+        var shell = new DesktopShellState { BrowserRemote = destination, BrowserPath = "archive/2026/", CopySourceRemote = source, CopySourcePath = "documents" };
+
+        shell.PrepareBrowserFolderForRemoteCopy();
+
+        Assert.Equal("Transfers", shell.CurrentRoute);
+        Assert.True(shell.IsRemoteCopyMode);
+        Assert.Equal(source, shell.CopySourceRemote);
+        Assert.Equal("documents", shell.CopySourcePath);
+        Assert.Equal(destination, shell.CopyDestinationRemote);
+        Assert.Equal("archive/2026", shell.CopyDestinationPath);
+    }
+
+    [Fact]
     public void BrowserFolderPreparesANewMountProfile()
     {
         var remote = new DesktopRemoteOption(Guid.NewGuid(), "FTPS");

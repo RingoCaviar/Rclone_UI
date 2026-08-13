@@ -197,6 +197,7 @@
                 </Border>
                 <StackPanel Orientation="Horizontal" Spacing="10">
                   <Button IsEnabled="{Binding CanMountBrowserFolder}" Content="{Binding BrowserMountHereLabel}" Click="MountBrowserFolderClicked" AutomationProperties.Name="Mount current remote folder" />
+                  <Button IsEnabled="{Binding CanCopyIntoBrowserFolder}" Content="{Binding BrowserCopyHereLabel}" Click="CopyToBrowserFolderClicked" AutomationProperties.Name="Copy to current remote folder" />
                   <Button IsEnabled="{Binding CanUploadIntoBrowserFolder}" Content="{Binding BrowserUploadHereLabel}" Click="UploadToBrowserFolderClicked" AutomationProperties.Name="Upload to current remote folder" />
                   <Button IsEnabled="{Binding CanDownloadBrowserSelection}" Content="{Binding BrowserDownloadSelectedLabel}" Click="DownloadBrowserSelectionClicked" AutomationProperties.Name="Download selected remote item" />
                   <Button IsEnabled="{Binding CanUseBrowserSelectionForTransfer}" Content="{Binding BrowserUseAsTransferSourceLabel}" Click="UseBrowserSelectionClicked" AutomationProperties.Name="Use selected item as transfer source" />

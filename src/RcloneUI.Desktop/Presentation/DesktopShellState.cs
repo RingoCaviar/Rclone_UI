@@ -229,6 +229,7 @@ public sealed class DesktopShellState : INotifyPropertyChanged
     public bool CanUseBrowserSelectionForTransfer => BrowserRemote is not null && SelectedBrowserItem is not null;
     public bool CanDownloadBrowserSelection => BrowserRemote is not null && SelectedBrowserItem is not null;
     public bool CanUploadIntoBrowserFolder => BrowserRemote is not null;
+    public bool CanCopyIntoBrowserFolder => BrowserRemote is not null;
     public bool CanMountBrowserFolder => BrowserRemote is not null;
     public bool CanBrowseParent => !string.IsNullOrWhiteSpace(BrowserPath);
     public bool CanCreateBrowserFolder => BrowserRemote is not null && !string.IsNullOrWhiteSpace(newBrowserFolderName);
@@ -245,6 +246,7 @@ public sealed class DesktopShellState : INotifyPropertyChanged
     public string BrowserUseAsTransferSourceLabel => T("用作传输来源", "Use as transfer source");
     public string BrowserDownloadSelectedLabel => T("下载所选项目", "Download selected item");
     public string BrowserUploadHereLabel => T("上传到当前文件夹", "Upload to current folder");
+    public string BrowserCopyHereLabel => T("复制到当前文件夹", "Copy to current folder");
     public string BrowserMountHereLabel => T("挂载当前文件夹", "Mount current folder");
     public string NewBrowserFolderHint => T("新文件夹名称", "New folder name");
     public string CreateBrowserFolderLabel => T("新建文件夹", "Create folder");
@@ -739,6 +741,14 @@ public sealed class DesktopShellState : INotifyPropertyChanged
         CopyDestinationPath = BrowserPath.Trim('/');
         UploadSourcePath = string.Empty;
         TransferMode = DesktopTransferMode.Upload;
+        Navigate("Transfers");
+    }
+    public void PrepareBrowserFolderForRemoteCopy()
+    {
+        if (BrowserRemote is null) return;
+        CopyDestinationRemote = BrowserRemote;
+        CopyDestinationPath = BrowserPath.Trim('/');
+        TransferMode = DesktopTransferMode.RemoteCopy;
         Navigate("Transfers");
     }
     public void PrepareBrowserFolderForMount()

@@ -173,6 +173,9 @@
                 <Border Classes="empty" IsVisible="{Binding HasTransferReadinessMessage}">
                   <TextBlock Text="{Binding TransferReadinessMessage}" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite" />
                 </Border>
+                <Border Classes="empty" IsVisible="{Binding HasTransferRouteSummary}">
+                  <TextBlock Text="{Binding TransferRouteSummary}" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite" />
+                </Border>
                 <TextBlock Text="{Binding CopyStatus}" AutomationProperties.LiveSetting="Polite" />
               </StackPanel>
               <StackPanel IsVisible="{Binding IsBrowserJourney}" Spacing="10">

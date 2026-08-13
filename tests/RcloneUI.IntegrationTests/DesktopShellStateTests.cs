@@ -293,6 +293,26 @@ public sealed class DesktopShellStateTests
     }
 
     [Fact]
+    public async Task TransferRouteSummaryShowsTheExactReadyDirection()
+    {
+        var client = new RecordingClient(); var shell = new DesktopShellState(); var controller = new DesktopHostController(client, shell);
+        await controller.ReconnectAsync(TestContext.Current.CancellationToken);
+        shell.ToggleLanguage();
+        shell.Navigate("Transfers");
+        shell.CopySourceRemote = shell.RemoteOptions[0];
+        shell.CopySourcePath = "photos/2026";
+        shell.DownloadDestinationPath = "C:\\Downloads";
+
+        Assert.True(shell.HasTransferRouteSummary);
+        Assert.Equal($"Download from {shell.RemoteOptions[0].DisplayName}:/photos/2026 to C:\\Downloads", shell.TransferRouteSummary);
+
+        shell.TransferMode = DesktopTransferMode.RemoteCopy;
+        shell.CopyDestinationRemote = shell.RemoteOptions[1];
+        shell.CopyDestinationPath = "archive";
+        Assert.Equal($"Copy from {shell.RemoteOptions[0].DisplayName}:/photos/2026 to {shell.RemoteOptions[1].DisplayName}:/archive", shell.TransferRouteSummary);
+    }
+
+    [Fact]
     public async Task MountPrimaryActionSendsSelectedReadOnlyProfileToHost()
     {
         var client = new RecordingClient(); var shell = new DesktopShellState(); var controller = new DesktopHostController(client, shell);

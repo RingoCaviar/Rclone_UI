@@ -405,6 +405,7 @@ public sealed class DesktopShellState : INotifyPropertyChanged
         IsUploadMode && string.IsNullOrWhiteSpace(UploadSourcePath) ? "upload-folder-required" :
         (IsUploadMode || IsRemoteCopyMode) && CopyDestinationRemote is null ? "destination-remote-required" :
         null;
+    private static string RemoteLocation(DesktopRemoteOption? remote, string path) => remote is null ? string.Empty : string.IsNullOrWhiteSpace(path) ? remote.DisplayName + ":/" : remote.DisplayName + ":/" + path.Trim('/');
     public string CopyStatus => copyStatus;
     public string CopySourcePath { get => copySourcePath; set { if (copySourcePath == value) return; copySourcePath = value; ChangedAll(); } }
     public string CopyDestinationPath { get => copyDestinationPath; set { if (copyDestinationPath == value) return; copyDestinationPath = value; ChangedAll(); } }
@@ -418,6 +419,13 @@ public sealed class DesktopShellState : INotifyPropertyChanged
         "upload-folder-required" => T("请选择要上传的本地文件夹后再开始传输。", "Choose a local folder to upload before starting the transfer."),
         "transfer-limits-invalid" => T("高级传输限制必须是允许范围内的正整数。", "Advanced transfer limits must be positive whole numbers within the allowed range."),
         _ => string.Empty
+    };
+    public bool HasTransferRouteSummary => IsTransferReady;
+    public string TransferRouteSummary => !IsTransferReady ? string.Empty : TransferMode switch
+    {
+        DesktopTransferMode.Download => T($"将从 {RemoteLocation(CopySourceRemote, CopySourcePath)} 下载到 {DownloadDestinationPath}", $"Download from {RemoteLocation(CopySourceRemote, CopySourcePath)} to {DownloadDestinationPath}"),
+        DesktopTransferMode.Upload => T($"将从 {UploadSourcePath} 上传到 {RemoteLocation(CopyDestinationRemote, CopyDestinationPath)}", $"Upload from {UploadSourcePath} to {RemoteLocation(CopyDestinationRemote, CopyDestinationPath)}"),
+        _ => T($"将从 {RemoteLocation(CopySourceRemote, CopySourcePath)} 复制到 {RemoteLocation(CopyDestinationRemote, CopyDestinationPath)}", $"Copy from {RemoteLocation(CopySourceRemote, CopySourcePath)} to {RemoteLocation(CopyDestinationRemote, CopyDestinationPath)}")
     };
     public string? CapabilityBinding => capabilityBinding;
     public IReadOnlyList<DesktopChoice> RemoteSetupKinds => [new("connection", ConnectionSetupLabel), new("token", TokenSetupLabel)];

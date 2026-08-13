@@ -514,7 +514,7 @@ public sealed class DesktopShellState : INotifyPropertyChanged
     public void BeginNewMountProfile()
     {
         selectedMountProfile = null; MountProfileName = string.Empty; MountRemote = remoteOptions.FirstOrDefault(); MountSubpath = string.Empty; MountVolumeName = "Rclone Cloud"; MountDriveLetter = "R"; mountFixedDirectoryPath = string.Empty;
-        mountPresentation = mountPresentationOptions.Single(option => option.Key == "network-drive"); mountDriveSelection = driveSelectionOptions.Single(option => option.Key == "preferred"); mountCachePreset = mountCachePresetOptions.Single(option => option.Key == "read-only"); ChangedAll();
+        mountPresentation = mountPresentationOptions.Single(option => option.Key == "network-drive"); mountDriveSelection = driveSelectionOptions.Single(option => option.Key == "preferred"); mountCachePreset = mountCachePresetOptions.Single(option => option.Key == "standard-read-write"); ChangedAll();
     }
     public void ApplyConnection(DesktopConnectionState value) { connection = value; ChangedAll(); }
     public void ApplyAction(string value) { lastAction = value; ChangedAll(); }
@@ -615,7 +615,7 @@ public sealed class DesktopShellState : INotifyPropertyChanged
         transferModeChoice = TransferModeOptions.Single(option => option.Key == transferModeKey);
         var presentationKey = mountPresentation?.Key ?? "network-drive";
         var driveKey = mountDriveSelection?.Key ?? "preferred";
-        var cachePresetKey = mountCachePreset?.Key ?? "read-only";
+        var cachePresetKey = mountCachePreset?.Key ?? "standard-read-write";
         mountPresentationOptions =
         [
             new("network-drive", T("网络驱动器（推荐）", "Network drive (recommended)")),

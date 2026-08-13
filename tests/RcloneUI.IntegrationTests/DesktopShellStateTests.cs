@@ -532,7 +532,7 @@ public sealed class DesktopShellStateTests
         Assert.Equal("docs/releases", shell.MountSubpath);
         Assert.Equal("FTPS — docs/releases", shell.MountProfileName);
         Assert.Equal("network-drive", shell.MountPresentation.Key);
-        Assert.Equal("read-only", shell.MountCachePreset.Key);
+        Assert.Equal("standard-read-write", shell.MountCachePreset.Key);
     }
 
     [Fact]

@@ -179,6 +179,7 @@ public sealed class DesktopShellState : INotifyPropertyChanged
     public string SettingsVaultStatus => VaultStatusLabel;
     public string SettingsRcloneStatus => rcloneVersion is null ? T("rclone 不可用", "rclone unavailable") : $"rclone {rcloneVersion}";
     public string SettingsWinFspStatus => MountPrerequisiteStatus;
+    public string SettingsUpdateStatus => T("应用与组件更新：尚未开放一键更新。安全更新引擎已具备，但版本发现、下载与校验入口仍未接入后台服务。", "Application and component updates: one-click updates are not available yet. The safe update engine exists, but version discovery, download, and verification are not yet connected to the Background Host.");
     public IReadOnlyList<string> ActivityRows => activityRows;
     public IReadOnlyList<DesktopCopyRunOption> CopyRunOptions => copyRunOptions;
     public DesktopCopyRunOption? SelectedCopyRun { get => selectedCopyRun; set { if (selectedCopyRun?.Id == value?.Id) return; selectedCopyRun = value; ChangedAll(); } }

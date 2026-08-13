@@ -519,6 +519,16 @@ public sealed class DesktopShellStateTests
     }
 
     [Fact]
+    public void SettingsTruthfullyDescribesTheUnavailableOneClickUpdatePath()
+    {
+        var shell = new DesktopShellState();
+
+        Assert.Contains("尚未开放", shell.SettingsUpdateStatus, StringComparison.Ordinal);
+        shell.ToggleLanguage();
+        Assert.Contains("not available yet", shell.SettingsUpdateStatus, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public async Task ActivityCancelsOnlyTheSelectedRunningHostCopy()
     {
         var runId = Guid.NewGuid();

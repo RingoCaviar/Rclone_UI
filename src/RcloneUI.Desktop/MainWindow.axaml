@@ -226,6 +226,7 @@
                 <TextBlock Text="{Binding SettingsVaultStatus}" />
                 <TextBlock Text="{Binding SettingsRcloneStatus}" />
                 <TextBlock Text="{Binding SettingsWinFspStatus}" />
+                <TextBlock Text="{Binding SettingsUpdateStatus}" TextWrapping="Wrap" Opacity="0.72" />
               </StackPanel>
               <StackPanel IsVisible="{Binding IsMountJourney}" Spacing="10">
                 <Border Classes="status" Background="{DynamicResource CardBrush}">

@@ -394,6 +394,17 @@ public sealed class DesktopShellStateTests
     }
 
     [Fact]
+    public void ActivityPrimaryActionTruthfullyDescribesTheSnapshotRefresh()
+    {
+        var shell = new DesktopShellState();
+        shell.Navigate("Activity");
+
+        Assert.Equal("刷新活动", shell.JourneyPrimaryAction);
+        shell.ToggleLanguage();
+        Assert.Equal("Refresh activity", shell.JourneyPrimaryAction);
+    }
+
+    [Fact]
     public async Task ActivityCancelsOnlyTheSelectedRunningHostCopy()
     {
         var runId = Guid.NewGuid();

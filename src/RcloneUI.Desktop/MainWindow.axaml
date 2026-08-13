@@ -218,6 +218,9 @@
                 </Grid>
                 <ListBox ItemsSource="{Binding ActivityRows}" AutomationProperties.Name="Recent activity" />
               </StackPanel>
+              <StackPanel IsVisible="{Binding IsScheduleJourney}" Spacing="8">
+                <TextBlock Text="{Binding JourneyActionHint}" TextWrapping="Wrap" Opacity="0.72" />
+              </StackPanel>
               <StackPanel IsVisible="{Binding IsSettingsJourney}" Spacing="10">
                 <TextBlock Text="{Binding SettingsHostStatus}" AutomationProperties.LiveSetting="Polite" />
                 <TextBlock Text="{Binding SettingsVaultStatus}" />
@@ -288,7 +291,7 @@
               </StackPanel>
               <TextBlock Text="{Binding RemoteSummary}" />
               <StackPanel Orientation="Horizontal" Spacing="10">
-                <Button Classes="primary" IsEnabled="{Binding IsJourneyPrimaryEnabled}" Content="{Binding JourneyPrimaryAction}" Click="JourneyPrimaryClicked" />
+                <Button Classes="primary" IsVisible="{Binding IsJourneyPrimaryAvailable}" IsEnabled="{Binding IsJourneyPrimaryEnabled}" Content="{Binding JourneyPrimaryAction}" Click="JourneyPrimaryClicked" />
                 <Button IsVisible="{Binding IsAdvancedOptionsAvailable}" Content="{Binding AdvancedOptionsLabel}" Click="AdvancedOptionsClicked" />
               </StackPanel>
             </StackPanel>

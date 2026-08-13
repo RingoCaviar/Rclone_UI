@@ -506,6 +506,19 @@ public sealed class DesktopShellStateTests
     }
 
     [Fact]
+    public void SchedulesRouteDoesNotPretendEditingIsAvailable()
+    {
+        var shell = new DesktopShellState();
+        shell.Navigate("Schedules");
+
+        Assert.True(shell.IsScheduleJourney);
+        Assert.False(shell.IsJourneyPrimaryAvailable);
+        Assert.Contains("暂未", shell.JourneyStatus, StringComparison.Ordinal);
+        shell.ToggleLanguage();
+        Assert.Contains("not yet", shell.JourneyDescription, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public async Task ActivityCancelsOnlyTheSelectedRunningHostCopy()
     {
         var runId = Guid.NewGuid();

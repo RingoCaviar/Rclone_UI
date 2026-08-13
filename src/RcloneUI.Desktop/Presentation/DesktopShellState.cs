@@ -51,6 +51,10 @@ public sealed class DesktopShellState : INotifyPropertyChanged
     private string uploadSourcePath = string.Empty;
     private string maximumTransferMiB = string.Empty;
     private string maximumDurationMinutes = string.Empty;
+    private DesktopRemoteOption? copySourceRemote;
+    private DesktopRemoteOption? copyDestinationRemote;
+    private string copySourcePath = string.Empty;
+    private string copyDestinationPath = string.Empty;
     private DesktopRemoteOption? mountRemote;
     private string mountProfileName = string.Empty;
     private string mountVolumeName = "Rclone Cloud";
@@ -341,8 +345,8 @@ public sealed class DesktopShellState : INotifyPropertyChanged
     public string RemoteSummary => remoteSummary;
     public IReadOnlyList<string> RemoteNames => remoteNames;
     public IReadOnlyList<DesktopRemoteOption> RemoteOptions => remoteOptions;
-    public DesktopRemoteOption? CopySourceRemote { get; set; }
-    public DesktopRemoteOption? CopyDestinationRemote { get; set; }
+    public DesktopRemoteOption? CopySourceRemote { get => copySourceRemote; set { if (copySourceRemote == value) return; copySourceRemote = value; ChangedAll(); } }
+    public DesktopRemoteOption? CopyDestinationRemote { get => copyDestinationRemote; set { if (copyDestinationRemote == value) return; copyDestinationRemote = value; ChangedAll(); } }
     public DesktopRemoteOption? MountRemote { get => mountRemote; set { if (mountRemote == value) return; mountRemote = value; ChangedAll(); } }
     public IReadOnlyList<DesktopSavedRemoteOption> SavedRemotes => savedRemotes;
     public DesktopSavedRemoteOption? SelectedSavedRemote { get => selectedSavedRemote; set { if (selectedSavedRemote?.Id == value?.Id) return; selectedSavedRemote = value; remoteDeleteConfirmation = string.Empty; ChangedAll(); } }
@@ -394,9 +398,27 @@ public sealed class DesktopShellState : INotifyPropertyChanged
         }
         return true;
     }
+    private string? TransferValidationKey =>
+        !TryGetTransferLimits(out _, out _) ? "transfer-limits-invalid" :
+        !IsUploadMode && CopySourceRemote is null ? "source-remote-required" :
+        IsDownloadMode && string.IsNullOrWhiteSpace(DownloadDestinationPath) ? "download-folder-required" :
+        IsUploadMode && string.IsNullOrWhiteSpace(UploadSourcePath) ? "upload-folder-required" :
+        (IsUploadMode || IsRemoteCopyMode) && CopyDestinationRemote is null ? "destination-remote-required" :
+        null;
     public string CopyStatus => copyStatus;
-    public string CopySourcePath { get; set; } = string.Empty;
-    public string CopyDestinationPath { get; set; } = string.Empty;
+    public string CopySourcePath { get => copySourcePath; set { if (copySourcePath == value) return; copySourcePath = value; ChangedAll(); } }
+    public string CopyDestinationPath { get => copyDestinationPath; set { if (copyDestinationPath == value) return; copyDestinationPath = value; ChangedAll(); } }
+    public bool IsTransferReady => TransferValidationKey is null;
+    public bool HasTransferReadinessMessage => TransferValidationKey is not null;
+    public string TransferReadinessMessage => TransferValidationKey switch
+    {
+        "source-remote-required" => T("请选择来源远程存储后再开始传输。", "Choose a source Remote before starting the transfer."),
+        "destination-remote-required" => T("请选择目标远程存储后再开始传输。", "Choose a destination Remote before starting the transfer."),
+        "download-folder-required" => T("请选择本地下载文件夹后再开始传输。", "Choose a local download folder before starting the transfer."),
+        "upload-folder-required" => T("请选择要上传的本地文件夹后再开始传输。", "Choose a local folder to upload before starting the transfer."),
+        "transfer-limits-invalid" => T("高级传输限制必须是允许范围内的正整数。", "Advanced transfer limits must be positive whole numbers within the allowed range."),
+        _ => string.Empty
+    };
     public string? CapabilityBinding => capabilityBinding;
     public IReadOnlyList<DesktopChoice> RemoteSetupKinds => [new("connection", ConnectionSetupLabel), new("token", TokenSetupLabel)];
     public DesktopChoice RemoteSetupKind { get => remoteSetupKind; set { if (value is null || remoteSetupKind.Key == value.Key) return; remoteSetupKind = value; ChangedAll(); } }
@@ -492,7 +514,9 @@ public sealed class DesktopShellState : INotifyPropertyChanged
     public string MountMaximumPresetLabel => T("最大兼容性（暂不可用）", "Maximum compatibility (not yet available)");
     public string MountWritePresetExplanation => T("10 GiB 是缓存软目标；队列、上传错误或空间不足时，安全卸载会拒绝执行并保留挂载。", "10 GiB is a soft cache target; safe unmount refuses while uploads, errors, or space pressure remain.");
     public bool MountPrerequisitesReady => winFspStatus == "ready" && rcloneMountAvailable;
-    public bool IsJourneyPrimaryEnabled => connection == DesktopConnectionState.ConnectedOperational && (route != "Mounts" || !MountRecoveryRequired && (HasActiveMount || MountPrerequisitesReady && selectedMountProfile is not null));
+    public bool IsJourneyPrimaryEnabled => connection == DesktopConnectionState.ConnectedOperational &&
+        (route != "Transfers" || IsTransferReady) &&
+        (route != "Mounts" || !MountRecoveryRequired && (HasActiveMount || MountPrerequisitesReady && selectedMountProfile is not null));
     public string MountPrerequisiteHeading => T("挂载运行环境", "Mount prerequisites");
     public string MountPrerequisiteStatus => winFspStatus switch
     {

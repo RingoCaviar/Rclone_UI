@@ -266,6 +266,33 @@ public sealed class DesktopShellStateTests
     }
 
     [Fact]
+    public async Task TransferPrimaryActionStaysDisabledUntilTheSelectedModeIsComplete()
+    {
+        var client = new RecordingClient(); var shell = new DesktopShellState(); var controller = new DesktopHostController(client, shell);
+        await controller.ReconnectAsync(TestContext.Current.CancellationToken);
+        shell.Navigate("Transfers");
+
+        shell.CopySourceRemote = null;
+        Assert.False(shell.IsJourneyPrimaryEnabled);
+        Assert.True(shell.HasTransferReadinessMessage);
+        Assert.NotEmpty(shell.TransferReadinessMessage);
+
+        shell.CopySourceRemote = shell.RemoteOptions[0];
+        shell.DownloadDestinationPath = "C:\\Downloads";
+        Assert.True(shell.IsJourneyPrimaryEnabled);
+
+        shell.TransferMode = DesktopTransferMode.Upload;
+        Assert.False(shell.IsJourneyPrimaryEnabled);
+        Assert.NotEmpty(shell.TransferReadinessMessage);
+
+        shell.UploadSourcePath = "C:\\Uploads";
+        shell.CopyDestinationRemote = null;
+        Assert.False(shell.IsJourneyPrimaryEnabled);
+        shell.CopyDestinationRemote = shell.RemoteOptions[0];
+        Assert.True(shell.IsJourneyPrimaryEnabled);
+    }
+
+    [Fact]
     public async Task MountPrimaryActionSendsSelectedReadOnlyProfileToHost()
     {
         var client = new RecordingClient(); var shell = new DesktopShellState(); var controller = new DesktopHostController(client, shell);

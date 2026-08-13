@@ -170,6 +170,9 @@
                   <ComboBox Grid.Column="0" ItemsSource="{Binding RemoteOptions}" SelectedItem="{Binding CopyDestinationRemote}" DisplayMemberBinding="{Binding DisplayName}" PlaceholderText="{Binding DestinationRemoteHint}" AutomationProperties.Name="Upload destination Remote" />
                   <TextBox Grid.Column="1" PlaceholderText="{Binding DestinationPathHint}" Text="{Binding CopyDestinationPath}" AutomationProperties.Name="Upload destination path" />
                 </Grid>
+                <Border Classes="empty" IsVisible="{Binding HasTransferReadinessMessage}">
+                  <TextBlock Text="{Binding TransferReadinessMessage}" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite" />
+                </Border>
                 <TextBlock Text="{Binding CopyStatus}" AutomationProperties.LiveSetting="Polite" />
               </StackPanel>
               <StackPanel IsVisible="{Binding IsBrowserJourney}" Spacing="10">

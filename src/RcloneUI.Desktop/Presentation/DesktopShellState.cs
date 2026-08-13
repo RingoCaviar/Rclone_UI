@@ -511,9 +511,11 @@ public sealed class DesktopShellState : INotifyPropertyChanged
         }
     }
     public bool HasSelectedMountProfile => selectedMountProfile is not null;
+    public bool CanSaveAndMount => selectedMountProfile is null && IsMountProfileInputComplete && MountPrerequisitesReady && connection == DesktopConnectionState.ConnectedOperational;
     public string MountProfileHint => T("选择已保存的挂载配置", "Select a saved Mount Profile");
     public string MountProfileNameHint => T("配置名称", "Profile name");
     public string SaveMountProfileLabel => selectedMountProfile is null ? T("保存新配置", "Save new profile") : T("保存修改", "Save changes");
+    public string SaveAndMountLabel => T("保存并挂载", "Save and mount");
     public string DeleteMountProfileLabel => T("删除配置", "Delete profile");
     public string NewMountProfileLabel => T("新建", "New");
     public string JourneyHeading => PageTitle;

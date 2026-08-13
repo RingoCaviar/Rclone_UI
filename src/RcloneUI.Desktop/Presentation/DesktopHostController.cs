@@ -207,6 +207,27 @@ public sealed class DesktopHostController(IDesktopHostClient client, DesktopShel
         if (resultType == "mount-profile-saved") shell.SelectMountProfile(profileId);
     }
 
+    public async ValueTask SaveAndStartMountProfileAsync(CancellationToken cancellationToken = default)
+    {
+        if (!shell.IsMountProfileInputComplete || shell.MountRemote is null) { shell.ApplyAction("mount-profile-input-invalid"); return; }
+        if (shell.CapabilityBinding is null) { shell.ApplyAction("rclone-unavailable"); return; }
+        if (!shell.MountPrerequisitesReady) { shell.ApplyAction("mount-prerequisites-unavailable"); return; }
+        var profileId = Guid.NewGuid();
+        using var saveArguments = JsonDocument.Parse(JsonSerializer.Serialize(new { profileId, expectedRevision = 0UL, displayName = shell.MountProfileName, remoteId = shell.MountRemote.Id, subpath = shell.MountSubpath, presentationMode = shell.MountPresentation.Key, driveSelection = shell.IsFixedDirectoryMount ? "preferred" : shell.MountDriveSelection.Key, cachePreset = shell.MountCachePreset.Key, driveLetter = shell.MountDriveLetter, fixedDirectoryPath = shell.IsFixedDirectoryMount ? shell.MountFixedDirectoryPath : null, volumeName = shell.MountVolumeName }));
+        var save = await client.SendCommandAsync("save-mount-profile", saveArguments.RootElement, cancellationToken);
+        if ((save.GetProperty("resultType").GetString() ?? "unknown-result") != "mount-profile-saved")
+        {
+            shell.ApplyAction(save.GetProperty("resultType").GetString() ?? "unknown-result");
+            await ReconnectAsync(cancellationToken);
+            return;
+        }
+        using var startArguments = JsonDocument.Parse(JsonSerializer.Serialize(new { profileId, capabilityBinding = shell.CapabilityBinding }));
+        var start = await client.SendCommandAsync("start-mount-profile", startArguments.RootElement, cancellationToken);
+        shell.ApplyAction(start.GetProperty("resultType").GetString() ?? "unknown-result");
+        await ReconnectAsync(cancellationToken);
+        shell.SelectMountProfile(profileId);
+    }
+
     public async ValueTask DeleteMountProfileAsync(CancellationToken cancellationToken = default)
     {
         if (shell.SelectedMountProfile is not { } profile) return;

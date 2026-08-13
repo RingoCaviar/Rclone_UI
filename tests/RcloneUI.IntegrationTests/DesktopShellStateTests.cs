@@ -295,6 +295,19 @@ public sealed class DesktopShellStateTests
     }
 
     [Fact]
+    public async Task ValidNewMountProfileCanSaveAndStartInOneAction()
+    {
+        var client = new RecordingClient(); var shell = new DesktopShellState(); var controller = new DesktopHostController(client, shell);
+        await controller.ReconnectAsync(TestContext.Current.CancellationToken);
+        shell.Navigate("Mounts"); shell.BeginNewMountProfile(); shell.MountProfileName = "Work files";
+
+        await controller.SaveAndStartMountProfileAsync(TestContext.Current.CancellationToken);
+
+        Assert.Equal(["save-mount-profile", "start-mount-profile"], client.CommandTypes.TakeLast(2));
+        Assert.Equal("mount-started", shell.LastAction);
+    }
+
+    [Fact]
     public void MountProfileSelectionCanReturnToTheExactSavedProfileAfterRefresh()
     {
         var targetId = Guid.Parse("44444444-4444-4444-4444-444444444444");
@@ -732,7 +745,7 @@ public sealed class DesktopShellStateTests
         public ValueTask<JsonElement> SendCommandAsync(string commandType, JsonElement arguments, CancellationToken cancellationToken)
         {
             CommandType = commandType; CommandTypes.Add(commandType); Arguments = arguments.Clone();
-            var resultType = commandType == "add-token-remote" ? "remote-added" : commandType == "add-connection-remote" ? connectionResultType : commandType == "delete-remote" ? "remote-deleted" : commandType == "create-remote-folder" ? "folder-created" : commandType == "delete-remote-file" ? "file-deleted" : commandType == "rename-remote-file" ? "file-renamed" : commandType == "cancel-copy" ? "copy-cancel-requested" : commandType == "browse-remote" ? "browse-completed" : "copy-not-started";
+            var resultType = commandType == "add-token-remote" ? "remote-added" : commandType == "add-connection-remote" ? connectionResultType : commandType == "delete-remote" ? "remote-deleted" : commandType == "create-remote-folder" ? "folder-created" : commandType == "delete-remote-file" ? "file-deleted" : commandType == "rename-remote-file" ? "file-renamed" : commandType == "cancel-copy" ? "copy-cancel-requested" : commandType == "browse-remote" ? "browse-completed" : commandType == "save-mount-profile" ? "mount-profile-saved" : commandType == "start-mount-profile" ? "mount-started" : "copy-not-started";
             using var document = JsonDocument.Parse(JsonSerializer.Serialize(new { resultType, items = commandType == "browse-remote" ? new[] { new { path = "readme.txt", isDirectory = false, size = 42L } } : null, result = new { code = "test" } }));
             return ValueTask.FromResult(document.RootElement.Clone());
         }

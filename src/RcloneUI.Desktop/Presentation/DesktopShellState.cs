@@ -530,6 +530,12 @@ public sealed class DesktopShellState : INotifyPropertyChanged
         selectedMountProfile = null; MountProfileName = string.Empty; MountRemote = remoteOptions.FirstOrDefault(); MountSubpath = string.Empty; MountVolumeName = "Rclone Cloud"; MountDriveLetter = "R"; mountFixedDirectoryPath = string.Empty;
         mountPresentation = mountPresentationOptions.Single(option => option.Key == "network-drive"); mountDriveSelection = driveSelectionOptions.Single(option => option.Key == "preferred"); mountCachePreset = mountCachePresetOptions.Single(option => option.Key == "standard-read-write"); ChangedAll();
     }
+    public void SelectMountProfile(Guid profileId)
+    {
+        var profile = mountProfiles.FirstOrDefault(candidate => candidate.Id == profileId);
+        if (profile is null) return;
+        SelectedMountProfile = profile;
+    }
     public void ApplyConnection(DesktopConnectionState value) { connection = value; ChangedAll(); }
     public void ApplyAction(string value) { lastAction = value; ChangedAll(); }
     public void ApplySnapshot(HostSnapshot snapshot)

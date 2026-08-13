@@ -295,6 +295,34 @@ public sealed class DesktopShellStateTests
     }
 
     [Fact]
+    public void MountProfileSelectionCanReturnToTheExactSavedProfileAfterRefresh()
+    {
+        var targetId = Guid.Parse("44444444-4444-4444-4444-444444444444");
+        using var document = JsonDocument.Parse(JsonSerializer.Serialize(new
+        {
+            session = "operational",
+            remotes = new[] { new { id = RecordingClient.SourceId, revision = 1UL, displayName = "Source" } },
+            mountProfiles = new[]
+            {
+                new { id = new { value = RecordingClient.ProfileId }, revision = 1UL, displayName = "Older", remoteId = RecordingClient.SourceId, subpath = "old", presentationMode = 0, driveLetterSelection = 0, preferredDriveLetter = "R", fixedDirectoryPath = (string?)null, volumeName = "Cloud", cachePreset = 0 },
+                new { id = new { value = targetId }, revision = 1UL, displayName = "New", remoteId = RecordingClient.SourceId, subpath = "new", presentationMode = 0, driveLetterSelection = 0, preferredDriveLetter = "S", fixedDirectoryPath = (string?)null, volumeName = "New Cloud", cachePreset = 1 }
+            },
+            copyRuns = Array.Empty<object>(),
+            mounts = Array.Empty<object>(),
+            rclone = new { status = "ready", capabilityBinding = "caps", mountAvailable = true },
+            winFsp = new { status = "ready" }
+        }));
+        var shell = new DesktopShellState();
+        shell.ApplySnapshot(new(new(new("mounts"), 1), DateTimeOffset.UtcNow, document.RootElement.Clone()));
+
+        shell.SelectMountProfile(targetId);
+
+        Assert.Equal(targetId, shell.SelectedMountProfile!.Id);
+        Assert.Equal("New", shell.MountProfileName);
+        Assert.Equal("new", shell.MountSubpath);
+    }
+
+    [Fact]
     public async Task RemotePrimaryActionSubmitsBoundedTokenSetupAndClearsSecretInput()
     {
         var cancellationToken = TestContext.Current.CancellationToken;

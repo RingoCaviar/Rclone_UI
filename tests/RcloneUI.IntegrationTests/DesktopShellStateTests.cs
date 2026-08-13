@@ -279,6 +279,22 @@ public sealed class DesktopShellStateTests
     }
 
     [Fact]
+    public async Task MountProfileSaveRejectsIncompleteDesktopInputBeforeCallingTheHost()
+    {
+        var client = new RecordingClient(); var shell = new DesktopShellState(); var controller = new DesktopHostController(client, shell);
+        await controller.ReconnectAsync(TestContext.Current.CancellationToken);
+        shell.Navigate("Mounts"); shell.BeginNewMountProfile();
+
+        await controller.SaveMountProfileAsync(TestContext.Current.CancellationToken);
+
+        Assert.Null(client.CommandType);
+        Assert.Equal("mount-profile-input-invalid", shell.LastAction);
+        Assert.Equal(DesktopActionNotificationKind.Error, shell.ActionNotificationKind);
+        shell.ToggleLanguage();
+        Assert.Contains("profile name", shell.ActionNotificationMessage, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public async Task RemotePrimaryActionSubmitsBoundedTokenSetupAndClearsSecretInput()
     {
         var cancellationToken = TestContext.Current.CancellationToken;

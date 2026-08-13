@@ -267,7 +267,7 @@ public sealed class DesktopShellState : INotifyPropertyChanged
     public DesktopActionNotificationKind ActionNotificationKind => lastAction switch
     {
         "remote-added" or "remote-deleted" or "folder-created" or "file-deleted" or "file-renamed" or "copy-accepted" or "copy-cancel-requested" or "mount-started" or "mount-stopped" or "mount-profile-saved" or "mount-profile-deleted" or "vault-unlocked" or "vault-lock-completed" or "shutdown-accepted" or "winfsp-install-complete" or "winfsp-install-complete:restart-required" => DesktopActionNotificationKind.Success,
-        "remote-input-invalid" or "remote-host-key-required" or "remote-test-failed" or "remote-delete-confirmation-required" or "remote-delete-blocked-profile" or "remote-delete-conflict" or "remote-delete-unavailable" or "remote-delete-invalid" or "folder-create-invalid" or "folder-create-failed" or "folder-create-unavailable" or "file-delete-confirmation-required" or "file-delete-invalid" or "file-delete-failed" or "file-delete-unavailable" or "file-rename-confirmation-required" or "file-rename-invalid" or "file-rename-failed" or "file-rename-unavailable" or "copy-cancel-invalid" or "copy-cancel-not-running" or "copy-cancel-unavailable" or "copy-cancel-failed" or "vault-locked" or "host-unavailable" or "rclone-unavailable" or "mount-prerequisites-unavailable" or "mount-profile-required" or "mount-drain-not-proved" or "source-remote-required" or "destination-remote-required" or "download-folder-required" or "upload-folder-required" or "transfer-limits-invalid" or "shutdown-blocked-active-mount" or "winfsp-installer-unavailable" or "winfsp-installer-not-started" or "winfsp-download-failed" or "winfsp-hash-mismatch" or "winfsp-signature-invalid" or "winfsp-install-cancelled" or "winfsp-uac-cancelled" => DesktopActionNotificationKind.Error,
+        "remote-input-invalid" or "remote-host-key-required" or "remote-test-failed" or "remote-delete-confirmation-required" or "remote-delete-blocked-profile" or "remote-delete-conflict" or "remote-delete-unavailable" or "remote-delete-invalid" or "folder-create-invalid" or "folder-create-failed" or "folder-create-unavailable" or "file-delete-confirmation-required" or "file-delete-invalid" or "file-delete-failed" or "file-delete-unavailable" or "file-rename-confirmation-required" or "file-rename-invalid" or "file-rename-failed" or "file-rename-unavailable" or "copy-cancel-invalid" or "copy-cancel-not-running" or "copy-cancel-unavailable" or "copy-cancel-failed" or "vault-locked" or "host-unavailable" or "rclone-unavailable" or "mount-prerequisites-unavailable" or "mount-profile-required" or "mount-profile-input-invalid" or "mount-drain-not-proved" or "source-remote-required" or "destination-remote-required" or "download-folder-required" or "upload-folder-required" or "transfer-limits-invalid" or "shutdown-blocked-active-mount" or "winfsp-installer-unavailable" or "winfsp-installer-not-started" or "winfsp-download-failed" or "winfsp-hash-mismatch" or "winfsp-signature-invalid" or "winfsp-install-cancelled" or "winfsp-uac-cancelled" => DesktopActionNotificationKind.Error,
         var value when value.StartsWith("winfsp-installer-failed:", StringComparison.Ordinal) || value.StartsWith("winfsp-install-failed:", StringComparison.Ordinal) => DesktopActionNotificationKind.Error,
         _ => DesktopActionNotificationKind.Information
     };
@@ -308,6 +308,7 @@ public sealed class DesktopShellState : INotifyPropertyChanged
         "rclone-unavailable" => T("rclone 当前不可用。请在设置中检测或更新组件后重试。", "rclone is unavailable. Detect or update the component in Settings, then try again."),
         "mount-prerequisites-unavailable" => T("挂载条件未满足。请确认 WinFsp 已安装且 rclone 挂载能力可用。", "Mount prerequisites are not met. Confirm WinFsp is installed and rclone Mount capability is available."),
         "mount-profile-required" => T("请先保存或选择一个挂载配置。", "Save or select a Mount Profile first."),
+        "mount-profile-input-invalid" => MountProfileValidationMessage,
         "mount-drain-not-proved" => T("读写挂载仍有上传、错误、空间压力或未知遥测；为避免丢失本地缓存的写入，暂不卸载。", "The writable Mount still has uploads, errors, space pressure, or unknown telemetry, so it remains mounted to avoid losing cached writes."),
         "source-remote-required" => T("请选择来源远程存储。", "Select a source Remote."),
         "destination-remote-required" => T("请选择目标远程存储。", "Select a destination Remote."),
@@ -496,6 +497,19 @@ public sealed class DesktopShellState : INotifyPropertyChanged
     public IReadOnlyList<DesktopMountProfileOption> MountProfiles => mountProfiles;
     public DesktopMountProfileOption? SelectedMountProfile { get => selectedMountProfile; set { if (selectedMountProfile?.Id == value?.Id) return; selectedMountProfile = value; if (value is not null) ApplyMountProfile(value); ChangedAll(); } }
     public string MountProfileName { get; set; } = string.Empty;
+    public bool IsMountProfileInputComplete => string.IsNullOrWhiteSpace(MountProfileValidationMessage);
+    public string MountProfileValidationMessage
+    {
+        get
+        {
+            if (string.IsNullOrWhiteSpace(MountProfileName)) return T("请填写配置名称。", "Enter a profile name.");
+            if (MountProfileName.Length > 80) return T("配置名称不能超过 80 个字符。", "The profile name must be at most 80 characters.");
+            if (MountRemote is null) return T("请选择要挂载的 Remote。", "Select a Remote to mount.");
+            if (string.IsNullOrWhiteSpace(MountVolumeName)) return T("请填写磁盘名称。", "Enter a volume name.");
+            if (IsFixedDirectoryMount && string.IsNullOrWhiteSpace(MountFixedDirectoryPath)) return T("固定目录挂载需要选择本地文件夹。", "Fixed-directory Mounts require a local folder.");
+            return string.Empty;
+        }
+    }
     public bool HasSelectedMountProfile => selectedMountProfile is not null;
     public string MountProfileHint => T("选择已保存的挂载配置", "Select a saved Mount Profile");
     public string MountProfileNameHint => T("配置名称", "Profile name");

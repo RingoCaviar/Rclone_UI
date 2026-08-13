@@ -41,6 +41,7 @@ public sealed partial class MainWindow : Window
     private void UseBrowserSelectionClicked(object? sender, RoutedEventArgs args) => ((DesktopShellState)DataContext!).UseBrowserSelectionForTransfer();
     private void DownloadBrowserSelectionClicked(object? sender, RoutedEventArgs args) => ((DesktopShellState)DataContext!).PrepareBrowserSelectionForDownload();
     private void UploadToBrowserFolderClicked(object? sender, RoutedEventArgs args) => ((DesktopShellState)DataContext!).PrepareBrowserFolderForUpload();
+    private async void RefreshBrowserClicked(object? sender, RoutedEventArgs args) { if (controller is not null) await controller.RefreshBrowserAsync(); }
     private async void PickDownloadFolderClicked(object? sender, RoutedEventArgs args)
     {
         var folders = await StorageProvider.OpenFolderPickerAsync(new() { Title = "Select download folder", AllowMultiple = false });

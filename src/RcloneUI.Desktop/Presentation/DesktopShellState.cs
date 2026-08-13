@@ -71,6 +71,8 @@ public sealed class DesktopShellState : INotifyPropertyChanged
     private DesktopMountProfileOption? selectedMountProfile;
     private DesktopBrowserItem[] browserItems = [];
     private DesktopBrowserItem[] allBrowserItems = [];
+    private DesktopRemoteOption? browserRemote;
+    private string browserPath = string.Empty;
     private string browserFilter = string.Empty;
     private string newBrowserFolderName = string.Empty;
     private string browserDeleteConfirmation = string.Empty;
@@ -179,8 +181,28 @@ public sealed class DesktopShellState : INotifyPropertyChanged
     public string CopyRunHint => T("选择正在运行的传输", "Select a running transfer");
     public string CancelCopyLabel => T("取消所选传输", "Cancel selected transfer");
     public string ActivityEmptyText => activityRows.Length == 0 ? T("尚无后台服务记录的传输或挂载活动。", "No transfer or Mount activity is currently recorded by the Background Host.") : string.Empty;
-    public DesktopRemoteOption? BrowserRemote { get; set; }
-    public string BrowserPath { get; set; } = string.Empty;
+    public DesktopRemoteOption? BrowserRemote
+    {
+        get => browserRemote;
+        set
+        {
+            if (browserRemote == value) return;
+            browserRemote = value;
+            ClearBrowserItems();
+            ChangedAll();
+        }
+    }
+    public string BrowserPath
+    {
+        get => browserPath;
+        set
+        {
+            if (browserPath == value) return;
+            browserPath = value;
+            ClearBrowserItems();
+            ChangedAll();
+        }
+    }
     public IReadOnlyList<DesktopBrowserItem> BrowserItems => browserItems;
     public string BrowserFilter
     {
@@ -212,6 +234,7 @@ public sealed class DesktopShellState : INotifyPropertyChanged
     public string BrowserPathHint => T("目录路径（根目录可留空）", "Folder path (leave empty for root)");
     public string BrowserFilterHint => T("筛选当前目录中的名称", "Filter names in this folder");
     public string BrowserOpenLabel => T("打开文件夹", "Open folder");
+    public string BrowserRefreshLabel => T("刷新目录", "Refresh folder");
     public string BrowserUseAsTransferSourceLabel => T("用作传输来源", "Use as transfer source");
     public string BrowserDownloadSelectedLabel => T("下载所选项目", "Download selected item");
     public string BrowserUploadHereLabel => T("上传到当前文件夹", "Upload to current folder");
@@ -686,6 +709,12 @@ public sealed class DesktopShellState : INotifyPropertyChanged
     {
         browserItems = string.IsNullOrWhiteSpace(browserFilter) ? allBrowserItems : allBrowserItems.Where(item => item.Path.Contains(browserFilter.Trim(), StringComparison.OrdinalIgnoreCase)).ToArray();
         if (SelectedBrowserItem is { } selected && !browserItems.Any(item => StringComparer.Ordinal.Equals(item.Path, selected.Path))) SelectedBrowserItem = null;
+    }
+    private void ClearBrowserItems()
+    {
+        browserItems = [];
+        allBrowserItems = [];
+        SelectedBrowserItem = null;
     }
     private void ChangedAll() { foreach (var property in GetType().GetProperties().Where(x => x.GetIndexParameters().Length == 0)) PropertyChanged?.Invoke(this, new(property.Name)); }
 }

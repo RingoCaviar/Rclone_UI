@@ -364,6 +364,24 @@ public sealed class DesktopShellStateTests
     }
 
     [Fact]
+    public async Task BrowserRefreshesExplicitlyAndPathChangesClearStaleResults()
+    {
+        var client = new RecordingClient(); var shell = new DesktopShellState(); var controller = new DesktopHostController(client, shell);
+        await controller.ReconnectAsync(TestContext.Current.CancellationToken);
+        shell.Navigate("Browser");
+
+        await controller.RefreshBrowserAsync(TestContext.Current.CancellationToken);
+        Assert.Contains(shell.BrowserItems, item => item.Path == "readme.txt");
+        Assert.True(shell.CanUploadIntoBrowserFolder);
+
+        shell.BrowserPath = "archive";
+
+        Assert.Empty(shell.BrowserItems);
+        Assert.True(shell.CanBrowseParent);
+        Assert.True(shell.CanUploadIntoBrowserFolder);
+    }
+
+    [Fact]
     public void ActivityRouteShowsRedactedCopyAndMountStates()
     {
         using var document = JsonDocument.Parse("""{"session":"operational","copyRuns":[{"state":"running","bytes":5,"totalBytes":10,"bytesPerSecond":1}],"mounts":[{"instanceId":"0a0a0a0a-0000-0000-0000-000000000000","state":"ready","mountPoint":"R:","startedUtc":"2026-08-12T00:00:00Z"}]}""");

@@ -121,6 +121,8 @@ public sealed class DesktopHostController(IDesktopHostClient client, DesktopShel
         await BrowseAsync(cancellationToken).ConfigureAwait(false);
     }
 
+    public ValueTask RefreshBrowserAsync(CancellationToken cancellationToken = default) => BrowseAsync(cancellationToken);
+
     public async ValueTask OpenBrowserFolderAsync(CancellationToken cancellationToken = default)
     {
         shell.OpenSelectedBrowserFolder();

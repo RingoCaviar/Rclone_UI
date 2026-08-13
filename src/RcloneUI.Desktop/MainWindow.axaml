@@ -174,9 +174,10 @@
               </StackPanel>
               <StackPanel IsVisible="{Binding IsBrowserJourney}" Spacing="10">
                 <ComboBox ItemsSource="{Binding RemoteOptions}" SelectedItem="{Binding BrowserRemote}" DisplayMemberBinding="{Binding DisplayName}" PlaceholderText="{Binding BrowserRemoteHint}" AutomationProperties.Name="Browser Remote" />
-                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
+                <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="10">
                   <TextBox Text="{Binding BrowserPath}" PlaceholderText="{Binding BrowserPathHint}" AutomationProperties.Name="Browser path" />
                   <Button Grid.Column="1" IsEnabled="{Binding CanBrowseParent}" Content="↑" Click="BrowseParentClicked" AutomationProperties.Name="Browse parent folder" />
+                  <Button Grid.Column="2" Content="{Binding BrowserRefreshLabel}" Click="RefreshBrowserClicked" AutomationProperties.Name="Refresh remote folder" />
                 </Grid>
                 <TextBox Text="{Binding BrowserFilter}" PlaceholderText="{Binding BrowserFilterHint}" AutomationProperties.Name="Filter current remote folder" />
                 <TextBlock Text="{Binding BrowserEmptyText}" IsVisible="{Binding BrowserEmptyText}" Opacity="0.72" />

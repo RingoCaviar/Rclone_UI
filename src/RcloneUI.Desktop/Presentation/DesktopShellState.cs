@@ -51,6 +51,9 @@ public sealed class DesktopShellState : INotifyPropertyChanged
     private string uploadSourcePath = string.Empty;
     private string maximumTransferMiB = string.Empty;
     private string maximumDurationMinutes = string.Empty;
+    private DesktopRemoteOption? mountRemote;
+    private string mountProfileName = string.Empty;
+    private string mountVolumeName = "Rclone Cloud";
     private Guid? activeMountId;
     private string mountLifecycleState = "stopped";
     private Guid? mountLifecycleProfileId;
@@ -336,7 +339,7 @@ public sealed class DesktopShellState : INotifyPropertyChanged
     public IReadOnlyList<DesktopRemoteOption> RemoteOptions => remoteOptions;
     public DesktopRemoteOption? CopySourceRemote { get; set; }
     public DesktopRemoteOption? CopyDestinationRemote { get; set; }
-    public DesktopRemoteOption? MountRemote { get; set; }
+    public DesktopRemoteOption? MountRemote { get => mountRemote; set { if (mountRemote == value) return; mountRemote = value; ChangedAll(); } }
     public IReadOnlyList<DesktopSavedRemoteOption> SavedRemotes => savedRemotes;
     public DesktopSavedRemoteOption? SelectedSavedRemote { get => selectedSavedRemote; set { if (selectedSavedRemote?.Id == value?.Id) return; selectedSavedRemote = value; remoteDeleteConfirmation = string.Empty; ChangedAll(); } }
     public string RemoteDeleteConfirmation { get => remoteDeleteConfirmation; set { if (remoteDeleteConfirmation == value) return; remoteDeleteConfirmation = value; ChangedAll(); } }
@@ -435,7 +438,7 @@ public sealed class DesktopShellState : INotifyPropertyChanged
     public IReadOnlyList<string> MountDriveLetters { get; } = Enumerable.Range('D', 'Z' - 'D' + 1).Select(value => ((char)value).ToString()).ToArray();
     public string MountDriveLetter { get; set; } = "R";
     public string MountSubpath { get; set; } = string.Empty;
-    public string MountVolumeName { get; set; } = "Rclone Cloud";
+    public string MountVolumeName { get => mountVolumeName; set { if (mountVolumeName == value) return; mountVolumeName = value; ChangedAll(); } }
     public string MountFixedDirectoryPath { get => mountFixedDirectoryPath; set { if (mountFixedDirectoryPath == value) return; mountFixedDirectoryPath = value; ChangedAll(); } }
     public IReadOnlyList<DesktopChoice> MountPresentationOptions => mountPresentationOptions;
     public IReadOnlyList<DesktopChoice> MountDriveSelectionOptions => driveSelectionOptions;
@@ -502,8 +505,9 @@ public sealed class DesktopShellState : INotifyPropertyChanged
     public string WinFspStableNotice => T("将下载官方稳定版 WinFsp 2.1.25156。此版本存在已公开的后续安全修复；你已选择继续使用稳定版。", "Downloads official stable WinFsp 2.1.25156. Later public security fixes exist; you chose to continue with the stable release.");
     public IReadOnlyList<DesktopMountProfileOption> MountProfiles => mountProfiles;
     public DesktopMountProfileOption? SelectedMountProfile { get => selectedMountProfile; set { if (selectedMountProfile?.Id == value?.Id) return; selectedMountProfile = value; if (value is not null) ApplyMountProfile(value); ChangedAll(); } }
-    public string MountProfileName { get; set; } = string.Empty;
+    public string MountProfileName { get => mountProfileName; set { if (mountProfileName == value) return; mountProfileName = value; ChangedAll(); } }
     public bool IsMountProfileInputComplete => string.IsNullOrWhiteSpace(MountProfileValidationMessage);
+    public bool CanSaveMountProfile => IsMountProfileInputComplete && connection == DesktopConnectionState.ConnectedOperational;
     public string MountProfileValidationMessage
     {
         get

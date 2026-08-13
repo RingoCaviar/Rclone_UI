@@ -295,6 +295,23 @@ public sealed class DesktopShellStateTests
     }
 
     [Fact]
+    public void MountProfileValidationUpdatesAsRequiredValuesAreEntered()
+    {
+        var shell = new DesktopShellState();
+        shell.BeginNewMountProfile();
+
+        Assert.False(shell.CanSaveMountProfile);
+        Assert.Contains("配置名称", shell.MountProfileValidationMessage, StringComparison.Ordinal);
+        shell.MountProfileName = "Work";
+        shell.MountRemote = new DesktopRemoteOption(Guid.NewGuid(), "FTPS");
+
+        Assert.False(shell.CanSaveMountProfile);
+        shell.ApplyConnection(DesktopConnectionState.ConnectedOperational);
+        Assert.True(shell.CanSaveMountProfile);
+        Assert.Empty(shell.MountProfileValidationMessage);
+    }
+
+    [Fact]
     public async Task ValidNewMountProfileCanSaveAndStartInOneAction()
     {
         var client = new RecordingClient(); var shell = new DesktopShellState(); var controller = new DesktopHostController(client, shell);

@@ -207,6 +207,7 @@ internal sealed class HostStateAuthority : IDisposable
         var localDownload = destinationLocalPath is not null;
         var localUpload = sourceLocalPath is not null;
         if (binding is null || maximumTransferBytes.Invalid || maximumDurationMinutes.Invalid || localDownload && localUpload || (localDownload ? sourceRemoteId is null || sourcePath is null || destinationRemoteId is not null || destinationPath is not null : localUpload ? destinationRemoteId is null || destinationPath is null || sourceRemoteId is not null || sourcePath is not null : sourceRemoteId is null || sourcePath is null || destinationRemoteId is null || destinationPath is null)) return CreateResult("copy-invalid", new { code = "arguments-invalid" }, Cursor);
+        if (!localDownload && !localUpload && sourceRemoteId == destinationRemoteId && StringComparer.Ordinal.Equals(sourcePath!.Trim('/'), destinationPath!.Trim('/'))) return CreateResult("copy-source-equals-destination", new { }, Cursor);
         string? sourceFs; string? destinationFs;
         try
         {

@@ -313,6 +313,26 @@ public sealed class DesktopShellStateTests
     }
 
     [Fact]
+    public async Task RemoteCopyCannotTargetTheIdenticalRemotePath()
+    {
+        var client = new RecordingClient(); var shell = new DesktopShellState(); var controller = new DesktopHostController(client, shell);
+        await controller.ReconnectAsync(TestContext.Current.CancellationToken);
+        shell.Navigate("Transfers");
+        shell.TransferMode = DesktopTransferMode.RemoteCopy;
+        shell.CopySourceRemote = shell.RemoteOptions[0];
+        shell.CopyDestinationRemote = shell.RemoteOptions[0];
+        shell.CopySourcePath = "/photos/";
+        shell.CopyDestinationPath = "photos";
+
+        Assert.False(shell.IsTransferReady);
+        Assert.False(shell.IsJourneyPrimaryEnabled);
+        Assert.NotEmpty(shell.TransferReadinessMessage);
+
+        shell.CopyDestinationPath = "archive";
+        Assert.True(shell.IsTransferReady);
+    }
+
+    [Fact]
     public async Task MountPrimaryActionSendsSelectedReadOnlyProfileToHost()
     {
         var client = new RecordingClient(); var shell = new DesktopShellState(); var controller = new DesktopHostController(client, shell);

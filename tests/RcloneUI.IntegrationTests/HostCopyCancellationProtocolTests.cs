@@ -9,6 +9,24 @@ namespace RcloneUI.IntegrationTests;
 public sealed class HostCopyCancellationProtocolTests
 {
     [Fact]
+    public async Task HostRejectsCopyingAnIdenticalRemotePathOntoItself()
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"rcloneui-copy-self-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(root);
+        try
+        {
+            var capabilities = new RcloneCapabilitySnapshot(new("test", new string('A', 64), 1), new string('B', 64), new string('C', 64), ImmutableSortedSet.Create("sync/copy"), ImmutableSortedSet<string>.Empty, DateTimeOffset.UtcNow);
+            var remoteId = Guid.NewGuid();
+            using var authority = new HostStateAuthority(root, new ScriptedRcloneRuntime(capabilities, []), new Resolver(remoteId));
+
+            var rejected = await authority.DispatchAsync(Command("start-copy", new { sourceRemoteId = remoteId, sourcePath = "/photos/", destinationRemoteId = remoteId, destinationPath = "photos", capabilityBinding = capabilities.Binding }), TestContext.Current.CancellationToken);
+
+            Assert.Equal("copy-source-equals-destination", rejected.ResultType);
+        }
+        finally { Directory.Delete(root, recursive: true); }
+    }
+
+    [Fact]
     public async Task HostCancelsOnlyItsTrackedRunningCopy()
     {
         var root = Path.Combine(Path.GetTempPath(), $"rcloneui-cancel-{Guid.NewGuid():N}");

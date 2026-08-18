@@ -379,6 +379,25 @@ public sealed class DesktopShellStateTests
     }
 
     [Fact]
+    public async Task MountConfigurationSummaryShowsTheReadyTargetAndAccessMode()
+    {
+        var client = new RecordingClient(); var shell = new DesktopShellState(); var controller = new DesktopHostController(client, shell);
+        await controller.ReconnectAsync(TestContext.Current.CancellationToken);
+        shell.ToggleLanguage();
+        shell.BeginNewMountProfile();
+        shell.MountProfileName = "FTP files";
+        shell.MountRemote = shell.RemoteOptions[0];
+        shell.MountSubpath = "exports/2026";
+        shell.MountDriveLetter = "S";
+
+        Assert.True(shell.HasMountConfigurationSummary);
+        Assert.Equal("Mount Source:/exports/2026 at S: (read/write)", shell.MountConfigurationSummary);
+
+        shell.MountCachePreset = shell.MountCachePresetOptions.Single(option => option.Key == "read-only");
+        Assert.Equal("Mount Source:/exports/2026 at S: (read-only)", shell.MountConfigurationSummary);
+    }
+
+    [Fact]
     public async Task ValidNewMountProfileCanSaveAndStartInOneAction()
     {
         var client = new RecordingClient(); var shell = new DesktopShellState(); var controller = new DesktopHostController(client, shell);

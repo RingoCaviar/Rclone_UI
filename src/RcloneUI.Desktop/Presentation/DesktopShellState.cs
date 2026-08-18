@@ -58,6 +58,8 @@ public sealed class DesktopShellState : INotifyPropertyChanged
     private DesktopRemoteOption? mountRemote;
     private string mountProfileName = string.Empty;
     private string mountVolumeName = "Rclone Cloud";
+    private string mountDriveLetter = "R";
+    private string mountSubpath = string.Empty;
     private Guid? activeMountId;
     private string mountLifecycleState = "stopped";
     private Guid? mountLifecycleProfileId;
@@ -472,8 +474,8 @@ public sealed class DesktopShellState : INotifyPropertyChanged
     public string ConnectionHostKeyFingerprint { get; set; } = string.Empty;
     public bool ConnectionSkipCertificateVerification { get; set; }
     public IReadOnlyList<string> MountDriveLetters { get; } = Enumerable.Range('D', 'Z' - 'D' + 1).Select(value => ((char)value).ToString()).ToArray();
-    public string MountDriveLetter { get; set; } = "R";
-    public string MountSubpath { get; set; } = string.Empty;
+    public string MountDriveLetter { get => mountDriveLetter; set { if (mountDriveLetter == value) return; mountDriveLetter = value; ChangedAll(); } }
+    public string MountSubpath { get => mountSubpath; set { if (mountSubpath == value) return; mountSubpath = value; ChangedAll(); } }
     public string MountVolumeName { get => mountVolumeName; set { if (mountVolumeName == value) return; mountVolumeName = value; ChangedAll(); } }
     public string MountFixedDirectoryPath { get => mountFixedDirectoryPath; set { if (mountFixedDirectoryPath == value) return; mountFixedDirectoryPath = value; ChangedAll(); } }
     public IReadOnlyList<DesktopChoice> MountPresentationOptions => mountPresentationOptions;
@@ -559,6 +561,22 @@ public sealed class DesktopShellState : INotifyPropertyChanged
         }
     }
     public bool HasSelectedMountProfile => selectedMountProfile is not null;
+    public bool HasMountConfigurationSummary => IsMountProfileInputComplete;
+    public string MountConfigurationSummary
+    {
+        get
+        {
+            if (!HasMountConfigurationSummary || MountRemote is null) return string.Empty;
+            var location = RemoteLocation(MountRemote, MountSubpath);
+            var target = IsFixedDirectoryMount
+                ? MountFixedDirectoryPath
+                : IsPreferredDriveLetter
+                    ? MountDriveLetter + ":"
+                    : T("Windows 自动分配盘符", "a Windows-assigned drive letter");
+            var access = mountCachePreset.Key == "standard-read-write" ? T("读写", "read/write") : T("只读", "read-only");
+            return T($"将把 {location} 挂载到 {target}（{access}）", $"Mount {location} at {target} ({access})");
+        }
+    }
     public bool CanSaveAndMount => selectedMountProfile is null && IsMountProfileInputComplete && MountPrerequisitesReady && connection == DesktopConnectionState.ConnectedOperational;
     public string MountProfileHint => T("选择已保存的挂载配置", "Select a saved Mount Profile");
     public string MountProfileNameHint => T("配置名称", "Profile name");

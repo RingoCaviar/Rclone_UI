@@ -256,6 +256,9 @@
                 </Grid>
                 <TextBox Text="{Binding MountProfileName}" PlaceholderText="{Binding MountProfileNameHint}" AutomationProperties.Name="Mount Profile name" />
                 <TextBlock IsVisible="{Binding MountProfileValidationMessage}" Text="{Binding MountProfileValidationMessage}" Foreground="IndianRed" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite" />
+                <Border Classes="empty" IsVisible="{Binding HasMountConfigurationSummary}">
+                  <TextBlock Text="{Binding MountConfigurationSummary}" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite" />
+                </Border>
                 <ComboBox ItemsSource="{Binding RemoteOptions}" SelectedItem="{Binding MountRemote}" DisplayMemberBinding="{Binding DisplayName}" PlaceholderText="{Binding MountRemoteHint}" AutomationProperties.Name="Mount Remote" />
                 <TextBox Text="{Binding MountSubpath}" PlaceholderText="{Binding MountSubpathHint}" AutomationProperties.Name="Mount subpath" />
                 <Grid ColumnDefinitions="*,*" ColumnSpacing="10">

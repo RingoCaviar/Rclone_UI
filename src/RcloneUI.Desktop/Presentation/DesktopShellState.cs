@@ -275,7 +275,14 @@ public sealed class DesktopShellState : INotifyPropertyChanged
     public string AttentionTitle => connection switch { DesktopConnectionState.ConnectedLocked => T("保险库已锁定", "Vault is locked"), DesktopConnectionState.ReadOnlyRecovery => T("需要恢复", "Recovery required"), DesktopConnectionState.Disconnected => T("后台服务连接中断", "Background Host disconnected"), _ => T("正在连接后台服务", "Connecting to Background Host") };
     public string AttentionDetail => connection switch { DesktopConnectionState.ReadOnlyRecovery => T("不会自动清理或覆盖未知状态。请检查恢复详情。", "Unknown state will not be cleared or overwritten. Review recovery details."), DesktopConnectionState.Disconnected => T("现有后台任务可能仍在运行；重新连接前不会猜测其结果。", "Existing work may still run; results remain unknown until reconnection."), _ => T("需要连接并解锁后才能启动新任务。", "Connect and unlock before starting new work.") };
     public string AttentionAction => connection switch { DesktopConnectionState.ConnectedLocked => T("解锁", "Unlock"), DesktopConnectionState.ReadOnlyRecovery => T("检查恢复", "Review recovery"), DesktopConnectionState.Disconnected => T("重新连接", "Reconnect"), _ => T("等待", "Wait") };
-    public string RunningTasksLabel => T("0 个运行中", "0 running");
+    public string RunningTasksLabel
+    {
+        get
+        {
+            var running = copyRunOptions.Count(run => run.State == "running");
+            return T($"{running} 个运行中", $"{running} running");
+        }
+    }
     public string LastAction => lastAction;
     public bool HasActionNotification => !string.IsNullOrWhiteSpace(lastAction);
     public DesktopActionNotificationKind ActionNotificationKind => lastAction switch

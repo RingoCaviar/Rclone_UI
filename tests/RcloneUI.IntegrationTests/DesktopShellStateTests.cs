@@ -741,13 +741,14 @@ public sealed class DesktopShellStateTests
     [Fact]
     public void HomeDashboardUsesRemoteAndTransferSnapshotSummaries()
     {
-        using var document = JsonDocument.Parse("""{"session":"operational","remotes":[{"id":"11111111-1111-1111-1111-111111111111","displayName":"FTPS"}],"copyRuns":[{"state":"running","bytes":5,"totalBytes":10,"bytesPerSecond":1}]}""");
+        using var document = JsonDocument.Parse("""{"session":"operational","remotes":[{"id":"11111111-1111-1111-1111-111111111111","displayName":"FTPS"}],"copyRuns":[{"runId":"22222222-2222-2222-2222-222222222222","state":"running","bytes":5,"totalBytes":10,"bytesPerSecond":1}]}""");
         var shell = new DesktopShellState();
         shell.ApplySnapshot(new(new(new("home"), 1), DateTimeOffset.UtcNow, document.RootElement.Clone()));
         shell.ToggleLanguage();
 
         Assert.Contains("FTPS", shell.HomeRemoteStatus, StringComparison.Ordinal);
         Assert.Contains("running", shell.HomeTransferStatus, StringComparison.Ordinal);
+        Assert.Equal("1 running", shell.RunningTasksLabel);
     }
 
     [Fact]

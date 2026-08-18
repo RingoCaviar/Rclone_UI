@@ -136,6 +136,7 @@
               <StackPanel IsVisible="{Binding IsRemoteJourney}" Spacing="8">
                 <TextBlock Text="{Binding SavedRemotesHeading}" FontWeight="SemiBold" />
                 <ComboBox ItemsSource="{Binding SavedRemotes}" SelectedItem="{Binding SelectedSavedRemote}" DisplayMemberBinding="{Binding DisplayName}" PlaceholderText="{Binding SavedRemotesHeading}" AutomationProperties.Name="Saved Remotes" />
+                <TextBlock IsVisible="{Binding HasSelectedRemoteDetails}" Text="{Binding SelectedRemoteDetails}" Foreground="{Binding SelectedRemoteHealthBrush}" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite" />
                 <TextBox Text="{Binding RemoteDeleteConfirmation}" PlaceholderText="{Binding RemoteDeleteConfirmationHint}" AutomationProperties.Name="Remote delete confirmation" />
                 <Button IsEnabled="{Binding CanDeleteSelectedRemote}" Content="{Binding DeleteRemoteLabel}" Click="DeleteRemoteClicked" AutomationProperties.Name="Delete selected Remote" />
               </StackPanel>

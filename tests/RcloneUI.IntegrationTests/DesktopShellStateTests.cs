@@ -379,6 +379,22 @@ public sealed class DesktopShellStateTests
     }
 
     [Fact]
+    public void SelectedRemoteDetailsPresentProviderAndHealthTruthfully()
+    {
+        var shell = new DesktopShellState
+        {
+            SelectedSavedRemote = new DesktopSavedRemoteOption(Guid.NewGuid(), 1, "Office FTPS", "ftps", "Healthy")
+        };
+
+        Assert.True(shell.HasSelectedRemoteDetails);
+        shell.ToggleLanguage();
+        Assert.Equal("Provider: FTPS · Status: Healthy", shell.SelectedRemoteDetails);
+
+        shell.SelectedSavedRemote = new DesktopSavedRemoteOption(Guid.NewGuid(), 1, "Office FTPS", "ftps", "network-unavailable");
+        Assert.Contains("Network unavailable", shell.SelectedRemoteDetails, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task MountConfigurationSummaryShowsTheReadyTargetAndAccessMode()
     {
         var client = new RecordingClient(); var shell = new DesktopShellState(); var controller = new DesktopHostController(client, shell);

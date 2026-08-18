@@ -352,6 +352,14 @@ public sealed class DesktopShellState : INotifyPropertyChanged
     public DesktopRemoteOption? MountRemote { get => mountRemote; set { if (mountRemote == value) return; mountRemote = value; ChangedAll(); } }
     public IReadOnlyList<DesktopSavedRemoteOption> SavedRemotes => savedRemotes;
     public DesktopSavedRemoteOption? SelectedSavedRemote { get => selectedSavedRemote; set { if (selectedSavedRemote?.Id == value?.Id) return; selectedSavedRemote = value; remoteDeleteConfirmation = string.Empty; ChangedAll(); } }
+    public bool HasSelectedRemoteDetails => selectedSavedRemote is not null;
+    public string SelectedRemoteDetails => selectedSavedRemote is not { } remote ? string.Empty : T($"类型：{RemoteProviderLabel(remote.ProviderType)} · 状态：{RemoteHealthLabel(remote.Health)}", $"Provider: {RemoteProviderLabel(remote.ProviderType)} · Status: {RemoteHealthLabel(remote.Health)}");
+    public IBrush SelectedRemoteHealthBrush => selectedSavedRemote?.Health.ToLowerInvariant() switch
+    {
+        "healthy" => Brushes.MediumSeaGreen,
+        "unknown" or null => Brushes.DarkOrange,
+        _ => Brushes.IndianRed
+    };
     public string RemoteDeleteConfirmation { get => remoteDeleteConfirmation; set { if (remoteDeleteConfirmation == value) return; remoteDeleteConfirmation = value; ChangedAll(); } }
     public bool CanDeleteSelectedRemote => selectedSavedRemote is not null && StringComparer.Ordinal.Equals(remoteDeleteConfirmation, selectedSavedRemote.DisplayName);
     public IReadOnlyList<DesktopChoice> TransferModeOptions { get; private set; } = [];
@@ -409,6 +417,24 @@ public sealed class DesktopShellState : INotifyPropertyChanged
         IsRemoteCopyMode && CopySourceRemote!.Id == CopyDestinationRemote!.Id && StringComparer.Ordinal.Equals(CopySourcePath.Trim('/'), CopyDestinationPath.Trim('/')) ? "copy-source-equals-destination" :
         null;
     private static string RemoteLocation(DesktopRemoteOption? remote, string path) => remote is null ? string.Empty : string.IsNullOrWhiteSpace(path) ? remote.DisplayName + ":/" : remote.DisplayName + ":/" + path.Trim('/');
+    private static string RemoteProviderLabel(string provider) => provider.ToLowerInvariant() switch
+    {
+        "ftp" => "FTP",
+        "ftps" => "FTPS",
+        "sftp" => "SFTP",
+        "drive" => "Google Drive",
+        "onedrive" => "OneDrive",
+        "dropbox" => "Dropbox",
+        _ => provider
+    };
+    private string RemoteHealthLabel(string health) => health.ToLowerInvariant() switch
+    {
+        "healthy" => T("正常", "Healthy"),
+        "networkunavailable" or "network-unavailable" => T("网络不可用", "Network unavailable"),
+        "authenticationfailed" or "authentication-failed" => T("验证失败", "Authentication failed"),
+        "unknown" => T("未知", "Unknown"),
+        _ => health
+    };
     public string CopyStatus => copyStatus;
     public string CopySourcePath { get => copySourcePath; set { if (copySourcePath == value) return; copySourcePath = value; ChangedAll(); } }
     public string CopyDestinationPath { get => copyDestinationPath; set { if (copyDestinationPath == value) return; copyDestinationPath = value; ChangedAll(); } }

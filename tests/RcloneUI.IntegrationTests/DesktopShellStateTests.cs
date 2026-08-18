@@ -395,6 +395,25 @@ public sealed class DesktopShellStateTests
     }
 
     [Fact]
+    public async Task SelectedRemoteCanOpenFileBrowserAtItsRootWithoutListing()
+    {
+        var client = new RecordingClient(); var shell = new DesktopShellState(); var controller = new DesktopHostController(client, shell);
+        await controller.ReconnectAsync(TestContext.Current.CancellationToken);
+        shell.Navigate("Remotes");
+        shell.SelectedSavedRemote = shell.SavedRemotes[1];
+        shell.BrowserPath = "old/folder";
+        shell.BrowserFilter = "old";
+
+        shell.BrowseSelectedRemote();
+
+        Assert.Equal("Browser", shell.CurrentRoute);
+        Assert.Equal(shell.SavedRemotes[1].Id, shell.BrowserRemote!.Id);
+        Assert.Empty(shell.BrowserPath);
+        Assert.Empty(shell.BrowserFilter);
+        Assert.Null(client.CommandType);
+    }
+
+    [Fact]
     public async Task MountConfigurationSummaryShowsTheReadyTargetAndAccessMode()
     {
         var client = new RecordingClient(); var shell = new DesktopShellState(); var controller = new DesktopHostController(client, shell);

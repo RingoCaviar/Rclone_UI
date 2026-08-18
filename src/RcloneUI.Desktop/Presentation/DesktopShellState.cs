@@ -353,6 +353,7 @@ public sealed class DesktopShellState : INotifyPropertyChanged
     public IReadOnlyList<DesktopSavedRemoteOption> SavedRemotes => savedRemotes;
     public DesktopSavedRemoteOption? SelectedSavedRemote { get => selectedSavedRemote; set { if (selectedSavedRemote?.Id == value?.Id) return; selectedSavedRemote = value; remoteDeleteConfirmation = string.Empty; ChangedAll(); } }
     public bool HasSelectedRemoteDetails => selectedSavedRemote is not null;
+    public bool CanBrowseSelectedRemote => selectedSavedRemote is not null;
     public string SelectedRemoteDetails => selectedSavedRemote is not { } remote ? string.Empty : T($"类型：{RemoteProviderLabel(remote.ProviderType)} · 状态：{RemoteHealthLabel(remote.Health)}", $"Provider: {RemoteProviderLabel(remote.ProviderType)} · Status: {RemoteHealthLabel(remote.Health)}");
     public IBrush SelectedRemoteHealthBrush => selectedSavedRemote?.Health.ToLowerInvariant() switch
     {
@@ -362,6 +363,7 @@ public sealed class DesktopShellState : INotifyPropertyChanged
     };
     public string RemoteDeleteConfirmation { get => remoteDeleteConfirmation; set { if (remoteDeleteConfirmation == value) return; remoteDeleteConfirmation = value; ChangedAll(); } }
     public bool CanDeleteSelectedRemote => selectedSavedRemote is not null && StringComparer.Ordinal.Equals(remoteDeleteConfirmation, selectedSavedRemote.DisplayName);
+    public string BrowseSelectedRemoteLabel => T("浏览所选远程存储", "Browse selected Remote");
     public IReadOnlyList<DesktopChoice> TransferModeOptions { get; private set; } = [];
     public DesktopChoice TransferModeChoice
     {
@@ -620,6 +622,14 @@ public sealed class DesktopShellState : INotifyPropertyChanged
     public void Navigate(string value) { route = value; advancedOptionsExpanded = false; ChangedAll(); }
     public void ToggleLanguage() { english = !english; RefreshMountChoices(); ChangedAll(); }
     public void ToggleAdvancedOptions() { if (!IsAdvancedOptionsAvailable) return; advancedOptionsExpanded = !advancedOptionsExpanded; ChangedAll(); }
+    public void BrowseSelectedRemote()
+    {
+        if (selectedSavedRemote is not { } remote) return;
+        BrowserRemote = remoteOptions.FirstOrDefault(option => option.Id == remote.Id);
+        BrowserPath = string.Empty;
+        BrowserFilter = string.Empty;
+        Navigate("Browser");
+    }
     public void BeginNewMountProfile()
     {
         selectedMountProfile = null; MountProfileName = string.Empty; MountRemote = remoteOptions.FirstOrDefault(); MountSubpath = string.Empty; MountVolumeName = "Rclone Cloud"; MountDriveLetter = "R"; mountFixedDirectoryPath = string.Empty;

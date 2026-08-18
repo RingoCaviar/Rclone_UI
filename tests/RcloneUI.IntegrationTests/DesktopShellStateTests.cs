@@ -466,6 +466,28 @@ public sealed class DesktopShellStateTests
     }
 
     [Fact]
+    public async Task SelectedRemoteCanPrepareARemoteCopyWithoutPreselectingTarget()
+    {
+        var client = new RecordingClient(); var shell = new DesktopShellState(); var controller = new DesktopHostController(client, shell);
+        await controller.ReconnectAsync(TestContext.Current.CancellationToken);
+        shell.Navigate("Remotes");
+        shell.SelectedSavedRemote = shell.SavedRemotes[1];
+        shell.CopyDestinationRemote = shell.RemoteOptions[0];
+        shell.CopyDestinationPath = "old/path";
+
+        shell.PrepareSelectedRemoteForRemoteCopy();
+
+        Assert.Equal("Transfers", shell.CurrentRoute);
+        Assert.Equal(DesktopTransferMode.RemoteCopy, shell.TransferMode);
+        Assert.Equal(shell.SavedRemotes[1].Id, shell.CopySourceRemote!.Id);
+        Assert.Empty(shell.CopySourcePath);
+        Assert.Null(shell.CopyDestinationRemote);
+        Assert.Empty(shell.CopyDestinationPath);
+        Assert.False(shell.IsTransferReady);
+        Assert.Null(client.CommandType);
+    }
+
+    [Fact]
     public async Task MountConfigurationSummaryShowsTheReadyTargetAndAccessMode()
     {
         var client = new RecordingClient(); var shell = new DesktopShellState(); var controller = new DesktopHostController(client, shell);

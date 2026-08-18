@@ -357,6 +357,7 @@ public sealed class DesktopShellState : INotifyPropertyChanged
     public bool CanBrowseSelectedRemote => selectedSavedRemote is not null;
     public bool CanPrepareSelectedRemoteForMount => selectedSavedRemote is not null;
     public bool CanPrepareSelectedRemoteForDownload => selectedSavedRemote is not null;
+    public bool CanPrepareSelectedRemoteForRemoteCopy => selectedSavedRemote is not null;
     public string SelectedRemoteDetails => selectedSavedRemote is not { } remote ? string.Empty : T($"类型：{RemoteProviderLabel(remote.ProviderType)} · 状态：{RemoteHealthLabel(remote.Health)}", $"Provider: {RemoteProviderLabel(remote.ProviderType)} · Status: {RemoteHealthLabel(remote.Health)}");
     public IBrush SelectedRemoteHealthBrush => selectedSavedRemote?.Health.ToLowerInvariant() switch
     {
@@ -369,6 +370,7 @@ public sealed class DesktopShellState : INotifyPropertyChanged
     public string BrowseSelectedRemoteLabel => T("浏览所选远程存储", "Browse selected Remote");
     public string MountSelectedRemoteLabel => T("挂载所选远程存储", "Mount selected Remote");
     public string DownloadSelectedRemoteLabel => T("从所选远程存储下载", "Download from selected Remote");
+    public string CopySelectedRemoteLabel => T("复制到其他远程存储", "Copy to another Remote");
     public IReadOnlyList<DesktopChoice> TransferModeOptions { get; private set; } = [];
     public DesktopChoice TransferModeChoice
     {
@@ -651,6 +653,16 @@ public sealed class DesktopShellState : INotifyPropertyChanged
         CopySourcePath = string.Empty;
         DownloadDestinationPath = string.Empty;
         TransferMode = DesktopTransferMode.Download;
+        Navigate("Transfers");
+    }
+    public void PrepareSelectedRemoteForRemoteCopy()
+    {
+        if (selectedSavedRemote is not { } remote) return;
+        CopySourceRemote = remoteOptions.FirstOrDefault(option => option.Id == remote.Id);
+        CopySourcePath = string.Empty;
+        CopyDestinationRemote = null;
+        CopyDestinationPath = string.Empty;
+        TransferMode = DesktopTransferMode.RemoteCopy;
         Navigate("Transfers");
     }
     public void BeginNewMountProfile()

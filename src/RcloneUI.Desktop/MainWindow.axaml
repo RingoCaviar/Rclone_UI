@@ -140,6 +140,7 @@
                 <Button IsEnabled="{Binding CanBrowseSelectedRemote}" Content="{Binding BrowseSelectedRemoteLabel}" Click="BrowseSelectedRemoteClicked" AutomationProperties.Name="Browse selected Remote" />
                 <Button IsEnabled="{Binding CanPrepareSelectedRemoteForMount}" Content="{Binding MountSelectedRemoteLabel}" Click="MountSelectedRemoteClicked" AutomationProperties.Name="Mount selected Remote" />
                 <Button IsEnabled="{Binding CanPrepareSelectedRemoteForDownload}" Content="{Binding DownloadSelectedRemoteLabel}" Click="DownloadSelectedRemoteClicked" AutomationProperties.Name="Download from selected Remote" />
+                <Button IsEnabled="{Binding CanPrepareSelectedRemoteForRemoteCopy}" Content="{Binding CopySelectedRemoteLabel}" Click="CopySelectedRemoteClicked" AutomationProperties.Name="Copy from selected Remote" />
                 <TextBox Text="{Binding RemoteDeleteConfirmation}" PlaceholderText="{Binding RemoteDeleteConfirmationHint}" AutomationProperties.Name="Remote delete confirmation" />
                 <Button IsEnabled="{Binding CanDeleteSelectedRemote}" Content="{Binding DeleteRemoteLabel}" Click="DeleteRemoteClicked" AutomationProperties.Name="Delete selected Remote" />
               </StackPanel>

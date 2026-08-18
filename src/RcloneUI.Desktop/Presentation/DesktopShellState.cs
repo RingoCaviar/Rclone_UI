@@ -307,6 +307,7 @@ public sealed class DesktopShellState : INotifyPropertyChanged
         "file-rename-confirmation-required" => T("请确认原文件路径并输入不同的新文件名。", "Confirm the original file path and enter a different new file name."),
         "file-rename-invalid" => T("新文件名无效；只能在当前目录中重命名单个文件。", "The new name is invalid; only one file in the current folder can be renamed."),
         "file-rename-failed" => T("无法重命名远程文件。请检查连接和写入权限后重试。", "Could not rename the remote file. Check the connection and write permission, then try again."),
+        "copy-accepted" => T("传输已由后台服务接收，正在开始执行。请在“活动与日志”中查看进度和最终结果。", "The Background Host accepted the transfer and is starting it. Open Activity & Logs for progress and the final result."),
         "copy-cancel-requested" => T("已请求取消传输，正在等待后台服务确认最终状态。", "Cancellation was requested; waiting for the Background Host to confirm the final state."),
         "copy-cancel-not-running" => T("该传输已结束或不再由后台服务管理。", "That transfer already ended or is no longer managed by the Background Host."),
         "copy-cancel-failed" => T("无法取消传输；请稍后刷新活动状态。", "Could not cancel the transfer. Refresh Activity shortly."),

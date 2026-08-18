@@ -395,6 +395,19 @@ public sealed class DesktopShellStateTests
     }
 
     [Fact]
+    public void AcceptedTransferNotificationDoesNotClaimCompletion()
+    {
+        var shell = new DesktopShellState();
+        shell.ApplyAction("copy-accepted");
+
+        Assert.Equal(DesktopActionNotificationKind.Success, shell.ActionNotificationKind);
+        shell.ToggleLanguage();
+        Assert.Contains("accepted", shell.ActionNotificationMessage, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Activity", shell.ActionNotificationMessage, StringComparison.Ordinal);
+        Assert.DoesNotContain("completed", shell.ActionNotificationMessage, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public async Task SelectedRemoteCanOpenFileBrowserAtItsRootWithoutListing()
     {
         var client = new RecordingClient(); var shell = new DesktopShellState(); var controller = new DesktopHostController(client, shell);

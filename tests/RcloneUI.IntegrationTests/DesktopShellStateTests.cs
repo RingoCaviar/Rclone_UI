@@ -433,6 +433,26 @@ public sealed class DesktopShellStateTests
     }
 
     [Fact]
+    public async Task SelectedRemoteCanPrepareAnUnstartedRootDownload()
+    {
+        var client = new RecordingClient(); var shell = new DesktopShellState(); var controller = new DesktopHostController(client, shell);
+        await controller.ReconnectAsync(TestContext.Current.CancellationToken);
+        shell.Navigate("Remotes");
+        shell.SelectedSavedRemote = shell.SavedRemotes[1];
+        shell.CopySourcePath = "old/path";
+        shell.DownloadDestinationPath = "C:\\OldDownloads";
+
+        shell.PrepareSelectedRemoteForDownload();
+
+        Assert.Equal("Transfers", shell.CurrentRoute);
+        Assert.Equal(DesktopTransferMode.Download, shell.TransferMode);
+        Assert.Equal(shell.SavedRemotes[1].Id, shell.CopySourceRemote!.Id);
+        Assert.Empty(shell.CopySourcePath);
+        Assert.Empty(shell.DownloadDestinationPath);
+        Assert.Null(client.CommandType);
+    }
+
+    [Fact]
     public async Task MountConfigurationSummaryShowsTheReadyTargetAndAccessMode()
     {
         var client = new RecordingClient(); var shell = new DesktopShellState(); var controller = new DesktopHostController(client, shell);

@@ -354,6 +354,7 @@ public sealed class DesktopShellState : INotifyPropertyChanged
     public DesktopSavedRemoteOption? SelectedSavedRemote { get => selectedSavedRemote; set { if (selectedSavedRemote?.Id == value?.Id) return; selectedSavedRemote = value; remoteDeleteConfirmation = string.Empty; ChangedAll(); } }
     public bool HasSelectedRemoteDetails => selectedSavedRemote is not null;
     public bool CanBrowseSelectedRemote => selectedSavedRemote is not null;
+    public bool CanPrepareSelectedRemoteForMount => selectedSavedRemote is not null;
     public string SelectedRemoteDetails => selectedSavedRemote is not { } remote ? string.Empty : T($"类型：{RemoteProviderLabel(remote.ProviderType)} · 状态：{RemoteHealthLabel(remote.Health)}", $"Provider: {RemoteProviderLabel(remote.ProviderType)} · Status: {RemoteHealthLabel(remote.Health)}");
     public IBrush SelectedRemoteHealthBrush => selectedSavedRemote?.Health.ToLowerInvariant() switch
     {
@@ -364,6 +365,7 @@ public sealed class DesktopShellState : INotifyPropertyChanged
     public string RemoteDeleteConfirmation { get => remoteDeleteConfirmation; set { if (remoteDeleteConfirmation == value) return; remoteDeleteConfirmation = value; ChangedAll(); } }
     public bool CanDeleteSelectedRemote => selectedSavedRemote is not null && StringComparer.Ordinal.Equals(remoteDeleteConfirmation, selectedSavedRemote.DisplayName);
     public string BrowseSelectedRemoteLabel => T("浏览所选远程存储", "Browse selected Remote");
+    public string MountSelectedRemoteLabel => T("挂载所选远程存储", "Mount selected Remote");
     public IReadOnlyList<DesktopChoice> TransferModeOptions { get; private set; } = [];
     public DesktopChoice TransferModeChoice
     {
@@ -629,6 +631,15 @@ public sealed class DesktopShellState : INotifyPropertyChanged
         BrowserPath = string.Empty;
         BrowserFilter = string.Empty;
         Navigate("Browser");
+    }
+    public void PrepareSelectedRemoteForMount()
+    {
+        if (selectedSavedRemote is not { } remote) return;
+        BeginNewMountProfile();
+        MountRemote = remoteOptions.FirstOrDefault(option => option.Id == remote.Id);
+        MountSubpath = string.Empty;
+        MountProfileName = remote.DisplayName + " root";
+        Navigate("Mounts");
     }
     public void BeginNewMountProfile()
     {

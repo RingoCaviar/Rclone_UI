@@ -414,6 +414,25 @@ public sealed class DesktopShellStateTests
     }
 
     [Fact]
+    public async Task SelectedRemoteCanPrepareAnUnsavedRootMountProfile()
+    {
+        var client = new RecordingClient(); var shell = new DesktopShellState(); var controller = new DesktopHostController(client, shell);
+        await controller.ReconnectAsync(TestContext.Current.CancellationToken);
+        shell.Navigate("Remotes");
+        shell.SelectedSavedRemote = shell.SavedRemotes[1];
+
+        shell.PrepareSelectedRemoteForMount();
+
+        Assert.Equal("Mounts", shell.CurrentRoute);
+        Assert.Null(shell.SelectedMountProfile);
+        Assert.Equal(shell.SavedRemotes[1].Id, shell.MountRemote!.Id);
+        Assert.Empty(shell.MountSubpath);
+        Assert.Equal("Destination root", shell.MountProfileName);
+        Assert.Equal("standard-read-write", shell.MountCachePreset.Key);
+        Assert.Null(client.CommandType);
+    }
+
+    [Fact]
     public async Task MountConfigurationSummaryShowsTheReadyTargetAndAccessMode()
     {
         var client = new RecordingClient(); var shell = new DesktopShellState(); var controller = new DesktopHostController(client, shell);

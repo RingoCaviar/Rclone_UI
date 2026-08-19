@@ -752,6 +752,17 @@ public sealed class DesktopShellStateTests
     }
 
     [Fact]
+    public void EmptyTransferMessageDescribesOnlyAvailableDesktopOperations()
+    {
+        var shell = new DesktopShellState();
+        shell.ToggleLanguage();
+
+        Assert.Contains("download, upload, or Remote copy", shell.EmptyTaskText, StringComparison.Ordinal);
+        Assert.DoesNotContain("preview", shell.EmptyTaskText, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("deletion", shell.EmptyTaskText, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public void SettingsSummarizeHostManagedComponentState()
     {
         using var document = JsonDocument.Parse("""{"session":"operational","rclone":{"status":"ready","version":"v1.75.0","capabilityBinding":"caps","mountAvailable":true},"winFsp":{"status":"ready","version":"2.1-test"}}""");

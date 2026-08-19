@@ -126,7 +126,7 @@ public sealed class DesktopShellState : INotifyPropertyChanged
     public string ShortcutMount => T("▣ 挂载磁盘", "▣ Mount storage");
     public string ShortcutRemote => T("☁ 添加远程存储", "☁ Add Remote");
     public string TransferCardHeading => T("传输任务", "Transfer tasks");
-    public string EmptyTaskText => T("暂无运行中的任务。创建任务前会先展示变更预览和删除风险。", "No tasks are running. Changes and deletion risks are shown before a task starts.");
+    public string EmptyTaskText => T("暂无运行中的传输。可在“传输任务”中开始下载、上传或远程复制。", "No transfers are running. Start a download, upload, or Remote copy in Transfers.");
     public string HomeTransferStatus => CopyStatus;
     public string RemoteHealthHeading => T("远程存储健康", "Remote health");
     public string NoRemoteText => T("尚未添加远程存储", "No Remotes added");
